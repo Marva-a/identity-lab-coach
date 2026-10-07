@@ -1,4 +1,4 @@
-// UI: renders the views (Today, Week, Flashcards, Scorecard, Settings) and wires up events.
+// UI: renders the views (Today, Week, Flashcards, Evidence, People, Scorecard, Settings) and wires up events.
 // Views are plain HTML strings; events use delegation on <main>.
 import * as store from './store.js';
 import * as T from './timer.js';
@@ -14,6 +14,14 @@ import { weekView, weekActions, handleWeekChange, resetWeekView } from './week.j
 import {
   scorecardView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
 } from './scorecard.js';
+import {
+  evidenceView, evidenceActions, submitEvidenceForm, submitPublishForm, handleEvidenceChange, handleEvidenceInput,
+  resetEvidenceView,
+} from './evidence.js';
+import {
+  peopleView, peopleActions, todayFollowUpsHtml, submitPersonForm, submitInteractionForm, handlePeopleInput,
+  selectPersonOnNavigate, resetPeopleView,
+} from './people.js';
 
 const mainEl = document.getElementById('main');
 const bannersEl = document.getElementById('banners');
@@ -58,8 +66,16 @@ function renderBanners() {
   if (testDate.enabled) {
     parts.push(`
       <div class="banner" role="region" aria-label="Test date">
-        <p><strong>Test date on.</strong> Showing ${esc(formatLong(today()))} instead of today. Sessions you log now are marked as test sessions.</p>
+        <p><strong>Test date on.</strong> Showing ${esc(formatLong(today()))} instead of today. Anything you log now is marked as test data.</p>
         <button type="button" class="button--small" data-action="test-off">Turn off test date</button>
+      </div>`);
+  }
+  const notice = store.getSettings().migrationNotice;
+  if (notice) {
+    parts.push(`
+      <div class="banner banner--info" role="region" aria-label="Your data was converted">
+        <p><strong>Your data was converted.</strong> ${esc(notice)}</p>
+        <button type="button" class="button--small" data-action="dismiss-notice">Dismiss</button>
       </div>`);
   }
   if (!store.storageAvailable) {
@@ -363,6 +379,7 @@ function todayView() {
   const studyish = ['study', 'bridge', 'applications'].includes(ctx.kind);
   return [
     headerHtml(ctx),
+    todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
     itemsHtml(ctx),
     timerHtml(ctx),
@@ -379,9 +396,11 @@ function settingsView() {
   const backup = store.getBackupInfo();
   const summaryText = (sum) =>
     [plural(sum.sessions, 'session', 'sessions'), plural(sum.cards, 'card', 'cards'),
-      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'scorecard entry', 'scorecard entries'),
-      plural(sum.artifacts, 'artifact', 'artifacts'),
-      plural(sum.people, 'person', 'people'), plural(sum.reviews, 'review', 'reviews')].join(', ');
+      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'quick entry', 'quick entries'),
+      plural(sum.artifacts, 'evidence item', 'evidence items'), plural(sum.people, 'person', 'people'),
+      plural(sum.interactions ?? 0, 'interaction', 'interactions'), plural(sum.reviews, 'review', 'reviews')].join(', ');
+  const migrationBackups = store.getMigrationBackups();
+  const reasonText = { update: 'Converted when the app updated', import: 'Older file imported', restore: 'Older backup restored' };
   const tzInfo = timeZoneInfo();
   const when = (iso) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Vancouver', dateStyle: 'medium', timeStyle: 'short' });
 
@@ -406,6 +425,7 @@ function settingsView() {
     ? `
       <div class="note note--gate" id="import-preview" tabindex="-1" role="region" aria-label="Import preview">
         <p><strong>Ready to import.</strong> The file contains ${esc(summaryText(ui.importPreview.summary))}${ui.importPreview.summary.exportedAt ? ` (exported ${esc(when(ui.importPreview.summary.exportedAt))})` : ''}.</p>
+        ${ui.importPreview.migration ? `<p><strong>This is an older file (schema ${esc(ui.importPreview.migration.fromVersion)}).</strong> It will be converted to the current format first${ui.importPreview.migration.notice ? `: ${esc(ui.importPreview.migration.notice.replace(/\.$/, ''))}` : '. It has no quick entries to convert'}. The scorecard numbers were checked and are unchanged.</p>` : ''}
         <p><strong>Importing replaces all your current data</strong> (${esc(summaryText(store.summarize(store.getData())))}). A copy of your current data is kept in this browser, and you can restore it below.</p>
         <div class="button-row">
           <button type="button" class="button--danger" data-action="import-confirm">Replace my data with this file</button>
@@ -438,10 +458,10 @@ function settingsView() {
         <span class="hint" id="test-date-hint">Applies only while the box above is checked. Real today in Vancouver: ${esc(formatLong(vancouverDate()))}.</span>
       </div>
       ${testCount ? `
-        <p>Test data saved: ${plural(testData.sessions, 'session', 'sessions')}, ${plural(testData.cardReviews, 'card rating', 'card ratings')}, ${plural(testData.tallies, 'scorecard entry', 'scorecard entries')} and ${plural(testData.weekChecks, 'ticked item', 'ticked items')}.</p>
+        <p>Test data saved: ${esc(describeTestData(testData))}.</p>
         <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
       <h3>Date and scheduling checks</h3>
-      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling and when each week's cards unlock. Nothing is changed.</p>
+      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence and people rules, and the data migration. Nothing is changed.</p>
       <button type="button" data-action="run-checks">Run date checks</button>
       ${checks}
     </section>
@@ -488,6 +508,51 @@ function settingsView() {
         <h3>Undo the last import</h3>
         <p class="meta">Saved ${esc(when(backup.savedAt))}: ${esc(summaryText(backup.summary))}.</p>
         <button type="button" data-action="restore-backup">Restore data from before the last import</button>` : ''}
+
+      ${migrationBackups.length ? `
+        <h3 id="migration-backups-heading" tabindex="-1">Copies from before a data conversion</h3>
+        <p class="meta">When the app converts older data to a newer format, it keeps a copy of the old data here until you delete it. Download one to keep it as a file.</p>
+        <ul class="log-list">
+          ${migrationBackups.map((b) => `
+            <li>
+              <span><strong>${esc(when(b.savedAt))}</strong> · ${esc(reasonText[b.reason] ?? b.reason)} · format ${esc(b.fromVersion ?? '?')}${b.summary ? `<br><span class="meta">${esc(summaryText(b.summary))}</span>` : ''}</span>
+              <span class="button-row">
+                <button type="button" class="button--small" data-action="backup-download" data-id="${esc(b.id)}">Download</button>
+                <button type="button" class="button--small button--danger" data-action="backup-delete" data-id="${esc(b.id)}">Delete this copy</button>
+              </span>
+            </li>`).join('')}
+        </ul>` : ''}
+    </section>`;
+}
+
+/** A readable list of the test data present, leaving out categories with none. */
+function describeTestData(n) {
+  const parts = [
+    n.sessions && plural(n.sessions, 'session', 'sessions'),
+    n.cardReviews && plural(n.cardReviews, 'card rating', 'card ratings'),
+    n.tallies && plural(n.tallies, 'quick entry', 'quick entries'),
+    n.artifacts && plural(n.artifacts, 'evidence item', 'evidence items'),
+    n.people && plural(n.people, 'person', 'people'),
+    n.interactions && plural(n.interactions, 'interaction', 'interactions'),
+    n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'none';
+}
+
+/** Shown instead of the app when stored data could not be converted safely. */
+function loadProblemView(problem) {
+  return `
+    <h1 id="day-heading" tabindex="-1">Your saved data was not changed</h1>
+    <section class="card" aria-labelledby="problem-heading">
+      <h2 id="problem-heading">The update could not convert it safely</h2>
+      <div class="error-summary" role="alert">
+        <ul>${problem.problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+      </div>
+      <p><strong>Nothing was saved or changed.</strong> Your data is exactly as it was in this browser. The app is paused so it can't overwrite it.</p>
+      <p>Download a copy of your data now, then share this message with whoever maintains the app.</p>
+      <div class="button-row">
+        <button type="button" class="button--primary" data-action="problem-download">Download my data</button>
+      </div>
     </section>`;
 }
 
@@ -503,9 +568,11 @@ function render({ focus } = {}) {
   });
   renderedDate = today();
   const views = {
-    today: todayView, week: weekView, cards: flashcardsView, scorecard: scorecardView, settings: settingsView,
+    today: todayView, week: weekView, cards: flashcardsView, evidence: evidenceView, people: peopleView,
+    scorecard: scorecardView, settings: settingsView,
   };
-  mainEl.innerHTML = views[route]();
+  const problem = store.getLoadProblem();
+  mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
   updateTimerDisplay();
 
   // `focus` may list fallbacks ("#a, #b"): use the first one that exists, in that order.
@@ -598,18 +665,23 @@ function saveLog(form) {
   render({ focus: '#log-flash' });
 }
 
-function downloadExport() {
-  const blob = new Blob([store.exportJson()], { type: 'application/json' });
+function downloadText(fileName, text) {
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = store.exportFileName(vancouverDate());
+  a.download = fileName;
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadExport() {
+  const fileName = store.exportFileName(vancouverDate());
+  downloadText(fileName, store.exportJson());
   store.updateSettings({ lastExportedAt: new Date().toISOString() });
-  ui.dataMessage = `Exported ${a.download}.`;
+  ui.dataMessage = `Exported ${fileName}.`;
   render({ focus: '#data-message' });
 }
 
@@ -663,12 +735,32 @@ const actions = {
     announce('Session deleted.');
     render({ focus: '#log-heading' });
   },
+  'dismiss-notice': () => {
+    store.dismissMigrationNotice();
+    announce('Notice dismissed.');
+    render({ focus: '#day-heading' });
+  },
+  'problem-download': () => {
+    const problem = store.getLoadProblem();
+    if (problem) downloadText(`identity-lab-coach-saved-data-${vancouverDate()}.json`, problem.rawText);
+  },
+  'backup-download': (el) => {
+    const text = store.getMigrationBackupText(el.dataset.id);
+    if (text) downloadText(`identity-lab-coach-before-conversion-${vancouverDate()}.json`, text);
+  },
+  'backup-delete': (el) => {
+    if (!window.confirm('Delete this copy of your old data? This cannot be undone.')) return;
+    store.deleteMigrationBackup(el.dataset.id);
+    ui.dataMessage = 'Copy deleted.';
+    announce(ui.dataMessage);
+    render({ focus: '#data-message' });
+  },
   'delete-test-data': () => {
     const n = store.countTestData();
-    const what = `${plural(n.sessions, 'test session', 'test sessions')}, ${plural(n.cardReviews, 'card rating', 'card ratings')}, ${plural(n.tallies, 'scorecard entry', 'scorecard entries')} and ${plural(n.weekChecks, 'ticked item', 'ticked items')}`;
-    if (!window.confirm(`Delete ${what}? Real data is kept, and card schedules go back to what your real ratings give.`)) return;
+    const what = describeTestData(n);
+    if (!window.confirm(`Delete test data (${what})? Real data is kept, and card schedules go back to what your real ratings give.`)) return;
     store.deleteTestData();
-    ui.dataMessage = `Deleted ${what}.`;
+    ui.dataMessage = `Deleted test data: ${what}.`;
     render({ focus: '#test-heading' });
   },
   'run-checks': () => {
@@ -677,7 +769,8 @@ const actions = {
   },
   export: downloadExport,
   'import-confirm': () => {
-    const result = store.replaceWithImport(ui.importPreview.doc);
+    const converted = ui.importPreview.migration;
+    const result = store.replaceWithImport(ui.importPreview);
     ui.importPreview = null;
     if (!result.ok) {
       ui.importProblems = result.problems;
@@ -685,7 +778,7 @@ const actions = {
       return;
     }
     activeTimer = T.loadTimer();
-    ui.dataMessage = 'Import complete. Your previous data is kept as a backup below.';
+    ui.dataMessage = `Import complete.${converted ? ' The older file was converted, and a copy of it is kept below.' : ''} Your previous data is kept as a backup below.`;
     announce(ui.dataMessage);
     render({ focus: '#data-message' });
   },
@@ -696,18 +789,27 @@ const actions = {
   },
   'restore-backup': () => {
     if (!window.confirm('Restore the data from before the last import? Your current data becomes the new backup, so you can switch back.')) return;
-    store.restoreBackup();
+    const result = store.restoreBackup();
+    if (!result.ok) {
+      ui.importProblems = result.problems;
+      render({ focus: '#import-errors' });
+      return;
+    }
     ui.dataMessage = 'Restored the data from before the last import.';
     render({ focus: '#data-message' });
   },
 };
 
 mainEl.addEventListener('click', (e) => {
+  // A follow-up link on Today opens that person's page (the link itself navigates).
+  const personLink = e.target.closest('[data-person-link]');
+  if (personLink) selectPersonOnNavigate(personLink.dataset.personLink);
   const el = e.target.closest('[data-action]');
   if (!el) return;
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
   else {
-    const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action];
+    const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action]
+      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action];
     if (!handler) return;
     const focus = handler(el);
     render(focus ? { focus } : {});
@@ -728,6 +830,18 @@ mainEl.addEventListener('submit', (e) => {
   } else if (e.target.id === 'tally-form') {
     e.preventDefault();
     render({ focus: submitTallyForm(e.target) });
+  } else if (e.target.id === 'evidence-form') {
+    e.preventDefault();
+    render({ focus: submitEvidenceForm(e.target) });
+  } else if (e.target.id === 'publish-form') {
+    e.preventDefault();
+    render({ focus: submitPublishForm(e.target) });
+  } else if (e.target.id === 'person-form') {
+    e.preventDefault();
+    render({ focus: submitPersonForm(e.target) });
+  } else if (e.target.id === 'interaction-form') {
+    e.preventDefault();
+    render({ focus: submitInteractionForm(e.target) });
   }
 });
 
@@ -737,11 +851,13 @@ mainEl.addEventListener('input', (e) => {
   if (map[e.target.id]) ui.logDraft[map[e.target.id]] = e.target.value;
   handleCardInput(e.target);
   handleTallyInput(e.target);
+  handleEvidenceInput(e.target);
+  handlePeopleInput(e.target);
 });
 
 mainEl.addEventListener('change', async (e) => {
   const t = e.target;
-  const cardFocus = handleCardChange(t) ?? handleWeekChange(t);
+  const cardFocus = handleCardChange(t) ?? handleWeekChange(t) ?? handleEvidenceChange(t);
   if (cardFocus) {
     render({ focus: cardFocus });
   } else if (t.name === 'status' && t.closest('#log-form')) {
@@ -784,7 +900,10 @@ mainEl.addEventListener('change', async (e) => {
 // ─── Routing and start-up ────────────────────────────────────────────────────
 
 function routeFromHash() {
-  return { '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard' }[location.hash] ?? 'today';
+  return {
+    '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard',
+    '#evidence': 'evidence', '#people': 'people',
+  }[location.hash] ?? 'today';
 }
 
 window.addEventListener('hashchange', () => {
@@ -794,6 +913,8 @@ window.addEventListener('hashchange', () => {
   resetCardMessages();
   resetScorecardMessages();
   resetWeekView();
+  resetEvidenceView();
+  resetPeopleView();
   render({ focus: '#day-heading' });
 });
 

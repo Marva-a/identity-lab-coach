@@ -11,18 +11,19 @@
 // a server, a sync step or an append-only audit log will need. Add an
 // `ownerId` field at that point; no record needs one while the data is local.
 //
-// ─── Data model (schemaVersion 3) ─────────────────────────────────────────────
+// ─── Data model (schemaVersion 4) ─────────────────────────────────────────────
 //
 // AppData {
-//   schemaVersion: 3,
+//   schemaVersion: 4,
 //   app: 'identity-lab-coach',
 //   sessions:    Session[],     // Stage 1
 //   cards:       Card[],        // Stage 2: flashcards
 //   cardReviews: CardReview[],  // Stage 2: append-only log of every rating
 //   cardSeedVersion: number,    // which seed-card set has been added
-//   tallies:     Tally[],       // Stage 3: quick "+1 with date" scorecard entries
-//   artifacts:  Artifact[],  // Stage 4: evidence log
-//   people:     Person[],    // Stage 6: people log
+//   tallies:     Tally[],       // quick "+1 with date" entries (applications only)
+//   artifacts:    Artifact[],    // Stage 4: evidence log
+//   people:       Person[],      // Stage 4: people log
+//   interactions: Interaction[], // Stage 4: conversations and referral asks
 //   reviews:    Review[],    // Stage 7: Friday reviews
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
 //   settings:   Settings,
@@ -64,23 +65,59 @@
 //   testMode: boolean
 // }
 //
-// Tally {            — one quick scorecard entry (Stage 3)
+// Tally {            — one quick scorecard entry
 //   id, createdAt,
-//   kind: 'artifact' | 'conversation' | 'application' | 'referral'
+//   kind: 'application'     (Stage 3 also had artifact, conversation and
+//                            referral; migrate.js converts those, see below)
 //   date: 'YYYY-MM-DD'      when it happened
-//   note: string            optional, one line (for example "PKCE diagram")
+//   note: string            optional, one line (for example "Acme, design lead")
 //   testMode: boolean
 // }
-// The scorecard counts tallies PLUS the matching full records from later
-// stages (artifacts from Stage 4, and so on). When Stage 4 is built, each
-// artifact tally will be turned into an Artifact record with the same id, date
-// and note (title), and then removed from tallies, so the count never changes
-// and nothing is lost.
+//
+// Artifact {         — one piece of evidence (Stage 4)
+//   id, createdAt, updatedAt,
+//   title, type: 'project-slice'|'write-up'|'threat-model'|'diagram'|'repo'|'post'|'other'
+//   status: 'draft' | 'published'
+//   createdDate: 'YYYY-MM-DD'
+//   publishedDate: 'YYYY-MM-DD' | null   only when published
+//   url: string             optional, http(s) only
+//   tags: string[]          "what this proves": up to 3 skill tags
+//   reflection: string      short note
+//   migrated: boolean       true if converted from a Stage 3 "+1" entry
+//   testMode: boolean
+// }
+// The scorecard counts an artifact ONLY when it is published, dated by its
+// published date. Drafts never count.
+//
+// Person {           — one person (Stage 4)
+//   id, createdAt, updatedAt,
+//   name, organization, role, notes
+//   connection: 'warm-intro'|'cold-message'|'event'|'community'|'other'
+//   link: string            optional, http(s) only; the app never fetches it
+//   migrated: boolean       true for the placeholder "Unassigned (migrated)"
+//   testMode: boolean
+// }
+//
+// Interaction {      — one conversation or referral ask with a person
+//   id, createdAt, updatedAt,
+//   personId, date: 'YYYY-MM-DD'
+//   type: 'conversation' | 'referral'
+//   outcome: string         outcome note
+//   followUpDue: 'YYYY-MM-DD' | null
+//   followUpDoneAt: ISO string | null
+//   migrated, testMode: boolean
+// }
+// The scorecard counts conversations and referral asks from interactions,
+// by their dates.
+//
+// Migration (migrate.js): data from Stages 1–3 (schema 1–3) is converted on
+// first load, and on import. Artifact "+1" entries become published Artifacts;
+// conversation and referral "+1" entries become Interactions under one person,
+// "Unassigned (migrated)". Applications stay as tallies. The scorecard counts
+// are checked before saving; if they differ, nothing is saved. A copy of the
+// old data is kept under MIGRATION_BACKUPS_KEY until you delete it in Settings.
 //
 // Planned for later stages (shapes agreed in the brief; adjust when built):
-// Artifact { id, title, date, link, week, exercise, project,
-//            label: 'implemented'|'simulated'|'conceptual' }
-// Person   { id, name, role, company, metAt, date, notes, followUpDate }
 // Review   { id, week, date, answers: { explain, built, blocked, change } }
 //
 // Plan content (weeks, days, exercises) and scorecard targets are seed data in
@@ -91,17 +128,23 @@
 //   testDate: { enabled: boolean, date: 'YYYY-MM-DD' },  // off by default
 //   swapWeeks2and5: boolean,                              // off by default
 //   lastExportedAt: ISO string | null,                    // shown next to Export
+//   migrationNotice: string | null,                       // one-time message after a migration
 // }
 
 import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
+import {
+  SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
+} from './records.js';
+import { migrate, needsMigration } from './migrate.js';
 
+export { SCHEMA_VERSION };
 export const STORAGE_KEY = 'identity-lab-coach:data';
 export const BACKUP_KEY = 'identity-lab-coach:backup-before-import';
-export const SCHEMA_VERSION = 3;
+export const MIGRATION_BACKUPS_KEY = 'identity-lab-coach:migration-backups';
 const APP_ID = 'identity-lab-coach';
 
-const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'tallies', 'artifacts', 'people', 'reviews'];
+const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'tallies', 'artifacts', 'people', 'interactions', 'reviews'];
 export const SESSION_STATUSES = ['done', 'partial', 'skipped'];
 export const REASON_MAX = 140;
 export const MINUTES_MAX = 600;
@@ -112,6 +155,7 @@ function defaultSettings() {
     testDate: { enabled: false, date: '' },
     swapWeeks2and5: false,
     lastExportedAt: null,
+    migrationNotice: null,
   };
 }
 
@@ -126,6 +170,7 @@ function emptyData() {
     tallies: [],
     artifacts: [],
     people: [],
+    interactions: [],
     reviews: [],
     weekChecks: {},
     settings: defaultSettings(),
@@ -177,20 +222,50 @@ function normalize(raw) {
   return out;
 }
 
+/**
+ * Set when stored data could not be converted safely. While it is set, nothing
+ * is ever written, and the app shows the message instead of running.
+ */
+let loadProblem = null;
+export function getLoadProblem() {
+  return loadProblem;
+}
+
 export function load() {
+  loadProblem = null;
+  let migrated = false;
   const text = readKey(STORAGE_KEY);
   if (!text) {
     data = emptyData();
   } else {
+    let raw = null;
     try {
-      data = normalize(JSON.parse(text));
+      raw = JSON.parse(text);
     } catch {
       // Corrupt data: keep a copy rather than overwriting it, then start fresh.
       writeKey(`${STORAGE_KEY}:corrupt-${Date.now()}`, text);
       data = emptyData();
     }
+    if (raw) {
+      const result = migrate(raw);
+      if (!result.ok) {
+        loadProblem = { problems: result.problems, rawText: text };
+        data = emptyData();
+        return data;
+      }
+      if (result.changed && !saveMigrationBackup({ reason: 'update', fromVersion: result.fromVersion, text })) {
+        loadProblem = {
+          problems: ['Could not save a backup of your old data, so nothing was converted. Free up browser storage or export your data, then reload.'],
+          rawText: text,
+        };
+        data = emptyData();
+        return data;
+      }
+      data = normalize(result.doc);
+      migrated = result.changed;
+    }
   }
-  if (seedCards()) persist();
+  if (seedCards() || migrated) persist();
   return data;
 }
 
@@ -228,6 +303,7 @@ function seedCards() {
 }
 
 function persist() {
+  if (loadProblem) return false; // never overwrite data we could not convert safely
   return writeKey(STORAGE_KEY, JSON.stringify(data));
 }
 
@@ -301,6 +377,9 @@ export function countTestData() {
     sessions: data.sessions.filter((s) => s.testMode).length,
     cardReviews: data.cardReviews.filter((r) => r.testMode).length,
     tallies: data.tallies.filter((t) => t.testMode).length,
+    artifacts: data.artifacts.filter((a) => a.testMode).length,
+    people: data.people.filter((p) => p.testMode).length,
+    interactions: data.interactions.filter((i) => i.testMode).length,
     weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
   };
 }
@@ -311,6 +390,14 @@ export function deleteTestData() {
   data.sessions = data.sessions.filter((s) => !s.testMode);
   data.cardReviews = data.cardReviews.filter((r) => !r.testMode);
   data.tallies = data.tallies.filter((t) => !t.testMode);
+  data.artifacts = data.artifacts.filter((a) => !a.testMode);
+  data.interactions = data.interactions.filter((i) => !i.testMode);
+  // A person made while testing goes too, unless a real interaction is logged
+  // under them (then they become a real person). A migrated placeholder with
+  // nothing left under it also goes.
+  const stillUsed = new Set(data.interactions.map((i) => i.personId));
+  data.people = data.people.filter((p) => !((p.testMode || p.migrated) && !stillUsed.has(p.id)));
+  for (const p of data.people) if (p.testMode) p.testMode = false;
   data.weekChecks = Object.fromEntries(Object.entries(data.weekChecks).filter(([, c]) => !c.testMode));
   persist();
   return counts;
@@ -328,9 +415,9 @@ export function setChecked(itemId, checked, testMode) {
   persist();
 }
 
-// ─── Scorecard tallies (Stage 3) ─────────────────────────────────────────────
+// ─── Quick "+1" entries (applications only since Stage 4) ───────────────────
 
-export const TALLY_KINDS = ['artifact', 'conversation', 'application', 'referral'];
+export const TALLY_KINDS = ['application'];
 export const NOTE_MAX = 140;
 
 export function validateTally(t) {
@@ -363,14 +450,210 @@ export function deleteTally(id) {
 }
 
 /**
- * Dates of everything that counts toward each scorecard measure.
- * Later stages add their full records here (for example Stage 4 artifacts),
- * so the scorecard never needs to change when they arrive.
+ * Dates of everything that counts toward each scorecard measure: published
+ * artifacts (by published date), interactions (by date) and application entries.
  */
 export function scorecardCounts() {
-  const counts = Object.fromEntries(TALLY_KINDS.map((k) => [k, []]));
-  for (const t of data.tallies) counts[t.kind].push(t.date);
-  return counts;
+  return countsFromDoc(data);
+}
+
+// ─── Evidence log (Stage 4) ──────────────────────────────────────────────────
+
+function cleanArtifactFields(f) {
+  const status = f.status;
+  return {
+    title: String(f.title ?? '').trim(),
+    type: f.type,
+    status,
+    createdDate: f.createdDate,
+    publishedDate: status === 'published' ? f.publishedDate : null,
+    url: String(f.url ?? '').trim(),
+    tags: normalizeTags(f.tags),
+    reflection: String(f.reflection ?? '').trim(),
+  };
+}
+
+export function getArtifact(id) {
+  return data.artifacts.find((a) => a.id === id);
+}
+
+export function addArtifact(fields, testMode) {
+  const now = new Date().toISOString();
+  const artifact = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    ...cleanArtifactFields(fields),
+    migrated: false,
+    testMode: Boolean(testMode),
+  };
+  const problems = validateArtifact(artifact);
+  if (problems.length) return { ok: false, problems };
+  data.artifacts.push(artifact);
+  const saved = persist();
+  return { ok: true, artifact, saved };
+}
+
+/** Edits an artifact. Its status only changes through publishArtifact. */
+export function updateArtifact(id, fields) {
+  const artifact = getArtifact(id);
+  if (!artifact) return { ok: false, problems: ['That evidence no longer exists.'] };
+  const next = {
+    ...artifact,
+    ...cleanArtifactFields({ ...fields, status: artifact.status }),
+    updatedAt: new Date().toISOString(),
+  };
+  const problems = validateArtifact(next);
+  if (problems.length) return { ok: false, problems };
+  Object.assign(artifact, next);
+  persist();
+  return { ok: true, artifact };
+}
+
+/** Moves a draft to published, with the date it was published. */
+export function publishArtifact(id, publishedDate) {
+  const artifact = getArtifact(id);
+  if (!artifact) return { ok: false, problems: ['That evidence no longer exists.'] };
+  const next = { ...artifact, status: 'published', publishedDate, updatedAt: new Date().toISOString() };
+  const problems = validateArtifact(next);
+  if (problems.length) return { ok: false, problems };
+  Object.assign(artifact, next);
+  const saved = persist();
+  return { ok: true, artifact, saved };
+}
+
+export function deleteArtifact(id) {
+  data.artifacts = data.artifacts.filter((a) => a.id !== id);
+  persist();
+}
+
+/** Every skill tag in use, once each (ignoring capitals), alphabetically. */
+export function allSkillTags() {
+  const seen = new Map();
+  for (const a of data.artifacts) {
+    for (const t of a.tags ?? []) if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// ─── People log (Stage 4) ────────────────────────────────────────────────────
+
+function cleanPersonFields(f) {
+  return {
+    name: String(f.name ?? '').trim(),
+    organization: String(f.organization ?? '').trim(),
+    role: String(f.role ?? '').trim(),
+    connection: f.connection,
+    notes: String(f.notes ?? '').trim(),
+    link: String(f.link ?? '').trim(),
+  };
+}
+
+export function getPerson(id) {
+  return data.people.find((p) => p.id === id);
+}
+
+export function addPerson(fields, testMode) {
+  const now = new Date().toISOString();
+  const person = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    ...cleanPersonFields(fields),
+    migrated: false,
+    testMode: Boolean(testMode),
+  };
+  const problems = validatePerson(person);
+  if (problems.length) return { ok: false, problems };
+  data.people.push(person);
+  persist();
+  return { ok: true, person };
+}
+
+export function updatePerson(id, fields) {
+  const person = getPerson(id);
+  if (!person) return { ok: false, problems: ['That person no longer exists.'] };
+  const next = { ...person, ...cleanPersonFields(fields), updatedAt: new Date().toISOString() };
+  const problems = validatePerson(next);
+  if (problems.length) return { ok: false, problems };
+  Object.assign(person, next);
+  persist();
+  return { ok: true, person };
+}
+
+/** Deletes a person and every interaction logged under them. */
+export function deletePerson(id) {
+  data.people = data.people.filter((p) => p.id !== id);
+  data.interactions = data.interactions.filter((i) => i.personId !== id);
+  persist();
+}
+
+export function interactionsFor(personId) {
+  return data.interactions
+    .filter((i) => i.personId === personId)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+}
+
+function cleanInteractionFields(f) {
+  return {
+    personId: f.personId,
+    date: f.date,
+    type: f.type,
+    outcome: String(f.outcome ?? '').trim(),
+    followUpDue: f.followUpDue ? f.followUpDue : null,
+  };
+}
+
+export function addInteraction(fields, testMode) {
+  const now = new Date().toISOString();
+  const interaction = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    ...cleanInteractionFields(fields),
+    followUpDoneAt: null,
+    migrated: false,
+    testMode: Boolean(testMode),
+  };
+  const problems = validateInteraction(interaction);
+  if (!getPerson(interaction.personId)) problems.push('That person no longer exists.');
+  if (problems.length) return { ok: false, problems };
+  data.interactions.push(interaction);
+  const saved = persist();
+  return { ok: true, interaction, saved };
+}
+
+export function updateInteraction(id, fields) {
+  const interaction = data.interactions.find((i) => i.id === id);
+  if (!interaction) return { ok: false, problems: ['That interaction no longer exists.'] };
+  const next = { ...interaction, ...cleanInteractionFields(fields), updatedAt: new Date().toISOString() };
+  if (next.followUpDue !== interaction.followUpDue) next.followUpDoneAt = null; // a new follow-up date is not done yet
+  const problems = validateInteraction(next);
+  if (!getPerson(next.personId)) problems.push('That person no longer exists.');
+  if (problems.length) return { ok: false, problems };
+  Object.assign(interaction, next);
+  persist();
+  return { ok: true, interaction };
+}
+
+export function deleteInteraction(id) {
+  data.interactions = data.interactions.filter((i) => i.id !== id);
+  persist();
+}
+
+export function setFollowUpDone(id, done) {
+  const interaction = data.interactions.find((i) => i.id === id);
+  if (!interaction || !interaction.followUpDue) return;
+  interaction.followUpDoneAt = done ? new Date().toISOString() : null;
+  interaction.updatedAt = new Date().toISOString();
+  persist();
+}
+
+/** Follow-ups not yet done, soonest first. With `onOrBefore`, only those due by that date. */
+export function pendingFollowUps(onOrBefore) {
+  return data.interactions
+    .filter((i) => i.followUpDue && !i.followUpDoneAt && (!onOrBefore || i.followUpDue <= onOrBefore))
+    .sort((a, b) => a.followUpDue.localeCompare(b.followUpDue) || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ─── Cards ───────────────────────────────────────────────────────────────────
@@ -499,14 +782,17 @@ export function summarize(doc) {
     tallies: doc.tallies?.length ?? 0,
     artifacts: doc.artifacts?.length ?? 0,
     people: doc.people?.length ?? 0,
+    interactions: doc.interactions?.length ?? 0,
     reviews: doc.reviews?.length ?? 0,
     exportedAt: doc.exportedAt ?? null,
   };
 }
 
 /**
- * Checks an import file without changing anything.
- * Returns { ok: true, doc, summary } or { ok: false, problems }.
+ * Checks an import file without changing anything. An older (Stage 1–3) file
+ * is converted by the same migration as on load, and checked the same way.
+ * Returns { ok: true, doc, summary, migration } or { ok: false, problems }.
+ * `migration` is null for a current file, otherwise { fromVersion, notice, rawText }.
  */
 export function parseImport(text) {
   let raw;
@@ -548,28 +834,65 @@ export function parseImport(text) {
       }
     });
   }
-  if (Array.isArray(raw.tallies)) {
-    raw.tallies.forEach((t, i) => {
-      const p = validateTally(t ?? {});
-      if (!t?.id) p.push('missing id');
-      if (p.length) problems.push(`Scorecard entry ${i + 1}: ${p.join(' ')}`);
-    });
-  }
   if (raw.weekChecks !== undefined && (typeof raw.weekChecks !== 'object' || Array.isArray(raw.weekChecks) || raw.weekChecks === null)) {
     problems.push('"weekChecks" should be an object.');
   }
   if (problems.length) return { ok: false, problems: problems.slice(0, 8) };
-  const doc = normalize(raw);
-  return { ok: true, doc, summary: summarize(raw) };
+
+  // Older files: convert with the same migration (and the same before/after check) as on load.
+  let doc = raw;
+  let migration = null;
+  if (needsMigration(raw)) {
+    const result = migrate(raw);
+    if (!result.ok) return { ok: false, problems: result.problems.slice(0, 8) };
+    doc = result.doc;
+    migration = { fromVersion: result.fromVersion, notice: result.notice, rawText: text };
+  }
+
+  // Everything below checks the converted document.
+  (doc.tallies ?? []).forEach((t, i) => {
+    const p = validateTally(t ?? {});
+    if (!t?.id) p.push('missing id');
+    if (p.length) problems.push(`Quick entry ${i + 1}: ${p.join(' ')}`);
+  });
+  (doc.artifacts ?? []).forEach((a, i) => {
+    const p = validateArtifact(a ?? {});
+    if (!a?.id) p.push('missing id');
+    if (p.length) problems.push(`Evidence ${i + 1}: ${p.join(' ')}`);
+  });
+  (doc.people ?? []).forEach((person, i) => {
+    const p = validatePerson(person ?? {});
+    if (!person?.id) p.push('missing id');
+    if (p.length) problems.push(`Person ${i + 1}: ${p.join(' ')}`);
+  });
+  const personIds = new Set((doc.people ?? []).map((person) => person?.id));
+  (doc.interactions ?? []).forEach((it, i) => {
+    const p = validateInteraction(it ?? {});
+    if (!it?.id) p.push('missing id');
+    if (it?.personId && !personIds.has(it.personId)) p.push('that person is not in the file');
+    if (p.length) problems.push(`Interaction ${i + 1}: ${p.join(' ')}`);
+  });
+  if (problems.length) return { ok: false, problems: problems.slice(0, 8) };
+
+  return { ok: true, doc: normalize(doc), summary: summarize(raw), migration };
 }
 
-/** Replaces all data with an imported document, keeping a backup of the current data first. */
-export function replaceWithImport(doc) {
+/**
+ * Replaces all data with a document from parseImport, keeping a backup of the
+ * current data first (and a copy of an older file's original contents).
+ */
+export function replaceWithImport(parsed) {
   const backup = { savedAt: new Date().toISOString(), data };
   if (!writeKey(BACKUP_KEY, JSON.stringify(backup))) {
     return { ok: false, problems: ['Could not save a backup of your current data, so nothing was replaced.'] };
   }
-  data = normalize(doc);
+  if (parsed.migration && !saveMigrationBackup({
+    reason: 'import', fromVersion: parsed.migration.fromVersion, text: parsed.migration.rawText,
+  })) {
+    return { ok: false, problems: ['Could not save a copy of the older file, so nothing was replaced.'] };
+  }
+  loadProblem = null;
+  data = normalize(parsed.doc);
   seedCards();
   persist();
   return { ok: true };
@@ -589,12 +912,75 @@ export function getBackupInfo() {
 /** Swaps the current data with the backup taken before the last import. */
 export function restoreBackup() {
   const text = readKey(BACKUP_KEY);
-  if (!text) return false;
-  const backup = JSON.parse(text);
+  if (!text) return { ok: false, problems: ['There is no backup to restore.'] };
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch {
+    return { ok: false, problems: ['The backup could not be read.'] };
+  }
+  // A backup made by an older version of the app goes through the migration too.
+  const result = migrate(backup.data);
+  if (!result.ok) return { ok: false, problems: result.problems };
+  if (result.changed && !saveMigrationBackup({
+    reason: 'restore', fromVersion: result.fromVersion, text: JSON.stringify(backup.data),
+  })) {
+    return { ok: false, problems: ['Could not save a copy of the older backup, so nothing was restored.'] };
+  }
   const current = { savedAt: new Date().toISOString(), data };
-  data = normalize(backup.data);
+  data = normalize(result.doc);
   seedCards();
   persist();
   writeKey(BACKUP_KEY, JSON.stringify(current));
-  return true;
+  return { ok: true };
+}
+
+// ─── Migration backups ───────────────────────────────────────────────────────
+// A copy of the old-format data, kept until you delete it in Settings.
+
+function readMigrationBackups() {
+  try {
+    const list = JSON.parse(readKey(MIGRATION_BACKUPS_KEY) ?? '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Saves a copy of old-format data. Returns false if it could not be stored. */
+function saveMigrationBackup({ reason, fromVersion, text }) {
+  const list = readMigrationBackups();
+  if (list.some((b) => b.text === text)) return true; // this exact copy is already kept
+  list.push({ id: newId(), savedAt: new Date().toISOString(), reason, fromVersion, text });
+  return writeKey(MIGRATION_BACKUPS_KEY, JSON.stringify(list));
+}
+
+/** The kept copies, newest first, without their full text. */
+export function getMigrationBackups() {
+  return readMigrationBackups()
+    .map((b) => {
+      let summary = null;
+      try {
+        summary = summarize(JSON.parse(b.text));
+      } catch {
+        // an unreadable copy is still listed, so it can be downloaded or deleted
+      }
+      return { id: b.id, savedAt: b.savedAt, reason: b.reason, fromVersion: b.fromVersion, summary };
+    })
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+export function getMigrationBackupText(id) {
+  return readMigrationBackups().find((b) => b.id === id)?.text ?? null;
+}
+
+export function deleteMigrationBackup(id) {
+  const list = readMigrationBackups().filter((b) => b.id !== id);
+  writeKey(MIGRATION_BACKUPS_KEY, JSON.stringify(list));
+}
+
+/** Clears the one-time message shown after a migration. */
+export function dismissMigrationNotice() {
+  data.settings.migrationNotice = null;
+  persist();
 }

@@ -7,9 +7,11 @@
 // - Hours: expected = planned hours of plan days that have ended (Sundays 0).
 // - Artifacts (Oct 12 – Dec 10): expected = Saturdays (publish days) that have
 //   ended, plus the capstone artifact once Dec 10 has ended (9 in total).
-// - Conversations, applications, referral asks, and the 3 extra artifacts after
-//   Dec 10: the target (low end of any range) is spread evenly over study days
-//   (Mon–Sat), skipping Sundays and the Dec 24 – Jan 1 rest.
+// - Applications, referral asks, and the 3 extra artifacts after Dec 10: the
+//   target (low end of any range) is spread evenly over study days (Mon–Sat),
+//   skipping Sundays and the Dec 24 – Jan 1 rest.
+// - Conversations follow the same spread but start in Week 2 (Mon Oct 19),
+//   because the roadmap schedules the first conversations in Week 2.
 // - Status: On track at 90% or more of expected; Behind at 70–89%, or when a
 //   count is just one short; At risk below 70%.
 import { addDays, weekday } from './dates.js';
@@ -18,6 +20,8 @@ import {
 } from './plan-data.js';
 
 export const PERIOD_1 = { id: 'dec10', start: PLAN_START, end: PLAN_END, label: 'By Thu, Dec 10' };
+/** Conversations are expected from Week 2 (the roadmap's first conversations). */
+export const CONVERSATIONS_START = '2026-10-19';
 export const PERIOD_2 = { id: 'jan31', start: addDays(PLAN_END, 1), end: SCORECARD_TARGETS[1].by, label: 'By Sun, Jan 31' };
 
 export const MEASURES = [
@@ -105,6 +109,9 @@ export function expectedFor(measure, period, today) {
   const t1 = targetsFor('dec10')[measure].low;
   if (period.id === 'dec10') {
     if (measure === 'artifact') return expectedArtifactsPeriod1(today);
+    if (measure === 'conversation') {
+      return t1 * studyShare({ start: CONVERSATIONS_START, end: PLAN_END }, today);
+    }
     return t1 * studyShare(PERIOD_1, today);
   }
   const t2 = targetsFor('jan31')[measure].low;

@@ -5,6 +5,10 @@ import { getDayContext, dayNumberFor } from './plan.js';
 import { WEEKS, PLAN_START } from './plan-data.js';
 import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
 import { SEED_CARDS } from './cards-data.js';
+import { migrate, needsMigration, compareCounts } from './migrate.js';
+import {
+  countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
+} from './records.js';
 import {
   expectedHours, expectedArtifactsPeriod1, expectedFor, statusFor, countStudyDays, scorecard, PERIOD_1, PERIOD_2,
 } from './pace.js';
@@ -150,6 +154,13 @@ export function runDateChecks() {
     check(`Pace: a Sunday adds no ${m}s (Sun Oct 25 = Mon Oct 26)`,
       expectedFor(m, PERIOD_1, '2026-10-26'), expectedFor(m, PERIOD_1, '2026-10-25'));
   }
+  check('Pace: no conversations expected during Week 1 (by Sun Oct 18)', expectedFor('conversation', PERIOD_1, '2026-10-18'), 0);
+  check('Pace: no conversations expected on the morning of Oct 19', expectedFor('conversation', PERIOD_1, '2026-10-19'), 0);
+  check('Pace: the conversation spread starts counting once Oct 19 has ended',
+    expectedFor('conversation', PERIOD_1, '2026-10-20') > 0, true);
+  check('Pace: applications still count from Oct 12 (spread unchanged)',
+    expectedFor('application', PERIOD_1, '2026-10-13') > 0, true);
+  check('Pace: the full 15 conversations are expected after Dec 10', expectedFor('conversation', PERIOD_1, '2026-12-11'), 15);
   check('Pace: the Dec 24 – Jan 1 rest adds nothing (Dec 24 = Jan 2)',
     expectedFor('conversation', PERIOD_2, '2027-01-02'), expectedFor('conversation', PERIOD_2, '2026-12-24'));
   check('Pace: Jan 31 targets use the low end (20 applications)', expectedFor('application', PERIOD_2, '2027-02-01'), 20);
@@ -162,6 +173,84 @@ export function runDateChecks() {
   const hoursStatus = (d) => scorecard(d, sat, {}).find((r) => r.id === 'hours').status;
   check('Status: with Week 1 fully logged, Sun Oct 18 is On track', hoursStatus('2026-10-18'), 'on');
   check('Status: and Mon Oct 19 morning is still On track', hoursStatus('2026-10-19'), 'on');
+
+  // Stage 4: Evidence log, People log and the migration.
+  const draft = { id: 'd', status: 'draft', createdDate: '2026-10-12', publishedDate: null };
+  const pub = { id: 'p', status: 'published', createdDate: '2026-10-12', publishedDate: '2026-10-17' };
+  check('Evidence: a draft does not count', countsFromDoc({ artifacts: [draft] }).artifact.length, 0);
+  check('Evidence: a published artifact counts on its published date, not its created date',
+    countsFromDoc({ artifacts: [draft, pub] }).artifact.join(','), '2026-10-17');
+  const rowFor = (artifacts, date) => scorecard(date, [], countsFromDoc({ artifacts })).find((r) => r.id === 'artifact').actual;
+  check('Evidence: created Oct 12 but published Oct 17 is not counted on Oct 14', rowFor([pub], '2026-10-14'), 0);
+  check('Evidence: ...and is counted on Oct 17', rowFor([pub], '2026-10-17'), 1);
+  const people = [{ id: 'x' }];
+  const talks = [
+    { id: 'i1', personId: 'x', type: 'conversation', date: '2026-10-20' },
+    { id: 'i2', personId: 'x', type: 'referral', date: '2026-10-22' },
+  ];
+  check('People: conversations come from interactions by date',
+    countsFromDoc({ people, interactions: talks }).conversation.join(','), '2026-10-20');
+  check('People: referral asks come from interactions by date',
+    countsFromDoc({ people, interactions: talks }).referral.join(','), '2026-10-22');
+  check('Validation: a published artifact needs a published date',
+    validateArtifact({ ...pub, publishedDate: null, title: 't', type: 'other', tags: ['a'] }).length > 0, true);
+  check('Validation: published before created is refused',
+    validateArtifact({ ...pub, publishedDate: '2026-10-01', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
+  check('Validation: a draft cannot have a published date',
+    validateArtifact({ ...draft, publishedDate: '2026-10-20', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
+  check('Validation: four skill tags are refused',
+    validateArtifact({ ...pub, title: 't', type: 'other', tags: ['a', 'b', 'c', 'd'] }).length > 0, true);
+  check('Validation: a valid artifact passes',
+    validateArtifact({ ...pub, title: 't', type: 'other', tags: ['PKCE'], url: 'https://example.com/x' }).length, 0);
+  check('Links: https is allowed', isHttpUrl('https://example.com'), true);
+  check('Links: javascript: is refused', isHttpUrl('javascript:alert(1)'), false);
+  check('Validation: a follow-up before the interaction date is refused',
+    validateInteraction({ personId: 'x', type: 'conversation', date: '2026-10-20', followUpDue: '2026-10-19' }).length > 0, true);
+  check('Validation: a person needs a name and how you connected',
+    validatePerson({ name: '', connection: '' }).length, 2);
+
+  const stage3 = {
+    schemaVersion: 3, app: 'identity-lab-coach',
+    sessions: [{ id: 's', date: '2026-10-13', minutes: 60, status: 'done', reason: '' }],
+    cards: [], cardReviews: [], artifacts: [], people: [], reviews: [], weekChecks: {},
+    settings: { theme: 'system' },
+    tallies: [
+      { id: 'a1', kind: 'artifact', date: '2026-10-17', note: 'identity-lab README', testMode: true },
+      { id: 'c1', kind: 'conversation', date: '2026-10-21', note: 'Chat', testMode: true },
+      { id: 'c2', kind: 'conversation', date: '2026-10-23', note: '', testMode: false },
+      { id: 'r1', kind: 'referral', date: '2026-10-25', note: 'asked', testMode: false },
+      { id: 'p1', kind: 'application', date: '2026-10-26', note: 'Acme', testMode: false },
+    ],
+  };
+  const before = JSON.stringify(stage3);
+  const m1 = migrate(stage3, { now: new Date('2026-10-27T12:00:00Z') });
+  check('Migration: a Stage 3 file needs it', needsMigration(stage3), true);
+  check('Migration: succeeds', m1.ok, true);
+  check('Migration: does not change its input', JSON.stringify(stage3), before);
+  check('Migration: schema version becomes 4', m1.doc.schemaVersion, 4);
+  const cb = countsFromDoc(stage3);
+  const ca = countsFromDoc(m1.doc);
+  for (const k of ['artifact', 'conversation', 'referral', 'application']) {
+    check(`Migration: ${k} dates are unchanged`, ca[k].join(','), cb[k].join(','));
+  }
+  check('Migration: the artifact became a published Evidence record',
+    m1.doc.artifacts.length === 1 && m1.doc.artifacts[0].status === 'published'
+      && m1.doc.artifacts[0].publishedDate === '2026-10-17' && m1.doc.artifacts[0].title === 'identity-lab README', true);
+  check('Migration: conversations and referral asks sit under one placeholder person',
+    m1.doc.people.length === 1 && m1.doc.people[0].id === UNASSIGNED_ID && m1.doc.interactions.length === 3, true);
+  check('Migration: applications stay as quick entries', m1.doc.tallies.map((t) => t.kind).join(','), 'application');
+  check('Migration: test flags carry over', m1.doc.artifacts[0].testMode && m1.doc.interactions[0].testMode, true);
+  const m2 = migrate(m1.doc);
+  check('Migration: running it twice changes nothing', m2.changed === false && m2.doc === m1.doc, true);
+  const half = JSON.parse(JSON.stringify(m1.doc));
+  half.tallies.push(stage3.tallies[0], stage3.tallies[1]);
+  const m3 = migrate(half);
+  check('Migration: a half-finished state makes no duplicates',
+    m3.ok && m3.doc.artifacts.length === 1 && m3.doc.interactions.length === 3 && m3.doc.tallies.length === 1, true);
+  check('Migration: a failed check is detected',
+    compareCounts(cb, { ...ca, conversation: ca.conversation.slice(1) }).length > 0, true);
+  check('Migration: an invalid entry stops it', migrate({ schemaVersion: 3, tallies: [{ id: 'z', kind: 'artifact', date: 'nope' }] }).ok, false);
+  check('Migration: a file with no entries still just upgrades', migrate({ schemaVersion: 2, sessions: [] }).doc.schemaVersion, 4);
 
   return results;
 }

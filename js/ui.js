@@ -32,3 +32,20 @@ export function announce(message) {
 export function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
 }
+
+/** The "Please fix this before saving" box used by forms. */
+export function errorSummaryHtml(id, errors) {
+  if (!errors.length) return '';
+  return `
+    <div class="error-summary" role="alert" tabindex="-1" id="${id}">
+      <h3>Please fix this before saving</h3>
+      <ul>${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+/** Only http(s) links become clickable; anything else is shown as plain text. */
+export function linkHtml(url, label) {
+  const text = esc(label ?? url);
+  if (!/^https?:\/\//i.test(String(url ?? '').trim())) return text;
+  return `<a href="${esc(String(url).trim())}" target="_blank" rel="noopener noreferrer">${text}<span class="visually-hidden"> (opens in a new tab)</span></a>`;
+}

@@ -46,7 +46,11 @@ node js/selftest.js
 | `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
 | `js/week.js` | Week view: checklist, days, hours against the budget |
 | `js/pace.js` | Scorecard maths: expected-by-today and status (no page code) |
-| `js/scorecard.js` | Scorecard view and the quick "+1 with date" log |
+| `js/scorecard.js` | Scorecard view and the quick "+1 application" log |
+| `js/records.js` | Evidence, person and interaction rules (validation) and what counts toward the scorecard |
+| `js/migrate.js` | Converts Stage 1–3 data to the Stage 4 format, with a before/after check |
+| `js/evidence.js` | Evidence log view |
+| `js/people.js` | People log view and the follow-ups on Today |
 | `js/ui.js` | Small shared helpers |
 | `js/main.js` | The Today and Settings views, routing and events |
 | `js/selftest.js` | Date and scheduling checks (in Settings, or `node js/selftest.js`) |
@@ -62,11 +66,25 @@ node js/selftest.js
   `cardReviews` log, and a card's box and due date are worked out by
   replaying that log. Deleting test ratings or importing a file can never
   leave a schedule out of step with its history.
-- **Tally** is a new record: a quick "+1 with date" scorecard entry
-  (artifact, conversation, application or referral ask). The scorecard counts
-  tallies plus the full records later stages add. Stage 4 will turn each
-  artifact tally into an Artifact with the same id, date and note, so counts
-  never change.
+- **Tally** is a quick "+1 with date" scorecard entry. Since Stage 4 only
+  applications are tallies; artifacts live in the Evidence log, and
+  conversations and referral asks are interactions in the People log.
+- **Artifact** (Stage 4): title, type, draft or published, created date,
+  published date (only when published), optional link, one to three skill tags
+  ("what this proves") and a reflection. The scorecard counts an artifact only
+  when published, on its published date. The brief's earlier fields (week or
+  exercise, project, implemented/simulated/conceptual label) are not in this
+  stage.
+- **Person and Interaction** (Stage 4): a person has a name, organization, role,
+  how you connected, notes and an optional link. An interaction (conversation or
+  referral ask) has a date, an outcome note and an optional follow-up date.
+  Follow-ups that are due show on Today.
+- **Migration:** on the first load after an update, and when importing an older
+  file, Stage 3 quick entries are converted: artifacts become published
+  Evidence, conversations and referral asks become interactions under
+  "Unassigned (migrated)". The scorecard is recounted before saving; if any
+  number differs, nothing is saved. A copy of the old data is kept in Settings
+  until you delete it.
 - **Every saved record has `id`, `createdAt` and `updatedAt`**, ready for a
   server, sync or an append-only audit log. Add `ownerId` when you add
   sign-in; `store.js` is the only file that touches storage, so it is the one
@@ -77,8 +95,8 @@ node js/selftest.js
 1. **Stage 1 (built):** data model, seeded plan, Today view, timer, session log, JSON export and import, test date.
 2. **Stage 2 (built):** spaced-repetition flashcards, the retrieval check on Today, card editor.
 3. **Stage 3 (built):** Week view (checklist, hours against budget) and Scorecard (pace against the plan).
-4. Evidence log with Markdown export.
-5. Scorecard refinements as needed.
+4. **Stage 4 (built):** Evidence log and People log, with the migration from quick entries.
+5. Application tracker (quick "+1 application" until then).
 6. People log and follow-ups on Today.
 7. Friday review with the reduced-mode and Nov 21 rules.
 

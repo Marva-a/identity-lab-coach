@@ -7,15 +7,19 @@ import {
   scorecard, activePeriod, PERIOD_1, PERIOD_2, targetsFor, MEASURES, STATUS_RULE, STATUS_LABELS,
 } from './pace.js';
 
-const KIND_LABELS = {
-  artifact: 'Published artifact',
-  conversation: 'Conversation',
-  application: 'Targeted application',
-  referral: 'Referral ask',
+const KIND_LABELS = { application: 'Targeted application' };
+
+/** Where each measure's number comes from. */
+const SOURCES = {
+  hours: 'From the sessions you log on <a href="#today">Today</a>.',
+  artifact: 'From the <a href="#evidence">Evidence log</a>: published artifacts only, on their published date.',
+  conversation: 'From the interactions in the <a href="#people">People log</a>.',
+  referral: 'From the interactions in the <a href="#people">People log</a>.',
+  application: 'From the quick entries below.',
 };
 
 const ui = {
-  draft: { kind: 'artifact', date: '', note: '' },
+  draft: { kind: 'application', date: '', note: '' },
   errors: [],
   message: null,
 };
@@ -41,6 +45,7 @@ function expectedNote(row, period) {
   if (row.status === 'none') return 'Hours logged since Dec 11. There is no hours target after Dec 10.';
   if (row.id === 'hours') return 'Planned hours of study days that have ended.';
   if (row.id === 'artifact' && period.id === 'dec10') return 'One per publish Saturday that has ended, plus the capstone after Dec 10.';
+  if (row.id === 'conversation' && period.id === 'dec10') return 'Spread over study days that have ended, starting in Week 2 (Oct 19).';
   return 'Target spread over study days that have ended (Mon–Sat, no rest days).';
 }
 
@@ -61,7 +66,7 @@ function tableHtml(rows, period) {
         <tbody>
           ${rows.map((r) => `
             <tr>
-              <th scope="row">${esc(r.label)}</th>
+              <th scope="row">${esc(r.label)}<span class="cell-note">${SOURCES[r.id]}</span></th>
               <td>${esc(formatValue(r, r.actual))}</td>
               <td>${esc(formatValue(r, r.expected))}<span class="cell-note">${esc(expectedNote(r, period))}</span></td>
               <td>${esc(formatTarget(r.target, r.unit))}</td>
@@ -94,21 +99,15 @@ function logFormHtml() {
     <form id="tally-form" novalidate>
       ${errors}
       <div class="field">
-        <label for="tally-kind">What happened</label>
-        <select id="tally-kind" name="kind">
-          ${store.TALLY_KINDS.map((k) => `<option value="${k}" ${d.kind === k ? 'selected' : ''}>${esc(KIND_LABELS[k])}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
         <label for="tally-date">Date</label>
         <input type="date" id="tally-date" name="date" value="${esc(date)}">
       </div>
       <div class="field">
         <label for="tally-note">Note (optional)</label>
         <input type="text" id="tally-note" name="note" maxlength="${store.NOTE_MAX}" value="${esc(d.note)}" aria-describedby="tally-note-hint" autocomplete="off">
-        <span class="hint" id="tally-note-hint">For example "PKCE sequence diagram" or "Chat with an IAM designer at OWASP Vancouver".</span>
+        <span class="hint" id="tally-note-hint">For example "Acme, senior product designer, identity team".</span>
       </div>
-      <button type="submit" class="button--primary">+1</button>
+      <button type="submit" class="button--primary">+1 application</button>
     </form>`;
 }
 
@@ -134,7 +133,7 @@ export function scorecardView() {
   const d = store.getData();
   const period = activePeriod(date);
   const rows = scorecard(date, d.sessions, store.scorecardCounts());
-  const anyTest = d.sessions.some((s) => s.testMode) || d.tallies.some((t) => t.testMode);
+  const anyTest = [d.sessions, d.tallies, d.artifacts, d.interactions].some((list) => list.some((x) => x.testMode));
 
   let context;
   if (date < PLAN_START) context = `The plan starts ${formatShort(PLAN_START)}; nothing is expected yet.`;
@@ -150,12 +149,12 @@ export function scorecardView() {
       ${tableHtml(rows, period)}
       <p class="rule"><strong>Status:</strong> ${esc(STATUS_RULE)}</p>
       ${otherPeriodHtml(period)}
-      <p class="meta">Calculated only from what you log: sessions on Today, and the entries below.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
+      <p class="meta">Calculated only from what you log. Never type totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
     </section>
 
     <section class="card" aria-labelledby="tally-heading">
-      <h2 id="tally-heading">Log progress</h2>
-      <p class="meta">A quick "+1 with date" until the Evidence log (Stage 4) and People log (Stage 6) exist. Those stages will turn these entries into full records, so nothing is lost.</p>
+      <h2 id="tally-heading">Log an application</h2>
+      <p class="meta">A quick "+1 with date" for targeted applications. Artifacts go in the <a href="#evidence">Evidence log</a>; conversations and referral asks go in the <a href="#people">People log</a>.</p>
       ${ui.message ? `<p class="status-ok" id="tally-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       ${logFormHtml()}
       <h3>Recent entries</h3>
@@ -177,7 +176,7 @@ export const scorecardActions = {
 
 export function submitTallyForm(form) {
   const values = {
-    kind: form.querySelector('#tally-kind').value,
+    kind: 'application',
     date: form.querySelector('#tally-date').value,
     note: form.querySelector('#tally-note').value,
   };
@@ -190,7 +189,7 @@ export function submitTallyForm(form) {
   }
   const t = result.tally;
   ui.errors = [];
-  ui.draft = { kind: t.kind, date: '', note: '' }; // keep the kind for repeat entries
+  ui.draft = { kind: t.kind, date: '', note: '' };
   const count = store.scorecardCounts()[t.kind].length;
   ui.message = `+1 ${KIND_LABELS[t.kind].toLowerCase()} on ${formatShort(t.date)}${t.testMode ? ' (test)' : ''}. Total: ${count}.`
     + (result.saved ? '' : ' Warning: this browser blocked saving.');
@@ -199,7 +198,7 @@ export function submitTallyForm(form) {
 }
 
 export function handleTallyInput(target) {
-  const map = { 'tally-kind': 'kind', 'tally-date': 'date', 'tally-note': 'note' };
+  const map = { 'tally-date': 'date', 'tally-note': 'note' };
   if (map[target.id]) ui.draft[map[target.id]] = target.value;
   if (target.id === 'tally-date' && !isValidDateString(target.value)) ui.draft.date = '';
 }
