@@ -19,7 +19,7 @@ import {
   resetEvidenceView,
 } from './evidence.js';
 import {
-  libraryView, resourceActions, todayResourcesHtml, submitResourceForm, readResourceFile, handleResourceChange,
+  libraryView, resourceActions, todayResourcesHtml, submitResourceForm, submitLinkForm, readResourceFile, handleResourceChange,
   handleResourceInput, handleResourceToggle, resetResourceView, flushResourceNotes,
 } from './resources.js';
 import {
@@ -833,6 +833,9 @@ mainEl.addEventListener('submit', (e) => {
   } else if (e.target.id === 'resource-form') {
     e.preventDefault();
     render({ focus: submitResourceForm(e.target) });
+  } else if (e.target.dataset?.linkForm !== undefined) {
+    e.preventDefault();
+    render({ focus: submitLinkForm(e.target) });
   } else if (e.target.id === 'person-form') {
     e.preventDefault();
     render({ focus: submitPersonForm(e.target) });

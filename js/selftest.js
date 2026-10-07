@@ -10,7 +10,7 @@ import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
-  validateResource, orderResources, totalMinutes, remainingMinutes, parseDays,
+  validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
 } from './records.js';
 import {
   expectedHours, expectedArtifactsPeriod1, expectedFor, statusFor, countStudyDays, scorecard, PERIOD_1, PERIOD_2,
@@ -286,43 +286,89 @@ export function runDateChecks() {
   // Stage 4b: Content library.
   const good = { title: 'A real title', source: 'Some author', type: 'article', minutes: 30, url: 'https://oauth.net/2/', days: [8, 9] };
   check('Library: a complete resource is valid', validateResource(good).length, 0);
-  check('Library: the link is required', validateResource({ ...good, url: '' }).length > 0, true);
-  check('Library: a link that is not http(s) is refused', validateResource({ ...good, url: 'javascript:alert(1)' }).length > 0, true);
-  check('Library: placeholder addresses (example.com) are refused', validateResource({ ...good, url: 'https://example.com/a' }).length > 0, true);
+  check('Library: a resource with no link is valid (empty link)', validateResource({ ...good, url: '' }).length, 0);
+  check('Library: a resource with a missing link (null) is valid', validateResource({ ...good, url: null }).length, 0);
+  check('Library: a link that is given must be http(s)', validateResource({ ...good, url: 'javascript:alert(1)' }).length > 0, true);
+  check('Library: a link without a scheme is refused', validateResource({ ...good, url: 'oauth.net/2' }).length > 0, true);
+  check('Library: placeholder addresses (example.com) are still refused', validateResource({ ...good, url: 'https://example.com/a' }).length > 0, true);
+  check('Library: placeholder subdomains are refused too', validateResource({ ...good, url: 'https://docs.example.org/a' }).length > 0, true);
   check('Library: a Sunday (Day 14) is not a plan day', validateResource({ ...good, days: [14] }).length > 0, true);
   check('Library: Day 61 is not a plan day', validateResource({ ...good, days: [61] }).length > 0, true);
   check('Library: minutes must be a whole number', validateResource({ ...good, minutes: 2.5 }).length > 0, true);
   check('Library: type must be one of the five', validateResource({ ...good, type: 'podcast' }).length > 0, true);
+  check('Library: "optional" must be true or false', validateResource({ ...good, optional: 'yes' }).length > 0, true);
+  check('Library: "verified" with no link is a contradiction', validateResource({ ...good, url: '', urlStatus: 'verified' }).length > 0, true);
+  check('Library: "needs-your-search" with no link is fine', validateResource({ ...good, url: '', urlStatus: 'needs-your-search' }).length, 0);
   check('Library: days "8, 9 10" read as three days', parseDays('8, 9 10').days.join(','), '8,9,10');
   check('Library: a word in the days is reported', parseDays('8, x').problems.length, 1);
 
-  const file = (rows) => JSON.stringify({ resources: rows });
-  const row = (over = {}) => ({ title: 'T', source: 'S', type: 'video', minutes: 20, url: 'https://oauth.net/a', days: [8], ...over });
-  const okImport = parseResourceImport(file([row(), row({ title: 'U', url: 'https://oauth.net/b', days: [9, 10] })]));
-  check('Import: two good rows are accepted', okImport.ok && okImport.rows.length === 2, true);
-  check('Import: a bare list works too', parseResourceImport(JSON.stringify([row()])).ok, true);
+  // Same link: a warning to look at, never a reason to refuse, and a missing link is never a duplicate.
+  const lib = [{ id: 'a', url: 'https://oauth.net/2/' }, { id: 'b', url: '' }, { id: 'c', url: '' }];
+  check('Same link: found when another resource uses it (ignoring # and a trailing slash)', findSameLink(lib, 'https://oauth.net/2#x', 'z').length, 1);
+  check('Same link: not found for the resource itself', findSameLink(lib, 'https://oauth.net/2/', 'a').length, 0);
+  check('Same link: a missing link is not a duplicate of another missing link', findSameLink(lib, '', 'b').length, 0);
+
+  const file = (rows, schema = 'identity-lab-coach.resources.v1') => JSON.stringify({ schema, resources: rows });
+  const row = (over = {}) => ({
+    id: 'r1', title: 'T', source: 'S', type: 'video', estimatedMinutes: 20, url: 'https://oauth.net/a', planDays: [8], ...over,
+  });
+  const okImport = parseResourceImport(file([row(), row({ id: 'r2', title: 'U', url: 'https://oauth.net/b', planDays: [9, 10], optional: true, why: 'Because', urlStatus: 'verified', verifiedNote: 'Fetched' })]));
+  check('Import: two good entries are accepted', okImport.ok && okImport.rows.length === 2, true);
+  check('Import: planDays, estimatedMinutes and optional are read into the record',
+    okImport.rows[1].days.join() === '9,10' && okImport.rows[1].minutes === 20 && okImport.rows[1].optional === true, true);
+  const nullLink = parseResourceImport(file([row({ id: 'n1', url: null, urlStatus: 'needs-your-search', verifiedNote: 'No link confirmed' })]));
+  check('Import: "url": null is accepted', nullLink.ok && nullLink.rows.length === 1, true);
+  check('Import: a null link becomes an empty link that needs a search', nullLink.rows[0].url === '' && nullLink.rows[0].urlStatus === 'needs-your-search', true);
+  check('Import: it counts the entries that need a link', nullLink.needLink, 1);
+  check('Import: the link note is kept', nullLink.rows[0].verifiedNote, 'No link confirmed');
+  check('Import: a null link without urlStatus defaults to needs-your-search',
+    parseResourceImport(file([row({ id: 'n2', url: null })])).rows[0].urlStatus, 'needs-your-search');
+  check('Import: a link without urlStatus is "unchecked", never "verified"', parseResourceImport(file([row()])).rows[0].urlStatus, 'unchecked');
+  check('Import: the schema must match', parseResourceImport(file([row()], 'something.else')).fileProblems.length, 1);
+  check('Import: a file with no schema is refused', parseResourceImport(JSON.stringify({ resources: [row()] })).fileProblems.length, 1);
   check('Import: invalid JSON is reported', parseResourceImport('{oops').fileProblems.length, 1);
-  check('Import: an empty file is reported', parseResourceImport(file([])).fileProblems.length, 1);
-  const bad = parseResourceImport(file([row(), row({ minutes: 'twenty', url: 'https://oauth.net/b' }), row({ url: 'https://oauth.net/c', days: [14] }), row({ url: 'https://oauth.net/d', extra: 1 })]));
-  check('Import: it names exactly the wrong rows (2, 3 and 4)', bad.rowProblems.map((p) => p.row).join(','), '2,3,4');
-  check('Import: a wrong file imports nothing', bad.ok === false && bad.rows.length === 1, true);
-  check('Import: an unknown field is reported by name', bad.rowProblems.find((p) => p.row === 4).messages.some((m) => m.includes('"extra"')), true);
-  check('Import: text where a number belongs is reported once', bad.rowProblems.find((p) => p.row === 2).messages.length, 1);
-  check('Import: the same link twice in one file is reported',
-    parseResourceImport(file([row(), row({ title: 'again' })])).rowProblems[0]?.messages.some((m) => m.includes('Same link as row 1')), true);
-  const again = parseResourceImport(file([row()]), [{ url: 'https://oauth.net/a/#section', title: 'T' }]);
-  check('Import: a link already in the library is skipped, not duplicated', again.ok && again.rows.length === 0 && again.skipped.length === 1, true);
+  check('Import: an empty list is reported', parseResourceImport(file([])).fileProblems.length, 1);
+  const bad = parseResourceImport(file([
+    row(), row({ id: 'bad-minutes', estimatedMinutes: 'twenty', url: 'https://oauth.net/b' }),
+    row({ id: 'bad-day', url: 'https://oauth.net/c', planDays: [14] }),
+    row({ id: 'bad-field', url: 'https://oauth.net/d', colour: 'red' }),
+    row({ id: 'bad-link', url: 'ftp://oauth.net/e' }),
+    row({ id: 'no-url-key', url: undefined }),
+    row({ id: 'r1', title: 'again', url: 'https://oauth.net/f' }),
+  ]));
+  check('Import: it names each wrong entry by its id', bad.rowProblems.map((p) => p.id).join(','), 'bad-minutes,bad-day,bad-field,bad-link,no-url-key,r1');
+  check('Import: a wrong file imports nothing and says so', bad.ok === false, true);
+  check('Import: an unknown field is named', bad.rowProblems.find((p) => p.id === 'bad-field').messages.some((m) => m.includes('"colour"')), true);
+  check('Import: a missing "url" key says to use null', bad.rowProblems.find((p) => p.id === 'no-url-key').messages.some((m) => m.includes('null')), true);
+  check('Import: a repeated id is reported', bad.rowProblems.find((p) => p.id === 'r1').messages.some((m) => m.includes('Duplicate id')), true);
   check('Import: placeholder addresses are refused', parseResourceImport(file([row({ url: 'https://example.com/replace' })])).ok, false);
+
+  // Matching by id: a second import adds nothing, and nothing already in the library is changed.
+  const first = parseResourceImport(file([row(), row({ id: 'r2', url: null })]));
+  const second = parseResourceImport(file([row({ title: 'EDITED IN FILE' }), row({ id: 'r2', url: 'https://oauth.net/new-link' })]),
+    first.rows.map((r) => ({ id: r.id, title: r.title })));
+  check('Re-import: entries already in the library are skipped by id', second.ok && second.rows.length === 0 && second.skipped.length === 2, true);
+
+  // Sharing a link is a warning, not an error (your file has one page used by two entries).
+  const shared = parseResourceImport(file([row(), row({ id: 'r2', title: 'Second use', planDays: [24] })]));
+  check('Same link in a file: both entries are still accepted', shared.ok && shared.rows.length === 2, true);
+  check('Same link in a file: it is flagged as a warning on the later entry', shared.warnings.length === 1 && shared.warnings[0].id === 'r2', true);
+  const twoNull = parseResourceImport(file([row({ id: 'x1', url: null }), row({ id: 'x2', url: null })]));
+  check('Missing links are not duplicates of each other', twoNull.ok && twoNull.warnings.length === 0, true);
+  const vsLibrary = parseResourceImport(file([row({ id: 'fresh' })]), [{ id: 'old', title: 'Old one', url: 'https://oauth.net/a' }]);
+  check('Same link as the library: accepted with a warning', vsLibrary.ok && vsLibrary.rows.length === 1 && vsLibrary.warnings.length === 1, true);
 
   const list = [
     { id: 'a', status: 'done', minutes: 10, position: 1 },
     { id: 'b', status: 'not-started', minutes: 20, position: 2 },
     { id: 'c', status: 'in-progress', minutes: 30, position: 3 },
     { id: 'd', status: 'not-started', minutes: 5, position: 4 },
+    { id: 'e', status: 'not-started', minutes: 15, position: 0, optional: true },
   ];
-  check('Do this next: in progress, then not started in plan order, then done', orderResources(list).map((r) => r.id).join(''), 'cbda');
-  check('Do this next: total estimated minutes', totalMinutes(list), 65);
-  check('Do this next: minutes still to do leave out done ones', remainingMinutes(list), 55);
+  check('Do this next: in progress, then required, then optional, then done', orderResources(list).map((r) => r.id).join(''), 'cbdea');
+  check('Do this next: total estimated minutes', totalMinutes(list), 80);
+  check('Do this next: minutes still to do leave out done and optional ones', remainingMinutes(list), 55);
+  check('Do this next: optional minutes are counted on their own', optionalMinutes(list), 15);
   check('Swap: Oct 19 shows week 5 resources (roadmap Day 29)', getDayContext('2026-10-19', { swapWeeks2and5: true }).contentDay, 29);
   check('Swap: with no swap, Oct 19 is roadmap Day 8', getDayContext('2026-10-19', {}).contentDay, 8);
   const withResources = { artifacts: [pub], interactions: [], tallies: [], resources: [{ ...good, id: 'r', status: 'done', minutes: 120 }] };

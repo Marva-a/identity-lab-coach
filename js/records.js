@@ -183,9 +183,16 @@ export const RESOURCE_TYPES = {
   video: 'Video', article: 'Article', spec: 'Spec', lab: 'Lab', exercise: 'Exercise',
 };
 export const RESOURCE_STATUSES = { 'not-started': 'Not started', 'in-progress': 'In progress', done: 'Done' };
+/**
+ * Where a resource's link stands. 'verified' and 'needs-your-search' come from
+ * the file you import; 'added-by-you' is set when you type a link in the app;
+ * 'unchecked' is a link from a file that did not say.
+ */
+export const RESOURCE_URL_STATUSES = ['verified', 'needs-your-search', 'unchecked', 'added-by-you'];
 export const RESOURCE_LIMITS = {
-  title: 150, source: 100, why: 300, notes: 4000, minutes: 600, days: 10, url: 500,
+  title: 150, source: 100, why: 600, notes: 4000, minutes: 600, days: 10, url: 500, note: 500,
 };
+export const RESOURCE_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const PLACEHOLDER_HOSTS = ['example.com', 'example.org', 'example.net'];
 
 /** Plan days are 1–60; Sundays (7, 14 … 56) are rest days, so nothing is scheduled on them. */
@@ -214,6 +221,28 @@ export function normalizeUrl(value) {
   }
 }
 
+/**
+ * Other resources that already use the same link. A resource with no link is never
+ * the same as another with no link. Sharing a link is allowed (one guide can serve
+ * two plan days), so this is a warning to look at, not an error.
+ */
+export function findSameLink(resources, url, exceptId) {
+  const clean = typeof url === 'string' ? url.trim() : '';
+  if (!clean) return [];
+  const key = normalizeUrl(clean);
+  return resources.filter((r) => r.id !== exceptId && r.url && normalizeUrl(r.url) === key);
+}
+
+/** Problems with a link (empty = fine). An empty link is allowed: the resource then shows "Link needed". */
+export function validateResourceUrl(value) {
+  const url = typeof value === 'string' ? value.trim() : '';
+  if (!url) return [];
+  if (!isHttpUrl(url)) return ['The link must start with http:// or https://.'];
+  if (url.length > RESOURCE_LIMITS.url) return [`Keep the link under ${RESOURCE_LIMITS.url} characters.`];
+  if (isPlaceholderUrl(url)) return ['This is a placeholder address (example.com, .org or .net). Use the real link.'];
+  return [];
+}
+
 /** Reads "8, 9 10" into day numbers. Returns the numbers and anything that is not a number. */
 export function parseDays(text) {
   const tokens = String(text ?? '').split(/[\s,;]+/).filter(Boolean);
@@ -230,6 +259,9 @@ export function parseDays(text) {
 export function validateResource(r) {
   const problems = [];
   const text = (v) => (typeof v === 'string' ? v : '');
+  if (r.id !== undefined && !RESOURCE_ID_RE.test(String(r.id))) {
+    problems.push('The id may only use letters, numbers, hyphens and underscores (up to 80 characters).');
+  }
   const title = text(r.title).trim();
   if (!title) problems.push('Add a title.');
   else if (title.length > RESOURCE_LIMITS.title) problems.push(`Keep the title under ${RESOURCE_LIMITS.title} characters.`);
@@ -240,11 +272,7 @@ export function validateResource(r) {
   if (!Number.isInteger(r.minutes) || r.minutes < 1 || r.minutes > RESOURCE_LIMITS.minutes) {
     problems.push(`Estimated minutes must be a whole number from 1 to ${RESOURCE_LIMITS.minutes}.`);
   }
-  const url = text(r.url).trim();
-  if (!url) problems.push('Add the link.');
-  else if (!isHttpUrl(url)) problems.push('The link must start with http:// or https://.');
-  else if (url.length > RESOURCE_LIMITS.url) problems.push(`Keep the link under ${RESOURCE_LIMITS.url} characters.`);
-  else if (isPlaceholderUrl(url)) problems.push('This is a placeholder address (example.com, .org or .net). Use the real link.');
+  problems.push(...validateResourceUrl(r.url));
   if (text(r.why).length > RESOURCE_LIMITS.why) problems.push(`Keep the reason under ${RESOURCE_LIMITS.why} characters.`);
   if (!Array.isArray(r.days) || !r.days.length) {
     problems.push('Add at least one plan day (1–60).');
@@ -254,16 +282,29 @@ export function validateResource(r) {
       if (!isPlanStudyDay(d)) problems.push(`Day ${d} is not a study day: use 1–60, and Sundays (7, 14, 21 … 56) are rest days.`);
     }
   }
+  if (r.optional !== undefined && typeof r.optional !== 'boolean') problems.push('"optional" must be true or false.');
+  if (r.urlStatus !== undefined && !RESOURCE_URL_STATUSES.includes(r.urlStatus)) {
+    problems.push(`urlStatus must be one of: ${RESOURCE_URL_STATUSES.join(', ')}.`);
+  }
+  if (r.verifiedNote !== undefined && text(r.verifiedNote).length > RESOURCE_LIMITS.note) {
+    problems.push(`Keep the link note under ${RESOURCE_LIMITS.note} characters.`);
+  }
+  if (r.urlStatus === 'verified' && !text(r.url).trim()) problems.push('urlStatus is "verified" but there is no link.');
   if (r.status !== undefined && !(r.status in RESOURCE_STATUSES)) problems.push('The status is not valid.');
   if (r.notes !== undefined && text(r.notes).length > RESOURCE_LIMITS.notes) problems.push(`Keep notes under ${RESOURCE_LIMITS.notes} characters.`);
   return problems;
 }
 
-/** "Do this next" order: in progress first, then not started, then done; plan order within each. */
+/**
+ * "Do this next" order: in progress first, then not started (required before
+ * optional), then done; plan order within each.
+ */
 export function orderResources(list) {
-  const rank = { 'in-progress': 0, 'not-started': 1, done: 2 };
-  return [...list].sort((a, b) => (rank[a.status] ?? 1) - (rank[b.status] ?? 1) || (a.position ?? 0) - (b.position ?? 0));
+  const rank = (r) => (r.status === 'done' ? 3 : r.status === 'in-progress' ? 0 : r.optional ? 2 : 1);
+  return [...list].sort((a, b) => rank(a) - rank(b) || (a.position ?? 0) - (b.position ?? 0));
 }
 
 export const totalMinutes = (list) => list.reduce((sum, r) => sum + r.minutes, 0);
-export const remainingMinutes = (list) => totalMinutes(list.filter((r) => r.status !== 'done'));
+/** Minutes still to do, leaving out done and optional resources. */
+export const remainingMinutes = (list) => totalMinutes(list.filter((r) => r.status !== 'done' && !r.optional));
+export const optionalMinutes = (list) => totalMinutes(list.filter((r) => r.optional));

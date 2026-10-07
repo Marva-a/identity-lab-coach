@@ -82,10 +82,14 @@ node js/selftest.js
   (implemented / simulated / conceptual / future phase) and `project`
   (Project 1–3 / other). Both start empty; maturity is required to publish.
   They never change scorecard counts, and older files load with both empty.
-- **Resource** (Stage 4b): a thing to read, watch or do, with title, source,
-  type, estimated minutes (never hours), link, an optional reason, the plan
-  days it belongs to, a status, your notes, and a retired flag. You provide
-  them: the app ships with none and never copies third-party content.
+- **Resource** (Stage 4b): a thing to read, watch or do, with an id, title,
+  source, type, estimated minutes (never hours), an optional link, a reason, the
+  plan days it belongs to, an optional flag, a link note, a status, your notes
+  and a retired flag. You provide them: the app ships with none and never copies
+  third-party content. A resource may have no link yet; it then shows "Link
+  needed" with a field to add one. Importing an `identity-lab-coach.resources.v1`
+  file matches on id, so a second import adds nothing and never changes a
+  resource you already have (your link, statuses, notes and edits stay).
 - **Person and Interaction** (Stage 4): a person has a name, organization, role,
   how you connected, notes and an optional link. An interaction (conversation or
   referral ask) has a date, an outcome note and an optional follow-up date.

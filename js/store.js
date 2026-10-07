@@ -119,21 +119,28 @@
 //
 // Resource {         — one thing to read, watch or do (Stage 4b). You provide them;
 //                      the app ships with none and never copies third-party content.
-//   id, createdAt, updatedAt,
-//   title, source (author or site), url (http(s) only; opens in a new tab)
+//   id                    from your import file (for example "w2-rfc9700"), or generated for
+//                         ones you add by hand. Importing matches on it.
+//   createdAt, updatedAt,
+//   title, source (author or site)
+//   url: string           http(s) only, opens in a new tab; '' when there is no link yet
+//                         (shown as "Link needed", with a field to add it)
+//   urlStatus: 'verified' | 'needs-your-search' | 'unchecked' | 'added-by-you'
+//   verifiedNote: string  the file's note on the link, shown as small text
 //   type: 'video' | 'article' | 'spec' | 'lab' | 'exercise'
-//   minutes: number         ESTIMATE only. Never counted as hours: hours come from Sessions.
-//   why: string             optional: why it is in the plan
-//   days: number[]          plan day numbers (1–60, no Sundays) it belongs to, as in the roadmap table
-//   position: number        order added; "Do this next" keeps this order
+//   minutes: number       ESTIMATE only. Never counted as hours: hours come from Sessions.
+//   why: string           why it is in the plan
+//   optional: boolean     optional resources are de-emphasized, like Optional plan items
+//   days: number[]        plan day numbers (1–60, no Sundays), as in the roadmap table
+//   position: number      order added; "Do this next" keeps this order
 //   status: 'not-started' | 'in-progress' | 'done'
 //   doneDate: 'YYYY-MM-DD' | null
-//   notes: string           your own notes, saved as you type
-//   retired: boolean        retired resources are hidden from Today and Week
-//   testMode: boolean       created while the test date was on
-//   testRevert: { status, doneDate, notes } | absent
-//                           what a real resource looked like before test-date changes,
-//                           so Delete test data can put it back
+//   notes: string         your own notes, saved as you type
+//   retired: boolean      retired resources are hidden from Today and Week
+//   testMode: boolean     created while the test date was on
+//   testRevert: object | absent
+//                         what a real resource looked like before test-date changes
+//                         (all the fields you can change), so Delete test data can put it back
 // }
 // (resources were added without a new schema version: files without them load with none.)
 //
@@ -162,7 +169,7 @@ import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 import {
   SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
-  validateResource, RESOURCE_STATUSES,
+  validateResource, validateResourceUrl, RESOURCE_STATUSES,
 } from './records.js';
 import { migrate, needsMigration } from './migrate.js';
 
@@ -244,6 +251,9 @@ function normalize(raw) {
   out.cardSeedVersion = Number.isInteger(raw?.cardSeedVersion) ? raw.cardSeedVersion : 0;
   // Fields added after the first Stage 4 release: older records load with them empty.
   out.artifacts = out.artifacts.map((a) => ({ maturity: '', project: '', ...a }));
+  out.resources = out.resources.map((r) => ({
+    optional: false, verifiedNote: '', urlStatus: r?.url ? 'unchecked' : 'needs-your-search', ...r,
+  }));
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -429,9 +439,7 @@ export function deleteTestData() {
   data.resources = data.resources.filter((r) => !r.testMode);
   for (const r of data.resources) {
     if (!r.testRevert) continue;
-    r.status = r.testRevert.status;
-    r.doneDate = r.testRevert.doneDate;
-    r.notes = r.testRevert.notes;
+    Object.assign(r, r.testRevert);
     delete r.testRevert;
   }
   // A person made while testing goes too, unless a real interaction is logged
@@ -816,6 +824,11 @@ export function addCardReview({ cardId, date, rating, response, context, testMod
 
 // ─── Content library (Stage 4b) ──────────────────────────────────────────────
 
+const RESOURCE_EDITABLE = [
+  'title', 'source', 'type', 'minutes', 'url', 'urlStatus', 'verifiedNote', 'why', 'optional', 'days',
+  'status', 'doneDate', 'notes', 'retired',
+];
+
 function cleanResourceFields(f) {
   return {
     title: String(f.title ?? '').trim(),
@@ -824,6 +837,7 @@ function cleanResourceFields(f) {
     minutes: Number(f.minutes),
     url: String(f.url ?? '').trim(),
     why: String(f.why ?? '').trim(),
+    optional: Boolean(f.optional),
     days: [...new Set((f.days ?? []).map(Number))].sort((a, b) => a - b),
   };
 }
@@ -836,13 +850,19 @@ export function getResource(id) {
   return data.resources.find((r) => r.id === id);
 }
 
+/** The status of a link you type in the app: "added by you" if there is one, else still needed. */
+const linkStatusFor = (url) => (url ? 'added-by-you' : 'needs-your-search');
+
 function newResource(fields, testMode, position) {
   const now = new Date().toISOString();
+  const clean = cleanResourceFields(fields);
   return {
-    id: newId(),
+    id: fields.id || newId(),
     createdAt: now,
     updatedAt: now,
-    ...cleanResourceFields(fields),
+    ...clean,
+    urlStatus: fields.urlStatus ?? linkStatusFor(clean.url),
+    verifiedNote: String(fields.verifiedNote ?? '').trim(),
     position,
     status: 'not-started',
     doneDate: null,
@@ -861,13 +881,20 @@ export function addResource(fields, testMode) {
   return { ok: true, resource, saved };
 }
 
-/** Adds rows that parseResourceImport already checked, in one save. */
+/**
+ * Adds rows that parseResourceImport already checked, in one save. An id that
+ * is already in the library is never touched, so a re-import changes nothing
+ * you edited and creates no duplicates.
+ */
 export function importResources(rows, testMode) {
   let position = nextPosition();
+  const have = new Set(data.resources.map((r) => r.id));
   const added = [];
   for (const row of rows) {
+    if (have.has(row.id)) continue;
     const resource = newResource(row, testMode, position++);
     if (validateResource(resource).length) continue; // cannot happen after parseResourceImport; never save a bad row
+    have.add(resource.id);
     added.push(resource);
   }
   data.resources.push(...added);
@@ -875,31 +902,53 @@ export function importResources(rows, testMode) {
   return { ok: true, added: added.length, saved };
 }
 
-/** Edits a resource's details. Its status and notes are kept. */
-export function updateResource(id, fields) {
+/** Remembers a real resource the first time anything about it changes during a test. */
+function captureTestRevert(resource, testMode) {
+  if (testMode && !resource.testMode && !resource.testRevert) {
+    resource.testRevert = Object.fromEntries(RESOURCE_EDITABLE.map((k) => [k, JSON.parse(JSON.stringify(resource[k] ?? null))]));
+  }
+}
+
+/** Edits a resource's details. Its status and notes are kept. A changed link counts as one you added. */
+export function updateResource(id, fields, testMode) {
   const resource = getResource(id);
   if (!resource) return { ok: false, problems: ['That resource no longer exists.'] };
-  const next = { ...resource, ...cleanResourceFields(fields), updatedAt: new Date().toISOString() };
+  const clean = cleanResourceFields(fields);
+  const next = { ...resource, ...clean, updatedAt: new Date().toISOString() };
+  if (clean.url !== resource.url) {
+    next.urlStatus = linkStatusFor(clean.url);
+    next.verifiedNote = '';
+  }
   const problems = validateResource(next);
   if (problems.length) return { ok: false, problems };
+  captureTestRevert(resource, testMode);
   Object.assign(resource, next);
   persist();
   return { ok: true, resource };
 }
 
-export function setResourceRetired(id, retired) {
+/** Adds the link to a resource that was marked "Link needed" (or changes its link). */
+export function setResourceLink(id, url, testMode) {
+  const resource = getResource(id);
+  if (!resource) return { ok: false, problems: ['That resource no longer exists.'] };
+  const clean = String(url ?? '').trim();
+  const problems = clean ? validateResourceUrl(clean) : ['Type or paste the link first.'];
+  if (problems.length) return { ok: false, problems };
+  captureTestRevert(resource, testMode);
+  resource.url = clean;
+  resource.urlStatus = 'added-by-you';
+  resource.verifiedNote = '';
+  resource.updatedAt = new Date().toISOString();
+  return { ok: true, saved: persist() };
+}
+
+export function setResourceRetired(id, retired, testMode) {
   const resource = getResource(id);
   if (!resource) return;
+  captureTestRevert(resource, testMode);
   resource.retired = retired;
   resource.updatedAt = new Date().toISOString();
   persist();
-}
-
-/** Remembers a real resource's status and notes the first time they change during a test. */
-function captureTestRevert(resource, testMode) {
-  if (testMode && !resource.testMode && !resource.testRevert) {
-    resource.testRevert = { status: resource.status, doneDate: resource.doneDate ?? null, notes: resource.notes ?? '' };
-  }
 }
 
 export function setResourceStatus(id, status, date, testMode) {

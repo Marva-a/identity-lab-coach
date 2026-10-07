@@ -337,6 +337,15 @@ thead th { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
 .resource__status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.25rem 0 0.5rem; }
 .resource__status label { display: inline; margin: 0; }
 .resource__status select { width: auto; min-width: 11rem; }
+.small { font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.4rem; }
+.resource--optional .resource__title, .resource--optional .meta, .resources li.is-optional, .day-resources li.is-optional { color: var(--muted); }
+.resource--optional { opacity: 0.88; }
+.flag--need { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn-text); }
+.link-form { margin: 0.35rem 0 0.5rem; }
+.link-form label { display: block; font-weight: 600; font-size: 0.92rem; margin-bottom: 0.25rem; }
+.link-form__row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.link-form__row input { flex: 1 1 14rem; max-width: 26rem; }
+.field-error { display: block; color: var(--danger); font-weight: 600; font-size: 0.9rem; margin-top: 0.2rem; }
 .day-resources { display: block; margin: 0.3rem 0; }
 .day-resources ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
 .res-status { font-weight: 600; }
