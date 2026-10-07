@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Identity Lab Coach</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div id="banners"></div>
+
+  <header class="app-header">
+    <div class="app-header__inner">
+      <p class="app-name">Identity Lab Coach</p>
+      <nav aria-label="Main">
+        <ul class="nav-list">
+          <li><a href="#today" data-route="today">Today</a></li>
+          <li><a href="#settings" data-route="settings">Settings and data</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <!-- Polite announcements for screen readers (phase changes, saves). -->
+  <div id="announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+  <script type="module" src="js/main.js"></script>
+  <noscript><p class="noscript">Identity Lab Coach needs JavaScript to run.</p></noscript>
+</body>
+</html>
