@@ -11,19 +11,20 @@
 // a server, a sync step or an append-only audit log will need. Add an
 // `ownerId` field at that point; no record needs one while the data is local.
 //
-// ─── Data model (schemaVersion 2) ─────────────────────────────────────────────
+// ─── Data model (schemaVersion 3) ─────────────────────────────────────────────
 //
 // AppData {
-//   schemaVersion: 2,
+//   schemaVersion: 3,
 //   app: 'identity-lab-coach',
 //   sessions:    Session[],     // Stage 1
 //   cards:       Card[],        // Stage 2: flashcards
 //   cardReviews: CardReview[],  // Stage 2: append-only log of every rating
 //   cardSeedVersion: number,    // which seed-card set has been added
+//   tallies:     Tally[],       // Stage 3: quick "+1 with date" scorecard entries
 //   artifacts:  Artifact[],  // Stage 4: evidence log
 //   people:     Person[],    // Stage 6: people log
 //   reviews:    Review[],    // Stage 7: Friday reviews
-//   weekChecks: { [weekItemId]: { done: boolean, at: ISO string } },  // Stage 3
+//   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
 //   settings:   Settings,
 // }
 //
@@ -63,6 +64,19 @@
 //   testMode: boolean
 // }
 //
+// Tally {            — one quick scorecard entry (Stage 3)
+//   id, createdAt,
+//   kind: 'artifact' | 'conversation' | 'application' | 'referral'
+//   date: 'YYYY-MM-DD'      when it happened
+//   note: string            optional, one line (for example "PKCE diagram")
+//   testMode: boolean
+// }
+// The scorecard counts tallies PLUS the matching full records from later
+// stages (artifacts from Stage 4, and so on). When Stage 4 is built, each
+// artifact tally will be turned into an Artifact record with the same id, date
+// and note (title), and then removed from tallies, so the count never changes
+// and nothing is lost.
+//
 // Planned for later stages (shapes agreed in the brief; adjust when built):
 // Artifact { id, title, date, link, week, exercise, project,
 //            label: 'implemented'|'simulated'|'conceptual' }
@@ -84,10 +98,10 @@ import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 
 export const STORAGE_KEY = 'identity-lab-coach:data';
 export const BACKUP_KEY = 'identity-lab-coach:backup-before-import';
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const APP_ID = 'identity-lab-coach';
 
-const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'artifacts', 'people', 'reviews'];
+const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'tallies', 'artifacts', 'people', 'reviews'];
 export const SESSION_STATUSES = ['done', 'partial', 'skipped'];
 export const REASON_MAX = 140;
 export const MINUTES_MAX = 600;
@@ -109,6 +123,7 @@ function emptyData() {
     cards: [],
     cardReviews: [],
     cardSeedVersion: 0,
+    tallies: [],
     artifacts: [],
     people: [],
     reviews: [],
@@ -280,20 +295,81 @@ export function sessionsOn(date) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-/** Test data: sessions and card ratings made while the test date was on. */
+/** Test data: anything created while the test date was on. */
 export function countTestData() {
   return {
     sessions: data.sessions.filter((s) => s.testMode).length,
     cardReviews: data.cardReviews.filter((r) => r.testMode).length,
+    tallies: data.tallies.filter((t) => t.testMode).length,
+    weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
   };
 }
 
-/** Deletes test sessions and test card ratings; card schedules follow automatically. */
+/** Deletes all test data; card schedules and the scorecard follow automatically. */
 export function deleteTestData() {
   const counts = countTestData();
   data.sessions = data.sessions.filter((s) => !s.testMode);
   data.cardReviews = data.cardReviews.filter((r) => !r.testMode);
+  data.tallies = data.tallies.filter((t) => !t.testMode);
+  data.weekChecks = Object.fromEntries(Object.entries(data.weekChecks).filter(([, c]) => !c.testMode));
   persist();
+  return counts;
+}
+
+// ─── Week checklist (Stage 3) ────────────────────────────────────────────────
+
+export function isChecked(itemId) {
+  return Boolean(data.weekChecks[itemId]);
+}
+
+export function setChecked(itemId, checked, testMode) {
+  if (checked) data.weekChecks[itemId] = { at: new Date().toISOString(), testMode: Boolean(testMode) };
+  else delete data.weekChecks[itemId];
+  persist();
+}
+
+// ─── Scorecard tallies (Stage 3) ─────────────────────────────────────────────
+
+export const TALLY_KINDS = ['artifact', 'conversation', 'application', 'referral'];
+export const NOTE_MAX = 140;
+
+export function validateTally(t) {
+  const problems = [];
+  if (!TALLY_KINDS.includes(t.kind)) problems.push('Choose what you are logging.');
+  if (!isValidDateString(t.date)) problems.push('Choose a valid date.');
+  if (String(t.note ?? '').length > NOTE_MAX) problems.push(`Keep the note under ${NOTE_MAX} characters.`);
+  return problems;
+}
+
+export function addTally({ kind, date, note, testMode }) {
+  const tally = {
+    id: newId(),
+    createdAt: new Date().toISOString(),
+    kind,
+    date,
+    note: String(note ?? '').trim(),
+    testMode: Boolean(testMode),
+  };
+  const problems = validateTally(tally);
+  if (problems.length) return { ok: false, problems };
+  data.tallies.push(tally);
+  const saved = persist();
+  return { ok: true, tally, saved };
+}
+
+export function deleteTally(id) {
+  data.tallies = data.tallies.filter((t) => t.id !== id);
+  persist();
+}
+
+/**
+ * Dates of everything that counts toward each scorecard measure.
+ * Later stages add their full records here (for example Stage 4 artifacts),
+ * so the scorecard never needs to change when they arrive.
+ */
+export function scorecardCounts() {
+  const counts = Object.fromEntries(TALLY_KINDS.map((k) => [k, []]));
+  for (const t of data.tallies) counts[t.kind].push(t.date);
   return counts;
 }
 
@@ -420,6 +496,7 @@ export function summarize(doc) {
     sessions: doc.sessions?.length ?? 0,
     cards: doc.cards?.length ?? 0,
     cardReviews: doc.cardReviews?.length ?? 0,
+    tallies: doc.tallies?.length ?? 0,
     artifacts: doc.artifacts?.length ?? 0,
     people: doc.people?.length ?? 0,
     reviews: doc.reviews?.length ?? 0,
@@ -470,6 +547,16 @@ export function parseImport(text) {
         problems.push(`Card rating ${i + 1} is incomplete or has an invalid date or rating.`);
       }
     });
+  }
+  if (Array.isArray(raw.tallies)) {
+    raw.tallies.forEach((t, i) => {
+      const p = validateTally(t ?? {});
+      if (!t?.id) p.push('missing id');
+      if (p.length) problems.push(`Scorecard entry ${i + 1}: ${p.join(' ')}`);
+    });
+  }
+  if (raw.weekChecks !== undefined && (typeof raw.weekChecks !== 'object' || Array.isArray(raw.weekChecks) || raw.weekChecks === null)) {
+    problems.push('"weekChecks" should be an object.');
   }
   if (problems.length) return { ok: false, problems: problems.slice(0, 8) };
   const doc = normalize(raw);

@@ -1,4 +1,4 @@
-// UI: renders the Today, Flashcards and Settings views and wires up events.
+// UI: renders the views (Today, Week, Flashcards, Scorecard, Settings) and wires up events.
 // Views are plain HTML strings; events use delegation on <main>.
 import * as store from './store.js';
 import * as T from './timer.js';
@@ -10,6 +10,10 @@ import { esc, today, testMode, announce, plural } from './ui.js';
 import {
   retrievalHtml, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
+import { weekView, weekActions, handleWeekChange, resetWeekView } from './week.js';
+import {
+  scorecardView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
+} from './scorecard.js';
 
 const mainEl = document.getElementById('main');
 const bannersEl = document.getElementById('banners');
@@ -371,11 +375,12 @@ function todayView() {
 function settingsView() {
   const s = store.getSettings();
   const testData = store.countTestData();
-  const testCount = testData.sessions + testData.cardReviews;
+  const testCount = Object.values(testData).reduce((a, b) => a + b, 0);
   const backup = store.getBackupInfo();
   const summaryText = (sum) =>
     [plural(sum.sessions, 'session', 'sessions'), plural(sum.cards, 'card', 'cards'),
-      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.artifacts, 'artifact', 'artifacts'),
+      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'scorecard entry', 'scorecard entries'),
+      plural(sum.artifacts, 'artifact', 'artifacts'),
       plural(sum.people, 'person', 'people'), plural(sum.reviews, 'review', 'reviews')].join(', ');
   const tzInfo = timeZoneInfo();
   const when = (iso) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Vancouver', dateStyle: 'medium', timeStyle: 'short' });
@@ -422,7 +427,7 @@ function settingsView() {
 
     <section class="card" aria-labelledby="test-heading">
       <h2 id="test-heading">Test date (for testing only)</h2>
-      <p class="meta">Off by default. While it's on, the app shows the plan and the due flashcards for the date you choose, a banner appears at the top of every page, and any sessions and card ratings you make are marked as test data. The timer still runs on the real clock.</p>
+      <p class="meta">Off by default. While it's on, the app shows the plan, due flashcards and scorecard for the date you choose, a banner appears at the top of every page, and anything you log, rate or tick is marked as test data. The timer still runs on the real clock.</p>
       <label class="check" for="test-enabled">
         <input type="checkbox" id="test-enabled" ${s.testDate.enabled ? 'checked' : ''}>
         <span>Use a test date instead of today</span>
@@ -433,7 +438,7 @@ function settingsView() {
         <span class="hint" id="test-date-hint">Applies only while the box above is checked. Real today in Vancouver: ${esc(formatLong(vancouverDate()))}.</span>
       </div>
       ${testCount ? `
-        <p>Test data saved: ${plural(testData.sessions, 'session', 'sessions')} and ${plural(testData.cardReviews, 'card rating', 'card ratings')}.</p>
+        <p>Test data saved: ${plural(testData.sessions, 'session', 'sessions')}, ${plural(testData.cardReviews, 'card rating', 'card ratings')}, ${plural(testData.tallies, 'scorecard entry', 'scorecard entries')} and ${plural(testData.weekChecks, 'ticked item', 'ticked items')}.</p>
         <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
       <h3>Date and scheduling checks</h3>
       <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling and when each week's cards unlock. Nothing is changed.</p>
@@ -497,7 +502,9 @@ function render({ focus } = {}) {
     else a.removeAttribute('aria-current');
   });
   renderedDate = today();
-  const views = { today: todayView, cards: flashcardsView, settings: settingsView };
+  const views = {
+    today: todayView, week: weekView, cards: flashcardsView, scorecard: scorecardView, settings: settingsView,
+  };
   mainEl.innerHTML = views[route]();
   updateTimerDisplay();
 
@@ -658,7 +665,7 @@ const actions = {
   },
   'delete-test-data': () => {
     const n = store.countTestData();
-    const what = `${plural(n.sessions, 'test session', 'test sessions')} and ${plural(n.cardReviews, 'test card rating', 'test card ratings')}`;
+    const what = `${plural(n.sessions, 'test session', 'test sessions')}, ${plural(n.cardReviews, 'card rating', 'card ratings')}, ${plural(n.tallies, 'scorecard entry', 'scorecard entries')} and ${plural(n.weekChecks, 'ticked item', 'ticked items')}`;
     if (!window.confirm(`Delete ${what}? Real data is kept, and card schedules go back to what your real ratings give.`)) return;
     store.deleteTestData();
     ui.dataMessage = `Deleted ${what}.`;
@@ -699,8 +706,10 @@ mainEl.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
-  else if (cardActions[el.dataset.action]) {
-    const focus = cardActions[el.dataset.action](el);
+  else {
+    const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action];
+    if (!handler) return;
+    const focus = handler(el);
     render(focus ? { focus } : {});
   }
 });
@@ -716,6 +725,9 @@ mainEl.addEventListener('submit', (e) => {
   } else if (e.target.id === 'card-form') {
     e.preventDefault();
     render({ focus: submitCardForm(e.target) });
+  } else if (e.target.id === 'tally-form') {
+    e.preventDefault();
+    render({ focus: submitTallyForm(e.target) });
   }
 });
 
@@ -724,11 +736,12 @@ mainEl.addEventListener('input', (e) => {
   const map = { 'log-minutes': 'minutes', 'log-reason': 'reason', 'log-date': 'date' };
   if (map[e.target.id]) ui.logDraft[map[e.target.id]] = e.target.value;
   handleCardInput(e.target);
+  handleTallyInput(e.target);
 });
 
 mainEl.addEventListener('change', async (e) => {
   const t = e.target;
-  const cardFocus = handleCardChange(t);
+  const cardFocus = handleCardChange(t) ?? handleWeekChange(t);
   if (cardFocus) {
     render({ focus: cardFocus });
   } else if (t.name === 'status' && t.closest('#log-form')) {
@@ -771,7 +784,7 @@ mainEl.addEventListener('change', async (e) => {
 // ─── Routing and start-up ────────────────────────────────────────────────────
 
 function routeFromHash() {
-  return { '#settings': 'settings', '#cards': 'cards' }[location.hash] ?? 'today';
+  return { '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard' }[location.hash] ?? 'today';
 }
 
 window.addEventListener('hashchange', () => {
@@ -779,6 +792,8 @@ window.addEventListener('hashchange', () => {
   ui.flash = null;
   ui.dataMessage = null;
   resetCardMessages();
+  resetScorecardMessages();
+  resetWeekView();
   render({ focus: '#day-heading' });
 });
 

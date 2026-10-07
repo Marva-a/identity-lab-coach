@@ -44,6 +44,9 @@ node js/selftest.js
 | `js/srs.js` | Leitner spaced repetition, unlocking by week, interleaving |
 | `js/cards-data.js` | The 45 seed flashcards (all unverified, each with a reference) |
 | `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
+| `js/week.js` | Week view: checklist, days, hours against the budget |
+| `js/pace.js` | Scorecard maths: expected-by-today and status (no page code) |
+| `js/scorecard.js` | Scorecard view and the quick "+1 with date" log |
 | `js/ui.js` | Small shared helpers |
 | `js/main.js` | The Today and Settings views, routing and events |
 | `js/selftest.js` | Date and scheduling checks (in Settings, or `node js/selftest.js`) |
@@ -59,6 +62,11 @@ node js/selftest.js
   `cardReviews` log, and a card's box and due date are worked out by
   replaying that log. Deleting test ratings or importing a file can never
   leave a schedule out of step with its history.
+- **Tally** is a new record: a quick "+1 with date" scorecard entry
+  (artifact, conversation, application or referral ask). The scorecard counts
+  tallies plus the full records later stages add. Stage 4 will turn each
+  artifact tally into an Artifact with the same id, date and note, so counts
+  never change.
 - **Every saved record has `id`, `createdAt` and `updatedAt`**, ready for a
   server, sync or an append-only audit log. Add `ownerId` when you add
   sign-in; `store.js` is the only file that touches storage, so it is the one
@@ -68,9 +76,9 @@ node js/selftest.js
 
 1. **Stage 1 (built):** data model, seeded plan, Today view, timer, session log, JSON export and import, test date.
 2. **Stage 2 (built):** spaced-repetition flashcards, the retrieval check on Today, card editor.
-3. Week view with checklist and hours against budget.
+3. **Stage 3 (built):** Week view (checklist, hours against budget) and Scorecard (pace against the plan).
 4. Evidence log with Markdown export.
-5. Scorecard dashboard.
+5. Scorecard refinements as needed.
 6. People log and follow-ups on Today.
 7. Friday review with the reduced-mode and Nov 21 rules.
 

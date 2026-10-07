@@ -5,6 +5,9 @@ import { getDayContext, dayNumberFor } from './plan.js';
 import { WEEKS, PLAN_START } from './plan-data.js';
 import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
 import { SEED_CARDS } from './cards-data.js';
+import {
+  expectedHours, expectedArtifactsPeriod1, expectedFor, statusFor, countStudyDays, scorecard, PERIOD_1, PERIOD_2,
+} from './pace.js';
 
 const vancouverClock = new Intl.DateTimeFormat('en-CA', {
   timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -132,6 +135,33 @@ export function runDateChecks() {
   check('Cards: about 40 seed cards', SEED_CARDS.length >= 38 && SEED_CARDS.length <= 46, true);
   check('Cards: every seed card has a reference', SEED_CARDS.every((c) => c.reference && c.week >= 1 && c.week <= 8), true);
   check('Cards: every week 1–8 has seed cards', [1, 2, 3, 4, 5, 6, 7, 8].every((w) => SEED_CARDS.some((c) => c.week === w)), true);
+
+  // Scorecard pace (against the plan, not the calendar).
+  check('Pace: 52 study days from Oct 12 to Dec 10', countStudyDays(PERIOD_1.start, PERIOD_1.end), 52);
+  check('Pace: no hours expected on the morning of Day 1', expectedHours('2026-10-12'), 0);
+  check('Pace: 1 h expected once Day 1 has ended', expectedHours('2026-10-13'), 1);
+  check('Pace: 11 h expected on Sun Oct 18 (Week 1 done)', expectedHours('2026-10-18'), 11);
+  check('Pace: a Sunday adds no hours (Sun Oct 18 = Mon Oct 19)', expectedHours('2026-10-19'), expectedHours('2026-10-18'));
+  check('Pace: 103 planned hours once Dec 10 has ended', expectedHours('2026-12-11'), 103);
+  check('Pace: no artifact expected before the first Saturday ends', expectedArtifactsPeriod1('2026-10-17'), 0);
+  check('Pace: 1 artifact expected on Sun Oct 18', expectedArtifactsPeriod1('2026-10-18'), 1);
+  check('Pace: 9 artifacts expected after Dec 10 (8 Saturdays + capstone)', expectedArtifactsPeriod1('2026-12-11'), 9);
+  for (const m of ['conversation', 'application', 'referral']) {
+    check(`Pace: a Sunday adds no ${m}s (Sun Oct 25 = Mon Oct 26)`,
+      expectedFor(m, PERIOD_1, '2026-10-26'), expectedFor(m, PERIOD_1, '2026-10-25'));
+  }
+  check('Pace: the Dec 24 – Jan 1 rest adds nothing (Dec 24 = Jan 2)',
+    expectedFor('conversation', PERIOD_2, '2027-01-02'), expectedFor('conversation', PERIOD_2, '2026-12-24'));
+  check('Pace: Jan 31 targets use the low end (20 applications)', expectedFor('application', PERIOD_2, '2027-02-01'), 20);
+  check('Status: 90% of expected is On track', statusFor(9, 10, { isCount: true }), 'on');
+  check('Status: 80% is Behind', statusFor(8, 10, { isCount: true }), 'behind');
+  check('Status: 60% is At risk', statusFor(6, 10, { isCount: true }), 'risk');
+  check('Status: one short of 1 is Behind, not At risk', statusFor(0, 1, { isCount: true }), 'behind');
+  check('Status: 0.8 of a conversation expected is still On track', statusFor(0, 0.8, { isCount: true }), 'on');
+  const sat = [1, 2, 3, 4, 5, 6].map((i) => ({ date: `2026-10-${String(11 + i).padStart(2, '0')}`, minutes: i === 1 ? 60 : 120 }));
+  const hoursStatus = (d) => scorecard(d, sat, {}).find((r) => r.id === 'hours').status;
+  check('Status: with Week 1 fully logged, Sun Oct 18 is On track', hoursStatus('2026-10-18'), 'on');
+  check('Status: and Mon Oct 19 morning is still On track', hoursStatus('2026-10-19'), 'on');
 
   return results;
 }

@@ -282,6 +282,48 @@ textarea { max-width: 100%; line-height: 1.5; resize: vertical; }
 .history li { margin-bottom: 0.5rem; }
 .history p { margin: 0.2rem 0 0; white-space: pre-wrap; }
 
+/* ─── Week view ──────────────────────────────────────── */
+.week-nav { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; margin: 0.75rem 0 1rem; }
+.checklist li { padding: 0.35rem 0; }
+.checklist .check { margin: 0; }
+.checklist input:checked + span .item-text { text-decoration: line-through; color: var(--muted); }
+.card h3 { margin-top: 1rem; }
+.day-list { list-style: none; padding: 0; margin: 0; }
+.day-list li { display: grid; gap: 0.1rem; padding: 0.55rem 0; border-top: 1px solid var(--border); }
+.day-list li:first-child { border-top: 0; }
+.day-list li.is-today { border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+.hours-total { font-size: 1.1rem; margin-bottom: 0.25rem; }
+
+/* ─── Tables and status ──────────────────────────────── */
+.table-scroll { overflow-x: auto; margin: 0.5rem 0 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem 0.5rem 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+thead th { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+.hours-table { max-width: 26rem; margin: 0.5rem 0; }
+.cell-note { display: block; font-size: 0.8rem; color: var(--muted); max-width: 16rem; }
+.status {
+  display: inline-block; white-space: nowrap; font-weight: 700; font-size: 0.88rem;
+  padding: 0.1rem 0.55rem; border-radius: 999px; border: 2px solid currentColor;
+}
+.status--on { color: var(--success); }
+.status--behind { color: var(--warn-text); background: var(--warn-bg); border-color: var(--warn-border); }
+.status--risk { color: var(--danger); }
+.status--none { color: var(--muted); border-width: 1px; }
+.rule { font-size: 0.92rem; }
+
+/* Score table becomes stacked rows on narrow screens. */
+@media (max-width: 34rem) {
+  .score-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .score-table tr { display: block; border-bottom: 1px solid var(--border); padding: 0.5rem 0; }
+  .score-table th, .score-table td { display: block; border: 0; padding: 0.15rem 0; }
+  .score-table tbody th { font-size: 1rem; }
+  .score-table td::before { font-size: 0.8rem; color: var(--muted); display: block; }
+  .score-table td:nth-of-type(1)::before { content: "Logged"; }
+  .score-table td:nth-of-type(2)::before { content: "Expected by today"; }
+  .score-table td:nth-of-type(3)::before { content: "Target"; }
+  .score-table td:nth-of-type(4)::before { content: "Status"; }
+}
+
 .noscript { padding: 1rem; }
 
 @media (prefers-reduced-motion: reduce) {
