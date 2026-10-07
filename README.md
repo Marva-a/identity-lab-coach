@@ -9,6 +9,13 @@ tracking, no dependencies. Your data stays in your browser.
 Each browser keeps its own data (the live link, your phone and `localhost`
 don't share it). Use Export and Import in Settings to move data between them.
 
+## Time zone note
+
+British Columbia stopped changing clocks in 2026 and stays on UTC−7. The app
+asks the browser for the Vancouver date, so it follows whatever time zone data
+the browser has. Settings → "Run date checks" says whether your browser's data
+is up to date.
+
 ## Run it locally
 
 ```bash
@@ -34,8 +41,12 @@ node js/selftest.js
 | `js/plan.js` | Turns a date into "what's on today" |
 | `js/store.js` | Data model, saving, JSON export and import (the data model is documented at the top) |
 | `js/timer.js` | The 50/10/50 session timer |
-| `js/main.js` | The Today and Settings views |
-| `js/selftest.js` | Date checks (in Settings, or `node js/selftest.js`) |
+| `js/srs.js` | Leitner spaced repetition, unlocking by week, interleaving |
+| `js/cards-data.js` | The 45 seed flashcards (all unverified, each with a reference) |
+| `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
+| `js/ui.js` | Small shared helpers |
+| `js/main.js` | The Today and Settings views, routing and events |
+| `js/selftest.js` | Date and scheduling checks (in Settings, or `node js/selftest.js`) |
 
 ## Data model changes from the brief
 
@@ -44,6 +55,10 @@ node js/selftest.js
   roadmap gives items per week and one focus line per day.
 - **Exercise** is a new seed record (the 20 exercises from Part 8).
 - **Session** adds `id`, `dayNumber`, `testMode`, `createdAt` and `updatedAt`.
+- **Card schedules are not stored.** Each rating is appended to a
+  `cardReviews` log, and a card's box and due date are worked out by
+  replaying that log. Deleting test ratings or importing a file can never
+  leave a schedule out of step with its history.
 - **Every saved record has `id`, `createdAt` and `updatedAt`**, ready for a
   server, sync or an append-only audit log. Add `ownerId` when you add
   sign-in; `store.js` is the only file that touches storage, so it is the one
@@ -52,7 +67,7 @@ node js/selftest.js
 ## Build stages
 
 1. **Stage 1 (built):** data model, seeded plan, Today view, timer, session log, JSON export and import, test date.
-2. Spaced-repetition flashcards and the retrieval check.
+2. **Stage 2 (built):** spaced-repetition flashcards, the retrieval check on Today, card editor.
 3. Week view with checklist and hours against budget.
 4. Evidence log with Markdown export.
 5. Scorecard dashboard.

@@ -11,13 +11,15 @@
 // a server, a sync step or an append-only audit log will need. Add an
 // `ownerId` field at that point; no record needs one while the data is local.
 //
-// ─── Data model (schemaVersion 1) ─────────────────────────────────────────────
+// ─── Data model (schemaVersion 2) ─────────────────────────────────────────────
 //
 // AppData {
-//   schemaVersion: 1,
+//   schemaVersion: 2,
 //   app: 'identity-lab-coach',
-//   sessions:   Session[],   // Stage 1 (in use)
-//   cards:      Card[],      // Stage 2: spaced-repetition flashcards
+//   sessions:    Session[],     // Stage 1
+//   cards:       Card[],        // Stage 2: flashcards
+//   cardReviews: CardReview[],  // Stage 2: append-only log of every rating
+//   cardSeedVersion: number,    // which seed-card set has been added
 //   artifacts:  Artifact[],  // Stage 4: evidence log
 //   people:     Person[],    // Stage 6: people log
 //   reviews:    Review[],    // Stage 7: Friday reviews
@@ -35,9 +37,33 @@
 //   testMode: boolean       true if logged while the test date was on
 // }
 //
+// Card {             — one flashcard
+//   id, createdAt, updatedAt,
+//   type: 'recall' | 'explain'
+//   front, back: string     question and reference answer
+//   week: number|null       week it unlocks (1–9); null = always unlocked
+//   topic: string
+//   reference: string       where to check it (RFC, NIST, OWASP, W3C page)
+//   source: 'seed' | 'user' seedId: string|null (seed cards only)
+//   verified: boolean       only you set this; seed cards start false
+//   verifiedAt: ISO string|null
+//   retired: boolean        retired cards are never due
+// }
+// A card's schedule (box, next due date) is NOT stored on the card. srs.js
+// works it out by replaying the card's CardReview log, so the log is the
+// single source of truth (this replaces the brief's "schedule fields").
+//
+// CardReview {       — one rating, never edited
+//   id, createdAt,
+//   cardId, date: 'YYYY-MM-DD' (Vancouver, or the test date)
+//   rating: 'again' | 'hard' | 'good' | 'easy'
+//   response: string        what you typed (explain-it cards), so you can see
+//                           how your explanations improve
+//   context: 'retrieval' | 'study'
+//   testMode: boolean
+// }
+//
 // Planned for later stages (shapes agreed in the brief; adjust when built):
-// Card     { id, front, back, type: 'recall'|'explain', week, reference,
-//            verified: boolean, retired: boolean, box/ease/interval/due… }
 // Artifact { id, title, date, link, week, exercise, project,
 //            label: 'implemented'|'simulated'|'conceptual' }
 // Person   { id, name, role, company, metAt, date, notes, followUpDate }
@@ -54,13 +80,14 @@
 // }
 
 import { isValidDateString } from './dates.js';
+import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 
 export const STORAGE_KEY = 'identity-lab-coach:data';
 export const BACKUP_KEY = 'identity-lab-coach:backup-before-import';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 const APP_ID = 'identity-lab-coach';
 
-const COLLECTIONS = ['sessions', 'cards', 'artifacts', 'people', 'reviews'];
+const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'artifacts', 'people', 'reviews'];
 export const SESSION_STATUSES = ['done', 'partial', 'skipped'];
 export const REASON_MAX = 140;
 export const MINUTES_MAX = 600;
@@ -80,6 +107,8 @@ function emptyData() {
     app: APP_ID,
     sessions: [],
     cards: [],
+    cardReviews: [],
+    cardSeedVersion: 0,
     artifacts: [],
     people: [],
     reviews: [],
@@ -123,6 +152,7 @@ function normalize(raw) {
   const base = emptyData();
   const out = { ...base, ...raw };
   for (const c of COLLECTIONS) out[c] = Array.isArray(raw?.[c]) ? raw[c] : [];
+  out.cardSeedVersion = Number.isInteger(raw?.cardSeedVersion) ? raw.cardSeedVersion : 0;
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -136,16 +166,50 @@ export function load() {
   const text = readKey(STORAGE_KEY);
   if (!text) {
     data = emptyData();
-    return data;
+  } else {
+    try {
+      data = normalize(JSON.parse(text));
+    } catch {
+      // Corrupt data: keep a copy rather than overwriting it, then start fresh.
+      writeKey(`${STORAGE_KEY}:corrupt-${Date.now()}`, text);
+      data = emptyData();
+    }
   }
-  try {
-    data = normalize(JSON.parse(text));
-  } catch {
-    // Corrupt data: keep a copy rather than overwriting it, then start fresh.
-    writeKey(`${STORAGE_KEY}:corrupt-${Date.now()}`, text);
-    data = emptyData();
-  }
+  if (seedCards()) persist();
   return data;
+}
+
+/**
+ * Adds any seed cards this data hasn't had yet (matched by seedId), so a
+ * fresh install, an older export or a future seed update all end up complete.
+ * Seed cards you retired or edited are never re-added or overwritten.
+ * Returns true if anything changed.
+ */
+function seedCards() {
+  if (data.cardSeedVersion >= CARD_SEED_VERSION) return false;
+  const have = new Set(data.cards.map((c) => c.seedId).filter(Boolean));
+  const now = new Date().toISOString();
+  for (const seed of SEED_CARDS) {
+    if (have.has(seed.seedId)) continue;
+    data.cards.push({
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+      type: seed.type,
+      front: seed.front,
+      back: seed.back,
+      week: seed.week,
+      topic: seed.topic,
+      reference: seed.reference,
+      source: 'seed',
+      seedId: seed.seedId,
+      verified: false,
+      verifiedAt: null,
+      retired: false,
+    });
+  }
+  data.cardSeedVersion = CARD_SEED_VERSION;
+  return true;
 }
 
 function persist() {
@@ -216,15 +280,129 @@ export function sessionsOn(date) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function countTestSessions() {
-  return data.sessions.filter((s) => s.testMode).length;
+/** Test data: sessions and card ratings made while the test date was on. */
+export function countTestData() {
+  return {
+    sessions: data.sessions.filter((s) => s.testMode).length,
+    cardReviews: data.cardReviews.filter((r) => r.testMode).length,
+  };
 }
 
-export function deleteTestSessions() {
-  const before = data.sessions.length;
+/** Deletes test sessions and test card ratings; card schedules follow automatically. */
+export function deleteTestData() {
+  const counts = countTestData();
   data.sessions = data.sessions.filter((s) => !s.testMode);
+  data.cardReviews = data.cardReviews.filter((r) => !r.testMode);
   persist();
-  return before - data.sessions.length;
+  return counts;
+}
+
+// ─── Cards ───────────────────────────────────────────────────────────────────
+
+export const CARD_TYPES = ['recall', 'explain'];
+export const CARD_TEXT_MAX = 2000;
+export const REFERENCE_MAX = 300;
+export const RESPONSE_MAX = 4000;
+const RATINGS = ['again', 'hard', 'good', 'easy'];
+
+export function validateCard(c) {
+  const problems = [];
+  if (!CARD_TYPES.includes(c.type)) problems.push('Choose a card type.');
+  if (!String(c.front ?? '').trim()) problems.push('Add a question or prompt.');
+  if (!String(c.back ?? '').trim()) problems.push('Add a reference answer.');
+  if (String(c.front ?? '').length > CARD_TEXT_MAX || String(c.back ?? '').length > CARD_TEXT_MAX) {
+    problems.push(`Keep each side under ${CARD_TEXT_MAX} characters.`);
+  }
+  if (c.week !== null && !(Number.isInteger(c.week) && c.week >= 1 && c.week <= 9)) {
+    problems.push('The week must be from 1 to 9, or none.');
+  }
+  if (String(c.reference ?? '').length > REFERENCE_MAX) problems.push(`Keep the reference under ${REFERENCE_MAX} characters.`);
+  return problems;
+}
+
+function cleanCardFields(f) {
+  return {
+    type: f.type,
+    front: String(f.front ?? '').trim(),
+    back: String(f.back ?? '').trim(),
+    week: f.week ?? null,
+    topic: String(f.topic ?? '').trim(),
+    reference: String(f.reference ?? '').trim(),
+  };
+}
+
+export function getCard(id) {
+  return data.cards.find((c) => c.id === id);
+}
+
+export function addCard(fields) {
+  const now = new Date().toISOString();
+  const card = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    ...cleanCardFields(fields),
+    source: 'user',
+    seedId: null,
+    verified: Boolean(fields.verified),
+    verifiedAt: fields.verified ? now : null,
+    retired: false,
+  };
+  const problems = validateCard(card);
+  if (problems.length) return { ok: false, problems };
+  data.cards.push(card);
+  persist();
+  return { ok: true, card };
+}
+
+/** Edits a card's content. Its review history and schedule are kept. */
+export function updateCard(id, fields) {
+  const card = getCard(id);
+  if (!card) return { ok: false, problems: ['That card no longer exists.'] };
+  const next = { ...card, ...cleanCardFields(fields), updatedAt: new Date().toISOString() };
+  const problems = validateCard(next);
+  if (problems.length) return { ok: false, problems };
+  Object.assign(card, next);
+  persist();
+  return { ok: true, card };
+}
+
+/** Only called from your own click: marks a card verified or unverified. */
+export function setCardVerified(id, verified) {
+  const card = getCard(id);
+  if (!card) return;
+  const now = new Date().toISOString();
+  card.verified = verified;
+  card.verifiedAt = verified ? now : null;
+  card.updatedAt = now;
+  persist();
+}
+
+export function setCardRetired(id, retired) {
+  const card = getCard(id);
+  if (!card) return;
+  card.retired = retired;
+  card.updatedAt = new Date().toISOString();
+  persist();
+}
+
+export function addCardReview({ cardId, date, rating, response, context, testMode }) {
+  if (!getCard(cardId) || !isValidDateString(date) || !RATINGS.includes(rating)) {
+    return { ok: false };
+  }
+  const review = {
+    id: newId(),
+    createdAt: new Date().toISOString(),
+    cardId,
+    date,
+    rating,
+    response: String(response ?? '').slice(0, RESPONSE_MAX),
+    context: context === 'retrieval' ? 'retrieval' : 'study',
+    testMode: Boolean(testMode),
+  };
+  data.cardReviews.push(review);
+  const saved = persist();
+  return { ok: true, review, saved };
 }
 
 // ─── Export and import ───────────────────────────────────────────────────────
@@ -241,6 +419,7 @@ export function summarize(doc) {
   return {
     sessions: doc.sessions?.length ?? 0,
     cards: doc.cards?.length ?? 0,
+    cardReviews: doc.cardReviews?.length ?? 0,
     artifacts: doc.artifacts?.length ?? 0,
     people: doc.people?.length ?? 0,
     reviews: doc.reviews?.length ?? 0,
@@ -278,6 +457,20 @@ export function parseImport(text) {
       if (p.length) problems.push(`Session ${i + 1}: ${p.join(' ')}`);
     });
   }
+  if (Array.isArray(raw.cards)) {
+    raw.cards.forEach((c, i) => {
+      const p = validateCard({ ...(c ?? {}), week: c?.week ?? null });
+      if (!c?.id) p.push('missing id');
+      if (p.length) problems.push(`Card ${i + 1}: ${p.join(' ')}`);
+    });
+  }
+  if (Array.isArray(raw.cardReviews)) {
+    raw.cardReviews.forEach((r, i) => {
+      if (!r?.id || !r.cardId || !isValidDateString(r.date) || !RATINGS.includes(r.rating)) {
+        problems.push(`Card rating ${i + 1} is incomplete or has an invalid date or rating.`);
+      }
+    });
+  }
   if (problems.length) return { ok: false, problems: problems.slice(0, 8) };
   const doc = normalize(raw);
   return { ok: true, doc, summary: summarize(raw) };
@@ -290,6 +483,7 @@ export function replaceWithImport(doc) {
     return { ok: false, problems: ['Could not save a backup of your current data, so nothing was replaced.'] };
   }
   data = normalize(doc);
+  seedCards();
   persist();
   return { ok: true };
 }
@@ -312,6 +506,7 @@ export function restoreBackup() {
   const backup = JSON.parse(text);
   const current = { savedAt: new Date().toISOString(), data };
   data = normalize(backup.data);
+  seedCards();
   persist();
   writeKey(BACKUP_KEY, JSON.stringify(current));
   return true;

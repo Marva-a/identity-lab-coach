@@ -1,8 +1,37 @@
 // Date checks. They prove the calendar rules without changing any data and
 // run from Settings → "Run date checks" (or `node js/selftest.js`).
-import { vancouverDate, addDays, weekday } from './dates.js';
+import { vancouverDate, addDays, weekday, TIME_ZONE } from './dates.js';
 import { getDayContext, dayNumberFor } from './plan.js';
 import { WEEKS, PLAN_START } from './plan-data.js';
+import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
+import { SEED_CARDS } from './cards-data.js';
+
+const vancouverClock = new Intl.DateTimeFormat('en-CA', {
+  timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+/**
+ * The instant when Vancouver wall clocks show `hh:mm` on `date`, using this
+ * device's own time zone rules. Tries UTC−7 and UTC−8, so it works whether or
+ * not the device knows BC stopped changing clocks in 2026.
+ */
+function vancouverInstant(date, hh, mm) {
+  const [y, m, d] = date.split('-').map(Number);
+  for (const offsetHours of [7, 8]) {
+    const instant = new Date(Date.UTC(y, m - 1, d, hh + offsetHours, mm));
+    if (vancouverDate(instant) === date && vancouverClock.format(instant) === `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`) {
+      return instant;
+    }
+  }
+  return null;
+}
+
+/** This device's UTC offset for Vancouver at an instant, for example "UTC−7". */
+export function vancouverOffset(instant) {
+  const name = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, timeZoneName: 'longOffset' })
+    .formatToParts(instant).find((p) => p.type === 'timeZoneName')?.value ?? '';
+  return name.replace('GMT', 'UTC').replace('-', '−');
+}
 
 export function runDateChecks() {
   const results = [];
@@ -10,12 +39,15 @@ export function runDateChecks() {
     results.push({ name, pass: actual === expected, actual, expected });
   };
 
-  // Vancouver time, including the end of daylight saving (2 am PDT, Sun Nov 1, 2026).
-  check('Oct 12, 11:30 pm PDT is still Oct 12', vancouverDate(new Date('2026-10-13T06:30:00Z')), '2026-10-12');
-  check('Oct 13, 12:00 am PDT is Oct 13', vancouverDate(new Date('2026-10-13T07:00:00Z')), '2026-10-13');
-  check('Nov 1, 1:30 am (before the change) is Nov 1', vancouverDate(new Date('2026-11-01T08:30:00Z')), '2026-11-01');
-  check('Nov 1, 11:30 pm PST is still Nov 1', vancouverDate(new Date('2026-11-02T07:30:00Z')), '2026-11-01');
-  check('Nov 2, 12:30 am PST is Nov 2', vancouverDate(new Date('2026-11-02T08:30:00Z')), '2026-11-02');
+  // The date changes at local midnight in Vancouver, whatever clock rules this
+  // device has. (BC stopped changing clocks in 2026 and stays on UTC−7; a
+  // device with older time zone data still expects a change on Nov 1.)
+  for (const [date, label] of [['2026-10-12', 'Oct 12'], ['2026-11-01', 'Nov 1'], ['2026-11-02', 'Nov 2'], ['2027-01-15', 'Jan 15']]) {
+    const late = vancouverInstant(date, 23, 30);
+    const early = vancouverInstant(date, 0, 30);
+    check(`${label}, 11:30 pm Vancouver time is still ${label}`, late ? vancouverDate(late) : 'no such time', date);
+    check(`${label}, 12:30 am Vancouver time is ${label}`, early ? vancouverDate(early) : 'no such time', date);
+  }
 
   // Plan days.
   const oct7 = getDayContext('2026-10-07');
@@ -62,7 +94,43 @@ export function runDateChecks() {
   check('Swap: Nov 11 keeps Remembrance Day', getDayContext('2026-11-11', swap).holiday, 'Remembrance Day');
   check('Swap: Nov 11 is still Day 31', getDayContext('2026-11-11', swap).dayNumber, 31);
 
+  // Flashcards: Leitner scheduling.
+  const s0 = initialState();
+  check('Cards: "Good" on a new card is due 1 day later', nextState(s0, 'good', '2026-10-12').due, '2026-10-13');
+  check('Cards: "Easy" on a new card jumps to box 2 (3 days)', nextState(s0, 'easy', '2026-10-12').due, '2026-10-15');
+  check('Cards: "Again" is due again the same day', nextState({ ...s0, box: 4 }, 'again', '2026-10-20').due, '2026-10-20');
+  check('Cards: "Hard" keeps the box (box 3 = 7 days)', nextState({ ...s0, box: 3 }, 'hard', '2026-10-20').due, '2026-10-27');
+  check('Cards: box 5 is the top (30 days)', nextState({ ...s0, box: 5 }, 'easy', '2026-11-02').due, '2026-12-02');
+  const history = [
+    { date: '2026-10-13', createdAt: 'b', rating: 'good' },
+    { date: '2026-10-12', createdAt: 'a', rating: 'good' },
+  ];
+  check('Cards: reviews replay in date order (good, good → box 2, due Oct 16)', replay(history).due, '2026-10-16');
+  check('Cards: week 4 unlocks Mon Nov 2', unlockDate(4, {}), '2026-11-02');
+  check('Cards: with weeks 2 and 5 swapped, week 5 cards unlock Oct 19', unlockDate(5, { swapWeeks2and5: true }), '2026-10-19');
+  const w4 = { id: 'x', week: 4, retired: false };
+  check('Cards: a week 4 card is hidden on Sun Nov 1', scheduleAll([w4], [], '2026-11-01', {}).get('x').unlocked, false);
+  check('Cards: a week 4 card is due on Mon Nov 2', scheduleAll([w4], [], '2026-11-02', {}).get('x').isDue, true);
+  const mixed = [{ id: 'a', week: 3 }, { id: 'b', week: 3 }, { id: 'c', week: 1 }, { id: 'd', week: 2 }];
+  check('Cards: the retrieval check mixes weeks', pickInterleaved(mixed, 3).map((c) => c.week).join(','), '3,1,2');
+  check('Cards: about 40 seed cards', SEED_CARDS.length >= 38 && SEED_CARDS.length <= 46, true);
+  check('Cards: every seed card has a reference', SEED_CARDS.every((c) => c.reference && c.week >= 1 && c.week <= 8), true);
+  check('Cards: every week 1–8 has seed cards', [1, 2, 3, 4, 5, 6, 7, 8].every((w) => SEED_CARDS.some((c) => c.week === w)), true);
+
   return results;
+}
+
+/** Information about this device's time zone data (not a pass/fail check). */
+export function timeZoneInfo() {
+  const offset = vancouverOffset(new Date('2026-12-01T20:00:00Z'));
+  const current = offset === 'UTC−07:00';
+  return {
+    offset,
+    current,
+    text: current
+      ? `This device's time zone data is up to date: Vancouver stays on ${offset} after Nov 1, 2026.`
+      : `This device's time zone data is out of date: it puts Vancouver on ${offset} after Nov 1, 2026, but BC now stays on UTC−7. Until the browser updates, the app's day changes at 1 am instead of midnight in winter.`,
+  };
 }
 
 // Allow `node js/selftest.js` from the project folder.
@@ -71,5 +139,6 @@ if (typeof process !== 'undefined' && process.argv?.[1]?.endsWith('selftest.js')
   for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.pass ? '' : ` (got ${r.actual}, expected ${r.expected})`}`);
   const failed = results.filter((r) => !r.pass).length;
   console.log(`\n${results.length - failed}/${results.length} passed`);
+  console.log(`Info: ${timeZoneInfo().text}`);
   if (failed) process.exitCode = 1;
 }

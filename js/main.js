@@ -1,15 +1,18 @@
-// UI: renders the Today and Settings views and wires up events.
+// UI: renders the Today, Flashcards and Settings views and wires up events.
 // Views are plain HTML strings; events use delegation on <main>.
 import * as store from './store.js';
 import * as T from './timer.js';
 import { vancouverDate, formatLong, formatShort, isValidDateString } from './dates.js';
 import { getDayContext, dayNumberFor } from './plan.js';
 import { PLAN_START, PLAN_END, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
-import { runDateChecks } from './selftest.js';
+import { runDateChecks, timeZoneInfo } from './selftest.js';
+import { esc, today, testMode, announce, plural } from './ui.js';
+import {
+  retrievalHtml, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
+} from './flashcards.js';
 
 const mainEl = document.getElementById('main');
 const bannersEl = document.getElementById('banners');
-const announcerEl = document.getElementById('announcer');
 const BASE_TITLE = 'Identity Lab Coach';
 
 let route = 'today';
@@ -28,30 +31,6 @@ const ui = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function esc(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-/** The date the app treats as today: the test date if it is on, otherwise Vancouver today. */
-function today() {
-  const { testDate } = store.getSettings();
-  return testDate.enabled && isValidDateString(testDate.date) ? testDate.date : vancouverDate();
-}
-
-function testMode() {
-  return store.getSettings().testDate.enabled;
-}
-
-function announce(message) {
-  announcerEl.textContent = '';
-  setTimeout(() => { announcerEl.textContent = message; }, 50);
-}
 
 function planDayFor(date) {
   return date >= PLAN_START && date <= PLAN_END ? dayNumberFor(date) : null;
@@ -188,14 +167,6 @@ function applicationHtml(ctx) {
     <p>${esc(ctx.application.focus)}</p>
     <p class="meta">Output: ${esc(ctx.application.output)}</p>
     ${ctx.interviewPrep ? `<p class="note"><strong>Interview prep:</strong> ${esc(ctx.interviewPrep)}</p>` : ''}`;
-}
-
-function retrievalHtml() {
-  return `
-    <section class="card card--quiet" aria-labelledby="retrieval-heading">
-      <h2 id="retrieval-heading">Retrieval check</h2>
-      <p class="meta">Not built yet (Stage 2). Three flashcards due today will appear here before the timer, so each session starts with recall.</p>
-    </section>`;
 }
 
 function itemsHtml(ctx) {
@@ -399,12 +370,14 @@ function todayView() {
 
 function settingsView() {
   const s = store.getSettings();
-  const testCount = store.countTestSessions();
+  const testData = store.countTestData();
+  const testCount = testData.sessions + testData.cardReviews;
   const backup = store.getBackupInfo();
-  const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
   const summaryText = (sum) =>
-    [n(sum.sessions, 'session', 'sessions'), n(sum.cards, 'card', 'cards'), n(sum.artifacts, 'artifact', 'artifacts'),
-      n(sum.people, 'person', 'people'), n(sum.reviews, 'review', 'reviews')].join(', ');
+    [plural(sum.sessions, 'session', 'sessions'), plural(sum.cards, 'card', 'cards'),
+      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.artifacts, 'artifact', 'artifacts'),
+      plural(sum.people, 'person', 'people'), plural(sum.reviews, 'review', 'reviews')].join(', ');
+  const tzInfo = timeZoneInfo();
   const when = (iso) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Vancouver', dateStyle: 'medium', timeStyle: 'short' });
 
   const checks = ui.checkResults
@@ -412,8 +385,9 @@ function settingsView() {
         const failed = ui.checkResults.filter((r) => !r.pass);
         return `
           <p class="${failed.length ? '' : 'status-ok'}" id="check-summary" tabindex="-1">
-            ${failed.length ? `<strong>${failed.length} of ${ui.checkResults.length} checks failed.</strong>` : `All ${ui.checkResults.length} date checks passed.`}
+            ${failed.length ? `<strong>${failed.length} of ${ui.checkResults.length} checks failed.</strong>` : `All ${ui.checkResults.length} checks passed.`}
           </p>
+          <p class="${tzInfo.current ? 'meta' : 'note'}">${tzInfo.current ? '' : '<strong>Note:</strong> '}${esc(tzInfo.text)}</p>
           <details ${failed.length ? 'open' : ''}>
             <summary>Show each check</summary>
             <ul class="check-results">
@@ -448,7 +422,7 @@ function settingsView() {
 
     <section class="card" aria-labelledby="test-heading">
       <h2 id="test-heading">Test date (for testing only)</h2>
-      <p class="meta">Off by default. While it's on, the app shows the plan for the date you choose, a banner appears at the top of every page, and any sessions you log are marked as test sessions. The timer still runs on the real clock.</p>
+      <p class="meta">Off by default. While it's on, the app shows the plan and the due flashcards for the date you choose, a banner appears at the top of every page, and any sessions and card ratings you make are marked as test data. The timer still runs on the real clock.</p>
       <label class="check" for="test-enabled">
         <input type="checkbox" id="test-enabled" ${s.testDate.enabled ? 'checked' : ''}>
         <span>Use a test date instead of today</span>
@@ -459,10 +433,10 @@ function settingsView() {
         <span class="hint" id="test-date-hint">Applies only while the box above is checked. Real today in Vancouver: ${esc(formatLong(vancouverDate()))}.</span>
       </div>
       ${testCount ? `
-        <p>${testCount} test ${testCount === 1 ? 'session is' : 'sessions are'} saved.</p>
-        <button type="button" class="button--danger" data-action="delete-test-sessions">Delete test sessions</button>` : ''}
-      <h3>Date checks</h3>
-      <p class="meta">Checks Vancouver time, the clock change on Nov 1, every plan date and the weekly hour budgets. Nothing is changed.</p>
+        <p>Test data saved: ${plural(testData.sessions, 'session', 'sessions')} and ${plural(testData.cardReviews, 'card rating', 'card ratings')}.</p>
+        <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
+      <h3>Date and scheduling checks</h3>
+      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling and when each week's cards unlock. Nothing is changed.</p>
       <button type="button" data-action="run-checks">Run date checks</button>
       ${checks}
     </section>
@@ -523,10 +497,14 @@ function render({ focus } = {}) {
     else a.removeAttribute('aria-current');
   });
   renderedDate = today();
-  mainEl.innerHTML = route === 'settings' ? settingsView() : todayView();
+  const views = { today: todayView, cards: flashcardsView, settings: settingsView };
+  mainEl.innerHTML = views[route]();
   updateTimerDisplay();
 
-  const target = focus ? mainEl.querySelector(focus) : activeId ? document.getElementById(activeId) : null;
+  // `focus` may list fallbacks ("#a, #b"): use the first one that exists, in that order.
+  const target = focus
+    ? focus.split(',').map((sel) => document.querySelector(sel.trim())).find(Boolean)
+    : activeId ? document.getElementById(activeId) : null;
   target?.focus();
 }
 
@@ -678,11 +656,12 @@ const actions = {
     announce('Session deleted.');
     render({ focus: '#log-heading' });
   },
-  'delete-test-sessions': () => {
-    const n = store.countTestSessions();
-    if (!window.confirm(`Delete ${n} test ${n === 1 ? 'session' : 'sessions'}? Real sessions are kept.`)) return;
-    store.deleteTestSessions();
-    ui.dataMessage = `Deleted ${n} test ${n === 1 ? 'session' : 'sessions'}.`;
+  'delete-test-data': () => {
+    const n = store.countTestData();
+    const what = `${plural(n.sessions, 'test session', 'test sessions')} and ${plural(n.cardReviews, 'test card rating', 'test card ratings')}`;
+    if (!window.confirm(`Delete ${what}? Real data is kept, and card schedules go back to what your real ratings give.`)) return;
+    store.deleteTestData();
+    ui.dataMessage = `Deleted ${what}.`;
     render({ focus: '#test-heading' });
   },
   'run-checks': () => {
@@ -718,7 +697,12 @@ const actions = {
 
 mainEl.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
-  if (el && actions[el.dataset.action]) actions[el.dataset.action](el);
+  if (!el) return;
+  if (actions[el.dataset.action]) actions[el.dataset.action](el);
+  else if (cardActions[el.dataset.action]) {
+    const focus = cardActions[el.dataset.action](el);
+    render(focus ? { focus } : {});
+  }
 });
 bannersEl.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
@@ -729,6 +713,9 @@ mainEl.addEventListener('submit', (e) => {
   if (e.target.id === 'log-form') {
     e.preventDefault();
     saveLog(e.target);
+  } else if (e.target.id === 'card-form') {
+    e.preventDefault();
+    render({ focus: submitCardForm(e.target) });
   }
 });
 
@@ -736,11 +723,15 @@ mainEl.addEventListener('submit', (e) => {
 mainEl.addEventListener('input', (e) => {
   const map = { 'log-minutes': 'minutes', 'log-reason': 'reason', 'log-date': 'date' };
   if (map[e.target.id]) ui.logDraft[map[e.target.id]] = e.target.value;
+  handleCardInput(e.target);
 });
 
 mainEl.addEventListener('change', async (e) => {
   const t = e.target;
-  if (t.name === 'status' && t.closest('#log-form')) {
+  const cardFocus = handleCardChange(t);
+  if (cardFocus) {
+    render({ focus: cardFocus });
+  } else if (t.name === 'status' && t.closest('#log-form')) {
     ui.logDraft.status = t.value;
     render({ focus: `input[name="status"][value="${t.value}"]` });
   } else if (t.name === 'theme') {
@@ -780,13 +771,14 @@ mainEl.addEventListener('change', async (e) => {
 // ─── Routing and start-up ────────────────────────────────────────────────────
 
 function routeFromHash() {
-  return location.hash === '#settings' ? 'settings' : 'today';
+  return { '#settings': 'settings', '#cards': 'cards' }[location.hash] ?? 'today';
 }
 
 window.addEventListener('hashchange', () => {
   route = routeFromHash();
   ui.flash = null;
   ui.dataMessage = null;
+  resetCardMessages();
   render({ focus: '#day-heading' });
 });
 
