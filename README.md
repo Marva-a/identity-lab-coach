@@ -4,7 +4,12 @@ A private, local-first study coach for the 60-day identity and security plan
 (Day 1 = Mon Oct 12, 2026; Day 60 = Thu Dec 10, 2026). No accounts, no
 tracking, no dependencies. Your data stays in your browser.
 
-## Run it
+**Live app:** https://marva-a.github.io/identity-lab-coach/
+
+Each browser keeps its own data (the live link, your phone and `localhost`
+don't share it). Use Export and Import in Settings to move data between them.
+
+## Run it locally
 
 ```bash
 node serve.mjs
