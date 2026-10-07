@@ -15,6 +15,19 @@ export const ARTIFACT_TYPES = {
   other: 'Other',
 };
 export const ARTIFACT_STATUSES = { draft: 'Draft', published: 'Published' };
+/** How real the work is. Empty until you choose; required before an artifact is published. */
+export const MATURITIES = {
+  implemented: 'Implemented',
+  simulated: 'Simulated',
+  conceptual: 'Conceptual',
+  future: 'Future phase',
+};
+export const PROJECTS = {
+  'project-1': 'Project 1',
+  'project-2': 'Project 2',
+  'project-3': 'Project 3',
+  other: 'Other',
+};
 export const TAGS_MAX = 3;
 export const TAG_MAX_LENGTH = 40;
 
@@ -68,13 +81,23 @@ export function normalizeTags(list) {
   return out;
 }
 
-/** Returns a list of problems; empty when the artifact is valid. */
-export function validateArtifact(a) {
+/**
+ * Returns a list of problems; empty when the artifact is valid.
+ * With `requireMaturity`, a published artifact must have a maturity. Saving
+ * in the app asks for it; importing does not, so older files and converted
+ * quick entries (which have none) still load.
+ */
+export function validateArtifact(a, { requireMaturity = false } = {}) {
   const problems = [];
   if (!String(a.title ?? '').trim()) problems.push('Add a title.');
   if (String(a.title ?? '').length > LIMITS.title) problems.push(`Keep the title under ${LIMITS.title} characters.`);
   if (!(a.type in ARTIFACT_TYPES)) problems.push('Choose a type.');
   if (!(a.status in ARTIFACT_STATUSES)) problems.push('Choose draft or published.');
+  if ((a.maturity ?? '') !== '' && !(a.maturity in MATURITIES)) problems.push('Choose a valid maturity.');
+  if (requireMaturity && a.status === 'published' && !a.maturity) {
+    problems.push('Pick a maturity (Implemented, Simulated, Conceptual or Future phase). It is required for published evidence.');
+  }
+  if ((a.project ?? '') !== '' && !(a.project in PROJECTS)) problems.push('Choose a valid project.');
   if (!isDate(a.createdDate)) problems.push('Choose a valid created date.');
   if (a.status === 'published') {
     if (!isDate(a.publishedDate)) problems.push('Choose a valid published date.');
@@ -154,3 +177,93 @@ export function countsFromDoc(doc) {
   }
   return counts;
 }
+
+// ─── Resources (Stage 4b: Content library) ───────────────────────────────────
+export const RESOURCE_TYPES = {
+  video: 'Video', article: 'Article', spec: 'Spec', lab: 'Lab', exercise: 'Exercise',
+};
+export const RESOURCE_STATUSES = { 'not-started': 'Not started', 'in-progress': 'In progress', done: 'Done' };
+export const RESOURCE_LIMITS = {
+  title: 150, source: 100, why: 300, notes: 4000, minutes: 600, days: 10, url: 500,
+};
+const PLACEHOLDER_HOSTS = ['example.com', 'example.org', 'example.net'];
+
+/** Plan days are 1–60; Sundays (7, 14 … 56) are rest days, so nothing is scheduled on them. */
+export function isPlanStudyDay(n) {
+  return Number.isInteger(n) && n >= 1 && n <= 60 && n % 7 !== 0;
+}
+
+/** The made-up addresses used in examples (example.com and friends) are never real resources. */
+export function isPlaceholderUrl(value) {
+  try {
+    const host = new URL(String(value).trim()).hostname.toLowerCase();
+    return PLACEHOLDER_HOSTS.some((p) => host === p || host.endsWith(`.${p}`));
+  } catch {
+    return false;
+  }
+}
+
+/** A link in a form that can be compared: no #fragment, no trailing slash. */
+export function normalizeUrl(value) {
+  try {
+    const u = new URL(String(value).trim());
+    u.hash = '';
+    return u.href.replace(/\/$/, '');
+  } catch {
+    return String(value ?? '').trim();
+  }
+}
+
+/** Reads "8, 9 10" into day numbers. Returns the numbers and anything that is not a number. */
+export function parseDays(text) {
+  const tokens = String(text ?? '').split(/[\s,;]+/).filter(Boolean);
+  const days = [];
+  const problems = [];
+  for (const t of tokens) {
+    if (/^\d+$/.test(t)) days.push(Number(t));
+    else problems.push(`"${t}" is not a day number.`);
+  }
+  return { days: [...new Set(days)].sort((a, b) => a - b), problems };
+}
+
+/** Returns a list of problems; empty when the resource is valid. */
+export function validateResource(r) {
+  const problems = [];
+  const text = (v) => (typeof v === 'string' ? v : '');
+  const title = text(r.title).trim();
+  if (!title) problems.push('Add a title.');
+  else if (title.length > RESOURCE_LIMITS.title) problems.push(`Keep the title under ${RESOURCE_LIMITS.title} characters.`);
+  const source = text(r.source).trim();
+  if (!source) problems.push('Add the source or author.');
+  else if (source.length > RESOURCE_LIMITS.source) problems.push(`Keep the source under ${RESOURCE_LIMITS.source} characters.`);
+  if (!(r.type in RESOURCE_TYPES)) problems.push(`Type must be one of: ${Object.keys(RESOURCE_TYPES).join(', ')}.`);
+  if (!Number.isInteger(r.minutes) || r.minutes < 1 || r.minutes > RESOURCE_LIMITS.minutes) {
+    problems.push(`Estimated minutes must be a whole number from 1 to ${RESOURCE_LIMITS.minutes}.`);
+  }
+  const url = text(r.url).trim();
+  if (!url) problems.push('Add the link.');
+  else if (!isHttpUrl(url)) problems.push('The link must start with http:// or https://.');
+  else if (url.length > RESOURCE_LIMITS.url) problems.push(`Keep the link under ${RESOURCE_LIMITS.url} characters.`);
+  else if (isPlaceholderUrl(url)) problems.push('This is a placeholder address (example.com, .org or .net). Use the real link.');
+  if (text(r.why).length > RESOURCE_LIMITS.why) problems.push(`Keep the reason under ${RESOURCE_LIMITS.why} characters.`);
+  if (!Array.isArray(r.days) || !r.days.length) {
+    problems.push('Add at least one plan day (1–60).');
+  } else {
+    if (r.days.length > RESOURCE_LIMITS.days) problems.push(`Use at most ${RESOURCE_LIMITS.days} plan days.`);
+    for (const d of r.days) {
+      if (!isPlanStudyDay(d)) problems.push(`Day ${d} is not a study day: use 1–60, and Sundays (7, 14, 21 … 56) are rest days.`);
+    }
+  }
+  if (r.status !== undefined && !(r.status in RESOURCE_STATUSES)) problems.push('The status is not valid.');
+  if (r.notes !== undefined && text(r.notes).length > RESOURCE_LIMITS.notes) problems.push(`Keep notes under ${RESOURCE_LIMITS.notes} characters.`);
+  return problems;
+}
+
+/** "Do this next" order: in progress first, then not started, then done; plan order within each. */
+export function orderResources(list) {
+  const rank = { 'in-progress': 0, 'not-started': 1, done: 2 };
+  return [...list].sort((a, b) => (rank[a.status] ?? 1) - (rank[b.status] ?? 1) || (a.position ?? 0) - (b.position ?? 0));
+}
+
+export const totalMinutes = (list) => list.reduce((sum, r) => sum + r.minutes, 0);
+export const remainingMinutes = (list) => totalMinutes(list.filter((r) => r.status !== 'done'));

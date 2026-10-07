@@ -10,6 +10,11 @@ export function dayNumberFor(date) {
   return daysBetween(PLAN_START, date) + 1;
 }
 
+/** The plan day (1–60) a date counts as, or null outside the 60 days. */
+export function planDayFor(date) {
+  return date >= PLAN_START && date <= PLAN_END ? dayNumberFor(date) : null;
+}
+
 /** The calendar week (1–9) a plan date falls in. Sundays belong to the week that just ended. */
 function calendarWeekFor(dayNumber) {
   return Math.ceil(dayNumber / 7);
@@ -50,6 +55,8 @@ function studyDayContext(date, settings) {
     calendarWeek: calWeek,
     week: contentWeek,
     swapped: contentWeek.number !== calWeek,
+    // The roadmap day number of the content shown (differs from dayNumber when weeks 2 and 5 are swapped).
+    contentDay: seed.day,
     block: seed.block,
     blockLabel: BLOCK_LABELS[seed.block],
     focus: seed.focus,

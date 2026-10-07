@@ -130,6 +130,8 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
           url: '',
           tags: [],
           reflection: '',
+          maturity: '', // stays empty until you edit the record
+          project: '',
           migrated: true,
           testMode: Boolean(t.testMode),
         });

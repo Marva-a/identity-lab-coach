@@ -3,10 +3,10 @@
 import * as store from './store.js';
 import * as T from './timer.js';
 import { vancouverDate, formatLong, formatShort, isValidDateString } from './dates.js';
-import { getDayContext, dayNumberFor } from './plan.js';
-import { PLAN_START, PLAN_END, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
+import { getDayContext, planDayFor } from './plan.js';
+import { PLAN_START, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
 import { runDateChecks, timeZoneInfo } from './selftest.js';
-import { esc, today, testMode, announce, plural } from './ui.js';
+import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.js';
 import {
   retrievalHtml, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
@@ -18,6 +18,10 @@ import {
   evidenceView, evidenceActions, submitEvidenceForm, submitPublishForm, handleEvidenceChange, handleEvidenceInput,
   resetEvidenceView,
 } from './evidence.js';
+import {
+  libraryView, resourceActions, todayResourcesHtml, submitResourceForm, readResourceFile, handleResourceChange,
+  handleResourceInput, handleResourceToggle, resetResourceView, flushResourceNotes,
+} from './resources.js';
 import {
   peopleView, peopleActions, todayFollowUpsHtml, submitPersonForm, submitInteractionForm, handlePeopleInput,
   selectPersonOnNavigate, resetPeopleView,
@@ -43,10 +47,6 @@ const ui = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function planDayFor(date) {
-  return date >= PLAN_START && date <= PLAN_END ? dayNumberFor(date) : null;
-}
 
 function statusLabel(status) {
   return { done: 'Done', partial: 'Partial', skipped: 'Skipped' }[status] ?? status;
@@ -381,6 +381,7 @@ function todayView() {
     headerHtml(ctx),
     todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
+    todayResourcesHtml(ctx),
     itemsHtml(ctx),
     timerHtml(ctx),
     logHtml(ctx),
@@ -398,7 +399,8 @@ function settingsView() {
     [plural(sum.sessions, 'session', 'sessions'), plural(sum.cards, 'card', 'cards'),
       plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'quick entry', 'quick entries'),
       plural(sum.artifacts, 'evidence item', 'evidence items'), plural(sum.people, 'person', 'people'),
-      plural(sum.interactions ?? 0, 'interaction', 'interactions'), plural(sum.reviews, 'review', 'reviews')].join(', ');
+      plural(sum.interactions ?? 0, 'interaction', 'interactions'), plural(sum.resources ?? 0, 'resource', 'resources'),
+      plural(sum.reviews, 'review', 'reviews')].join(', ');
   const migrationBackups = store.getMigrationBackups();
   const reasonText = { update: 'Converted when the app updated', import: 'Older file imported', restore: 'Older backup restored' };
   const tzInfo = timeZoneInfo();
@@ -461,7 +463,7 @@ function settingsView() {
         <p>Test data saved: ${esc(describeTestData(testData))}.</p>
         <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
       <h3>Date and scheduling checks</h3>
-      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence and people rules, and the data migration. Nothing is changed.</p>
+      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence, people and library rules, the Markdown export and the data migration. Nothing is changed.</p>
       <button type="button" data-action="run-checks">Run date checks</button>
       ${checks}
     </section>
@@ -534,6 +536,7 @@ function describeTestData(n) {
     n.artifacts && plural(n.artifacts, 'evidence item', 'evidence items'),
     n.people && plural(n.people, 'person', 'people'),
     n.interactions && plural(n.interactions, 'interaction', 'interactions'),
+    n.resources && plural(n.resources, 'resource changed or added', 'resources changed or added'),
     n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : 'none';
@@ -559,6 +562,7 @@ function loadProblemView(problem) {
 // ─── Render ──────────────────────────────────────────────────────────────────
 
 function render({ focus } = {}) {
+  flushResourceNotes(); // notes typed a moment ago are saved before the page redraws
   const activeId = document.activeElement?.id;
   applyTheme();
   renderBanners();
@@ -568,8 +572,8 @@ function render({ focus } = {}) {
   });
   renderedDate = today();
   const views = {
-    today: todayView, week: weekView, cards: flashcardsView, evidence: evidenceView, people: peopleView,
-    scorecard: scorecardView, settings: settingsView,
+    today: todayView, week: weekView, library: libraryView, cards: flashcardsView, evidence: evidenceView,
+    people: peopleView, scorecard: scorecardView, settings: settingsView,
   };
   const problem = store.getLoadProblem();
   mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
@@ -665,17 +669,7 @@ function saveLog(form) {
   render({ focus: '#log-flash' });
 }
 
-function downloadText(fileName, text) {
-  const blob = new Blob([text], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+const downloadText = (fileName, text) => downloadFile(fileName, text, 'application/json');
 
 function downloadExport() {
   const fileName = store.exportFileName(vancouverDate());
@@ -809,7 +803,7 @@ mainEl.addEventListener('click', (e) => {
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
   else {
     const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action]
-      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action];
+      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action] ?? resourceActions[el.dataset.action];
     if (!handler) return;
     const focus = handler(el);
     render(focus ? { focus } : {});
@@ -836,6 +830,9 @@ mainEl.addEventListener('submit', (e) => {
   } else if (e.target.id === 'publish-form') {
     e.preventDefault();
     render({ focus: submitPublishForm(e.target) });
+  } else if (e.target.id === 'resource-form') {
+    e.preventDefault();
+    render({ focus: submitResourceForm(e.target) });
   } else if (e.target.id === 'person-form') {
     e.preventDefault();
     render({ focus: submitPersonForm(e.target) });
@@ -853,11 +850,21 @@ mainEl.addEventListener('input', (e) => {
   handleTallyInput(e.target);
   handleEvidenceInput(e.target);
   handlePeopleInput(e.target);
+  handleResourceInput(e.target);
 });
+
+// Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
+mainEl.addEventListener('toggle', handleResourceToggle, true);
+// Leaving a notes box saves it straight away.
+mainEl.addEventListener('focusout', (e) => { if (e.target.dataset?.resNotes) flushResourceNotes(); });
 
 mainEl.addEventListener('change', async (e) => {
   const t = e.target;
-  const cardFocus = handleCardChange(t) ?? handleWeekChange(t) ?? handleEvidenceChange(t);
+  if (t.id === 'resource-import-file') {
+    render({ focus: await readResourceFile(t) });
+    return;
+  }
+  const cardFocus = handleCardChange(t) ?? handleWeekChange(t) ?? handleEvidenceChange(t) ?? handleResourceChange(t);
   if (cardFocus) {
     render({ focus: cardFocus });
   } else if (t.name === 'status' && t.closest('#log-form')) {
@@ -902,7 +909,7 @@ mainEl.addEventListener('change', async (e) => {
 function routeFromHash() {
   return {
     '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard',
-    '#evidence': 'evidence', '#people': 'people',
+    '#evidence': 'evidence', '#people': 'people', '#library': 'library',
   }[location.hash] ?? 'today';
 }
 
@@ -915,12 +922,17 @@ window.addEventListener('hashchange', () => {
   resetWeekView();
   resetEvidenceView();
   resetPeopleView();
-  render({ focus: '#day-heading' });
+  resetResourceView();
+  const focus = nav.focus ?? '#day-heading';
+  nav.focus = null;
+  render({ focus });
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) tick();
+  if (document.hidden) flushResourceNotes();
+  else tick();
 });
+window.addEventListener('pagehide', flushResourceNotes);
 
 store.load();
 // Catch the timer up on anything that happened while the page was closed.

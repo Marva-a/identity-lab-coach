@@ -49,3 +49,19 @@ export function linkHtml(url, label) {
   if (!/^https?:\/\//i.test(String(url ?? '').trim())) return text;
   return `<a href="${esc(String(url).trim())}" target="_blank" rel="noopener noreferrer">${text}<span class="visually-hidden"> (opens in a new tab)</span></a>`;
 }
+
+/** Saves text as a file on this device (nothing is uploaded). */
+export function downloadFile(fileName, text, mime = 'application/json') {
+  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** One-shot request for where focus should land after the next page change. */
+export const nav = { focus: null };

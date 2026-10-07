@@ -1,22 +1,29 @@
 // Evidence log: your artifacts, from draft to published.
 // The scorecard counts an artifact only when it is published, on its published date.
+// Maturity and project describe the work; they never change the counts.
 import * as store from './store.js';
-import { esc, announce, today, testMode, plural, errorSummaryHtml, linkHtml } from './ui.js';
-import { formatShort } from './dates.js';
 import {
-  ARTIFACT_TYPES, ARTIFACT_STATUSES, TAGS_MAX, LIMITS, normalizeTags, validateArtifact,
+  esc, announce, today, testMode, plural, errorSummaryHtml, linkHtml, downloadFile,
+} from './ui.js';
+import { formatShort, vancouverDate } from './dates.js';
+import {
+  ARTIFACT_TYPES, ARTIFACT_STATUSES, MATURITIES, PROJECTS, TAGS_MAX, LIMITS, normalizeTags, validateArtifact,
 } from './records.js';
+import { evidenceToMarkdown } from './evidence-md.js';
 
 // Transient UI state (not saved).
 const ui = {
   status: 'all',
   tag: 'all',
+  project: 'all',
   editing: null, // 'new' or an artifact id
   form: null, // values typed into the form
   errors: [],
   publishing: null, // artifact id with its publish form open
   publishDate: '',
+  publishMaturity: '',
   publishErrors: [],
+  selected: new Set(), // ids ticked for the Markdown export
   message: null,
 };
 
@@ -24,7 +31,7 @@ function blankForm() {
   const date = today();
   return {
     title: '', type: 'write-up', status: 'draft', createdDate: date, publishedDate: date,
-    url: '', tags: ['', '', ''], reflection: '',
+    url: '', maturity: '', project: '', tags: ['', '', ''], reflection: '',
   };
 }
 
@@ -36,9 +43,16 @@ function formFrom(artifact) {
     createdDate: artifact.createdDate,
     publishedDate: artifact.publishedDate ?? '',
     url: artifact.url ?? '',
+    maturity: artifact.maturity ?? '',
+    project: artifact.project ?? '',
     tags: [...(artifact.tags ?? []), '', '', ''].slice(0, TAGS_MAX),
     reflection: artifact.reflection ?? '',
   };
+}
+
+function options(map, selected, emptyLabel) {
+  const empty = emptyLabel ? `<option value="" ${selected ? '' : 'selected'}>${esc(emptyLabel)}</option>` : '';
+  return empty + Object.entries(map).map(([v, l]) => `<option value="${v}" ${selected === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
 }
 
 function formHtml(artifact) {
@@ -56,9 +70,16 @@ function formHtml(artifact) {
       </div>
       <div class="field">
         <label for="ev-type">Type</label>
-        <select id="ev-type" name="type">
-          ${Object.entries(ARTIFACT_TYPES).map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
-        </select>
+        <select id="ev-type" name="type">${options(ARTIFACT_TYPES, f.type)}</select>
+      </div>
+      <div class="field">
+        <label for="ev-project">Project (optional)</label>
+        <select id="ev-project" name="project">${options(PROJECTS, f.project, 'Not set')}</select>
+      </div>
+      <div class="field">
+        <label for="ev-maturity">Maturity${f.status === 'published' ? ' (required)' : ' (required before you publish)'}</label>
+        <select id="ev-maturity" name="maturity" aria-describedby="ev-maturity-hint">${options(MATURITIES, f.maturity, 'Choose…')}</select>
+        <span class="hint" id="ev-maturity-hint">How real is it? Implemented (it runs), Simulated (mocked and labelled), Conceptual (designed, not built) or Future phase.</span>
       </div>
       ${isNew ? `
         <fieldset>
@@ -106,10 +127,16 @@ function formHtml(artifact) {
 }
 
 function publishFormHtml(artifact) {
+  const maturity = ui.publishMaturity || artifact.maturity || '';
   return `
     <form id="publish-form" class="card-form" data-id="${esc(artifact.id)}" novalidate>
       <h3 id="publish-heading" tabindex="-1">Publish "${esc(artifact.title)}"</h3>
       ${errorSummaryHtml('publish-errors', ui.publishErrors)}
+      <div class="field">
+        <label for="publish-maturity">Maturity (required)</label>
+        <select id="publish-maturity" name="maturity" aria-describedby="publish-maturity-hint">${options(MATURITIES, maturity, 'Choose…')}</select>
+        <span class="hint" id="publish-maturity-hint">Implemented, Simulated, Conceptual or Future phase. Be honest about depth: it is shown wherever the evidence appears.</span>
+      </div>
       <div class="field">
         <label for="publish-date">Date published</label>
         <input type="date" id="publish-date" name="publishedDate" value="${esc(ui.publishDate || today())}" aria-describedby="publish-hint">
@@ -130,6 +157,9 @@ function rowHtml(a) {
   const counts = published
     ? `Counts toward the scorecard on ${esc(formatShort(a.publishedDate))}.`
     : 'Does not count toward the scorecard until it is published.';
+  const maturity = a.maturity
+    ? `<strong>${esc(MATURITIES[a.maturity])}</strong>`
+    : `not set${published ? ' (edit to choose)' : ''}`;
   return `
     <li class="card-row">
       <h3 class="card-row__front">${title}</h3>
@@ -137,17 +167,30 @@ function rowHtml(a) {
         <span class="tag ${published ? 'tag--verified' : ''}">${esc(ARTIFACT_STATUSES[a.status])}</span> ·
         Created ${esc(formatShort(a.createdDate))}${published ? ` · Published ${esc(formatShort(a.publishedDate))}` : ''}
         ${a.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
+      <p class="meta">Project: ${a.project ? `<strong>${esc(PROJECTS[a.project])}</strong>` : 'not set'} · Maturity: ${maturity}</p>
       ${a.tags?.length
         ? `<ul class="tags" aria-label="What this proves">${a.tags.map((t) => `<li class="tag">${esc(t)}</li>`).join('')}</ul>`
         : `<p class="meta">${a.migrated ? 'Converted from a quick entry: edit it to add what it proves.' : 'No skill tags yet.'}</p>`}
       ${a.reflection ? `<p class="reflection">${esc(a.reflection)}</p>` : ''}
       <p class="meta">${counts}</p>
+      ${published ? `
+        <label class="check" for="sel-${esc(a.id)}">
+          <input type="checkbox" id="sel-${esc(a.id)}" data-export-select="${esc(a.id)}" ${ui.selected.has(a.id) ? 'checked' : ''}>
+          <span>Include in the Markdown export<span class="visually-hidden">: ${esc(a.title)}</span></span>
+        </label>` : ''}
       <div class="button-row">
         <button type="button" class="button--small" data-action="evidence-edit" data-id="${esc(a.id)}" aria-label="Edit ${esc(a.title)}">Edit</button>
         ${published ? '' : `<button type="button" class="button--small button--primary" data-action="evidence-publish" data-id="${esc(a.id)}" aria-label="Publish ${esc(a.title)}">Publish…</button>`}
         <button type="button" class="button--small button--danger" data-action="evidence-delete" data-id="${esc(a.id)}" aria-label="Delete ${esc(a.title)}">Delete</button>
       </div>
     </li>`;
+}
+
+/** The published artifacts the Markdown export will include. */
+function exportItems() {
+  const published = store.getData().artifacts.filter((a) => a.status === 'published');
+  const picked = published.filter((a) => ui.selected.has(a.id));
+  return { published, items: picked.length ? picked : published, usingSelection: picked.length > 0 };
 }
 
 export function evidenceView() {
@@ -157,16 +200,22 @@ export function evidenceView() {
   const shown = all
     .filter((a) => ui.status === 'all' || a.status === ui.status)
     .filter((a) => ui.tag === 'all' || (a.tags ?? []).some((t) => t.toLowerCase() === ui.tag))
+    .filter((a) => ui.project === 'all' || (ui.project === 'none' ? !a.project : a.project === ui.project))
     .sort((a, b) => (b.publishedDate ?? b.createdDate).localeCompare(a.publishedDate ?? a.createdDate)
       || b.createdAt.localeCompare(a.createdAt));
-  const published = all.filter((a) => a.status === 'published').length;
+  const { published, items, usingSelection } = exportItems();
+  const exportLabel = published.length === 0
+    ? 'Export to Markdown'
+    : usingSelection
+      ? `Export ${plural(items.length, 'selected item', 'selected items')} (Markdown)`
+      : `Export all ${plural(items.length, 'published item', 'published items')} (Markdown)`;
 
   return `
     <h1 id="day-heading" tabindex="-1">Evidence log</h1>
 
     <section class="card" aria-labelledby="evidence-heading">
       <h2 id="evidence-heading" tabindex="-1">Your artifacts</h2>
-      <p class="meta">${plural(published, 'published artifact', 'published artifacts')} and ${plural(all.length - published, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date. Everything stays in this browser.</p>
+      <p class="meta">${plural(published.length, 'published artifact', 'published artifacts')} and ${plural(all.length - published.length, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date. Everything stays in this browser.</p>
       ${ui.message ? `<p class="status-ok" id="evidence-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <div class="filters">
         <div class="field">
@@ -178,6 +227,14 @@ export function evidenceView() {
           </select>
         </div>
         <div class="field">
+          <label for="ev-filter-project">Project</label>
+          <select id="ev-filter-project">
+            <option value="all" ${ui.project === 'all' ? 'selected' : ''}>All projects</option>
+            ${Object.entries(PROJECTS).map(([v, l]) => `<option value="${v}" ${ui.project === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+            <option value="none" ${ui.project === 'none' ? 'selected' : ''}>Not set</option>
+          </select>
+        </div>
+        <div class="field">
           <label for="ev-filter-tag">Skill</label>
           <select id="ev-filter-tag">
             <option value="all">All skills</option>
@@ -185,6 +242,17 @@ export function evidenceView() {
           </select>
         </div>
       </div>
+
+      <div class="export-box" role="group" aria-labelledby="export-heading">
+        <h3 id="export-heading">Markdown export</h3>
+        <p class="meta">Creates a case-study-ready .md file on your device with each published item's title, type, project, maturity, date published, skills, link and reflection. Drafts are never included. Nothing is sent anywhere. Tick "Include in the Markdown export" on items to export only those; with none ticked it exports all published evidence.</p>
+        <div class="button-row">
+          <button type="button" data-action="evidence-export" ${published.length ? '' : 'disabled'}>${esc(exportLabel)}</button>
+          ${ui.selected.size ? '<button type="button" class="button--small" data-action="evidence-clear-selection">Clear selection</button>' : ''}
+        </div>
+        ${published.length ? '' : '<p class="meta">Publish something first: only published evidence is exported.</p>'}
+      </div>
+
       ${ui.editing === 'new' ? formHtml(null) : '<div class="button-row"><button type="button" data-action="evidence-add">Add evidence</button></div>'}
       <p class="meta" aria-live="polite">${plural(shown.length, 'item', 'items')} shown.</p>
       <ul class="card-list">${shown.map(rowHtml).join('')}</ul>
@@ -201,6 +269,8 @@ function readForm(form) {
     createdDate: val('createdDate'),
     publishedDate: val('publishedDate'),
     url: val('url'),
+    maturity: val('maturity'),
+    project: val('project'),
     tags: [...form.querySelectorAll('input[name="tag"]')].map((i) => i.value),
     reflection: val('reflection'),
   };
@@ -221,7 +291,8 @@ export const evidenceActions = {
     return id && id !== 'new' ? `[data-action="evidence-edit"][data-id="${id}"]` : '[data-action="evidence-add"]';
   },
   'evidence-publish': (el) => {
-    ui.publishing = el.dataset.id; ui.publishDate = ''; ui.publishErrors = []; ui.editing = null; ui.message = null;
+    ui.publishing = el.dataset.id; ui.publishDate = ''; ui.publishMaturity = ''; ui.publishErrors = [];
+    ui.editing = null; ui.message = null;
     return '#publish-heading';
   },
   'evidence-publish-cancel': () => {
@@ -234,7 +305,23 @@ export const evidenceActions = {
     if (!a) return null;
     if (!window.confirm(`Delete "${a.title}"?${a.status === 'published' ? ' It will no longer count toward the scorecard.' : ''}`)) return null;
     store.deleteArtifact(a.id);
+    ui.selected.delete(a.id);
     ui.message = 'Evidence deleted.';
+    announce(ui.message);
+    return '#evidence-message';
+  },
+  'evidence-clear-selection': () => {
+    ui.selected.clear();
+    announce('Selection cleared. The export will include all published evidence.');
+    return '[data-action="evidence-export"]';
+  },
+  'evidence-export': () => {
+    const { items } = exportItems();
+    if (!items.length) return null;
+    const exportedOn = vancouverDate();
+    const fileName = `identity-lab-evidence-${exportedOn}.md`;
+    downloadFile(fileName, evidenceToMarkdown(items, { exportedOn }), 'text/markdown');
+    ui.message = `Created ${fileName} with ${plural(items.length, 'item', 'items')}. It was saved on this device only.`;
     announce(ui.message);
     return '#evidence-message';
   },
@@ -249,7 +336,7 @@ export function submitEvidenceForm(form) {
     ...values,
     publishedDate: values.status === 'published' ? values.publishedDate : null,
     tags,
-  });
+  }, { requireMaturity: true });
   if (!tags.length) problems.unshift('Add at least one skill tag: what this proves.');
   if (problems.length) {
     ui.form = values;
@@ -273,9 +360,11 @@ export function submitEvidenceForm(form) {
 
 export function submitPublishForm(form) {
   const date = form.querySelector('[name="publishedDate"]').value;
-  const result = store.publishArtifact(form.dataset.id, date);
+  const maturity = form.querySelector('[name="maturity"]').value;
+  const result = store.publishArtifact(form.dataset.id, date, maturity);
   if (!result.ok) {
     ui.publishDate = date;
+    ui.publishMaturity = maturity;
     ui.publishErrors = result.problems;
     return '#publish-errors';
   }
@@ -288,7 +377,13 @@ export function submitPublishForm(form) {
 
 export function handleEvidenceChange(target) {
   if (target.id === 'ev-filter-status') { ui.status = target.value; return '#ev-filter-status'; }
+  if (target.id === 'ev-filter-project') { ui.project = target.value; return '#ev-filter-project'; }
   if (target.id === 'ev-filter-tag') { ui.tag = target.value; return '#ev-filter-tag'; }
+  if (target.dataset?.exportSelect) {
+    if (target.checked) ui.selected.add(target.dataset.exportSelect);
+    else ui.selected.delete(target.dataset.exportSelect);
+    return `#${CSS.escape(target.id)}`;
+  }
   if (target.name === 'status' && target.closest('#evidence-form')) {
     ui.form = readForm(target.closest('#evidence-form'));
     return `#evidence-form input[name="status"][value="${target.value}"]`;
@@ -300,7 +395,11 @@ export function handleEvidenceChange(target) {
 export function handleEvidenceInput(target) {
   const form = target.closest('#evidence-form');
   if (form) ui.form = readForm(form);
-  if (target.closest('#publish-form')) ui.publishDate = target.value;
+  const publish = target.closest('#publish-form');
+  if (publish) {
+    ui.publishDate = publish.querySelector('[name="publishedDate"]').value;
+    ui.publishMaturity = publish.querySelector('[name="maturity"]').value;
+  }
 }
 
 export function resetEvidenceView() {

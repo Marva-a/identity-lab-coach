@@ -482,3 +482,17 @@ export function handleCardInput(target) {
 export function resetCardMessages() {
   ui.message = null;
 }
+
+/**
+ * Opens the add-card form with a resource note filled in, so a note can become
+ * a card through the normal card flow. The card starts unverified; you write
+ * the question and save it yourself.
+ */
+export function startCardFromResource({ back, week, topic, reference }) {
+  ui.editing = 'new';
+  ui.form = {
+    type: 'recall', front: '', back: String(back).slice(0, store.CARD_TEXT_MAX), week: week ? String(week) : '', topic, reference, verified: false,
+  };
+  ui.formErrors = [];
+  ui.message = null;
+}

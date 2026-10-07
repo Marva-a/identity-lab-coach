@@ -24,6 +24,7 @@
 //   artifacts:    Artifact[],    // Stage 4: evidence log
 //   people:       Person[],      // Stage 4: people log
 //   interactions: Interaction[], // Stage 4: conversations and referral asks
+//   resources:    Resource[],    // Stage 4b: the content library
 //   reviews:    Review[],    // Stage 7: Friday reviews
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
 //   settings:   Settings,
@@ -81,13 +82,19 @@
 //   createdDate: 'YYYY-MM-DD'
 //   publishedDate: 'YYYY-MM-DD' | null   only when published
 //   url: string             optional, http(s) only
+//   maturity: '' | 'implemented' | 'simulated' | 'conceptual' | 'future'
+//                           empty until you choose; required before it is published
+//                           (converted quick entries stay empty until you edit them)
+//   project: '' | 'project-1' | 'project-2' | 'project-3' | 'other'
 //   tags: string[]          "what this proves": up to 3 skill tags
 //   reflection: string      short note
 //   migrated: boolean       true if converted from a Stage 3 "+1" entry
 //   testMode: boolean
 // }
 // The scorecard counts an artifact ONLY when it is published, dated by its
-// published date. Drafts never count.
+// published date. Drafts never count. maturity and project do not affect counts.
+// (maturity and project were added without a new schema version: files without
+// them load with both empty.)
 //
 // Person {           — one person (Stage 4)
 //   id, createdAt, updatedAt,
@@ -109,6 +116,26 @@
 // }
 // The scorecard counts conversations and referral asks from interactions,
 // by their dates.
+//
+// Resource {         — one thing to read, watch or do (Stage 4b). You provide them;
+//                      the app ships with none and never copies third-party content.
+//   id, createdAt, updatedAt,
+//   title, source (author or site), url (http(s) only; opens in a new tab)
+//   type: 'video' | 'article' | 'spec' | 'lab' | 'exercise'
+//   minutes: number         ESTIMATE only. Never counted as hours: hours come from Sessions.
+//   why: string             optional: why it is in the plan
+//   days: number[]          plan day numbers (1–60, no Sundays) it belongs to, as in the roadmap table
+//   position: number        order added; "Do this next" keeps this order
+//   status: 'not-started' | 'in-progress' | 'done'
+//   doneDate: 'YYYY-MM-DD' | null
+//   notes: string           your own notes, saved as you type
+//   retired: boolean        retired resources are hidden from Today and Week
+//   testMode: boolean       created while the test date was on
+//   testRevert: { status, doneDate, notes } | absent
+//                           what a real resource looked like before test-date changes,
+//                           so Delete test data can put it back
+// }
+// (resources were added without a new schema version: files without them load with none.)
 //
 // Migration (migrate.js): data from Stages 1–3 (schema 1–3) is converted on
 // first load, and on import. Artifact "+1" entries become published Artifacts;
@@ -135,6 +162,7 @@ import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 import {
   SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
+  validateResource, RESOURCE_STATUSES,
 } from './records.js';
 import { migrate, needsMigration } from './migrate.js';
 
@@ -144,7 +172,7 @@ export const BACKUP_KEY = 'identity-lab-coach:backup-before-import';
 export const MIGRATION_BACKUPS_KEY = 'identity-lab-coach:migration-backups';
 const APP_ID = 'identity-lab-coach';
 
-const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'tallies', 'artifacts', 'people', 'interactions', 'reviews'];
+const COLLECTIONS = ['sessions', 'cards', 'cardReviews', 'tallies', 'artifacts', 'people', 'interactions', 'resources', 'reviews'];
 export const SESSION_STATUSES = ['done', 'partial', 'skipped'];
 export const REASON_MAX = 140;
 export const MINUTES_MAX = 600;
@@ -171,6 +199,7 @@ function emptyData() {
     artifacts: [],
     people: [],
     interactions: [],
+    resources: [],
     reviews: [],
     weekChecks: {},
     settings: defaultSettings(),
@@ -213,6 +242,8 @@ function normalize(raw) {
   const out = { ...base, ...raw };
   for (const c of COLLECTIONS) out[c] = Array.isArray(raw?.[c]) ? raw[c] : [];
   out.cardSeedVersion = Number.isInteger(raw?.cardSeedVersion) ? raw.cardSeedVersion : 0;
+  // Fields added after the first Stage 4 release: older records load with them empty.
+  out.artifacts = out.artifacts.map((a) => ({ maturity: '', project: '', ...a }));
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -380,6 +411,7 @@ export function countTestData() {
     artifacts: data.artifacts.filter((a) => a.testMode).length,
     people: data.people.filter((p) => p.testMode).length,
     interactions: data.interactions.filter((i) => i.testMode).length,
+    resources: data.resources.filter((r) => r.testMode || r.testRevert).length,
     weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
   };
 }
@@ -392,6 +424,16 @@ export function deleteTestData() {
   data.tallies = data.tallies.filter((t) => !t.testMode);
   data.artifacts = data.artifacts.filter((a) => !a.testMode);
   data.interactions = data.interactions.filter((i) => !i.testMode);
+  // Resources made while testing go. Real resources whose status or notes were changed
+  // while testing go back to how they were.
+  data.resources = data.resources.filter((r) => !r.testMode);
+  for (const r of data.resources) {
+    if (!r.testRevert) continue;
+    r.status = r.testRevert.status;
+    r.doneDate = r.testRevert.doneDate;
+    r.notes = r.testRevert.notes;
+    delete r.testRevert;
+  }
   // A person made while testing goes too, unless a real interaction is logged
   // under them (then they become a real person). A migrated placeholder with
   // nothing left under it also goes.
@@ -468,6 +510,8 @@ function cleanArtifactFields(f) {
     createdDate: f.createdDate,
     publishedDate: status === 'published' ? f.publishedDate : null,
     url: String(f.url ?? '').trim(),
+    maturity: f.maturity ?? '',
+    project: f.project ?? '',
     tags: normalizeTags(f.tags),
     reflection: String(f.reflection ?? '').trim(),
   };
@@ -487,7 +531,7 @@ export function addArtifact(fields, testMode) {
     migrated: false,
     testMode: Boolean(testMode),
   };
-  const problems = validateArtifact(artifact);
+  const problems = validateArtifact(artifact, { requireMaturity: true });
   if (problems.length) return { ok: false, problems };
   data.artifacts.push(artifact);
   const saved = persist();
@@ -503,19 +547,25 @@ export function updateArtifact(id, fields) {
     ...cleanArtifactFields({ ...fields, status: artifact.status }),
     updatedAt: new Date().toISOString(),
   };
-  const problems = validateArtifact(next);
+  const problems = validateArtifact(next, { requireMaturity: true });
   if (problems.length) return { ok: false, problems };
   Object.assign(artifact, next);
   persist();
   return { ok: true, artifact };
 }
 
-/** Moves a draft to published, with the date it was published. */
-export function publishArtifact(id, publishedDate) {
+/** Moves a draft to published, with the date it was published and its maturity. */
+export function publishArtifact(id, publishedDate, maturity) {
   const artifact = getArtifact(id);
   if (!artifact) return { ok: false, problems: ['That evidence no longer exists.'] };
-  const next = { ...artifact, status: 'published', publishedDate, updatedAt: new Date().toISOString() };
-  const problems = validateArtifact(next);
+  const next = {
+    ...artifact,
+    status: 'published',
+    publishedDate,
+    maturity: maturity ?? artifact.maturity ?? '',
+    updatedAt: new Date().toISOString(),
+  };
+  const problems = validateArtifact(next, { requireMaturity: true });
   if (problems.length) return { ok: false, problems };
   Object.assign(artifact, next);
   const saved = persist();
@@ -764,6 +814,120 @@ export function addCardReview({ cardId, date, rating, response, context, testMod
   return { ok: true, review, saved };
 }
 
+// ─── Content library (Stage 4b) ──────────────────────────────────────────────
+
+function cleanResourceFields(f) {
+  return {
+    title: String(f.title ?? '').trim(),
+    source: String(f.source ?? '').trim(),
+    type: f.type,
+    minutes: Number(f.minutes),
+    url: String(f.url ?? '').trim(),
+    why: String(f.why ?? '').trim(),
+    days: [...new Set((f.days ?? []).map(Number))].sort((a, b) => a - b),
+  };
+}
+
+function nextPosition() {
+  return data.resources.reduce((max, r) => Math.max(max, r.position ?? 0), 0) + 1;
+}
+
+export function getResource(id) {
+  return data.resources.find((r) => r.id === id);
+}
+
+function newResource(fields, testMode, position) {
+  const now = new Date().toISOString();
+  return {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    ...cleanResourceFields(fields),
+    position,
+    status: 'not-started',
+    doneDate: null,
+    notes: '',
+    retired: false,
+    testMode: Boolean(testMode),
+  };
+}
+
+export function addResource(fields, testMode) {
+  const resource = newResource(fields, testMode, nextPosition());
+  const problems = validateResource(resource);
+  if (problems.length) return { ok: false, problems };
+  data.resources.push(resource);
+  const saved = persist();
+  return { ok: true, resource, saved };
+}
+
+/** Adds rows that parseResourceImport already checked, in one save. */
+export function importResources(rows, testMode) {
+  let position = nextPosition();
+  const added = [];
+  for (const row of rows) {
+    const resource = newResource(row, testMode, position++);
+    if (validateResource(resource).length) continue; // cannot happen after parseResourceImport; never save a bad row
+    added.push(resource);
+  }
+  data.resources.push(...added);
+  const saved = persist();
+  return { ok: true, added: added.length, saved };
+}
+
+/** Edits a resource's details. Its status and notes are kept. */
+export function updateResource(id, fields) {
+  const resource = getResource(id);
+  if (!resource) return { ok: false, problems: ['That resource no longer exists.'] };
+  const next = { ...resource, ...cleanResourceFields(fields), updatedAt: new Date().toISOString() };
+  const problems = validateResource(next);
+  if (problems.length) return { ok: false, problems };
+  Object.assign(resource, next);
+  persist();
+  return { ok: true, resource };
+}
+
+export function setResourceRetired(id, retired) {
+  const resource = getResource(id);
+  if (!resource) return;
+  resource.retired = retired;
+  resource.updatedAt = new Date().toISOString();
+  persist();
+}
+
+/** Remembers a real resource's status and notes the first time they change during a test. */
+function captureTestRevert(resource, testMode) {
+  if (testMode && !resource.testMode && !resource.testRevert) {
+    resource.testRevert = { status: resource.status, doneDate: resource.doneDate ?? null, notes: resource.notes ?? '' };
+  }
+}
+
+export function setResourceStatus(id, status, date, testMode) {
+  const resource = getResource(id);
+  if (!resource || !(status in RESOURCE_STATUSES)) return { ok: false };
+  captureTestRevert(resource, testMode);
+  resource.status = status;
+  resource.doneDate = status === 'done' ? date : null;
+  resource.updatedAt = new Date().toISOString();
+  return { ok: true, saved: persist() };
+}
+
+export function setResourceNotes(id, text, testMode) {
+  const resource = getResource(id);
+  if (!resource) return { ok: false };
+  captureTestRevert(resource, testMode);
+  resource.notes = String(text ?? '').slice(0, 4000);
+  resource.updatedAt = new Date().toISOString();
+  return { ok: true, saved: persist() };
+}
+
+/** Resources for a plan day (as numbered in the roadmap), in plan order. Retired ones are left out. */
+export function resourcesForDay(day, { includeRetired = false } = {}) {
+  return data.resources
+    .filter((r) => r.days.includes(day) && (includeRetired || !r.retired))
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
 // ─── Export and import ───────────────────────────────────────────────────────
 
 export function exportJson() {
@@ -783,6 +947,7 @@ export function summarize(doc) {
     artifacts: doc.artifacts?.length ?? 0,
     people: doc.people?.length ?? 0,
     interactions: doc.interactions?.length ?? 0,
+    resources: doc.resources?.length ?? 0,
     reviews: doc.reviews?.length ?? 0,
     exportedAt: doc.exportedAt ?? null,
   };
@@ -864,6 +1029,11 @@ export function parseImport(text) {
     const p = validatePerson(person ?? {});
     if (!person?.id) p.push('missing id');
     if (p.length) problems.push(`Person ${i + 1}: ${p.join(' ')}`);
+  });
+  (doc.resources ?? []).forEach((r, i) => {
+    const p = validateResource(r ?? {});
+    if (!r?.id) p.push('missing id');
+    if (p.length) problems.push(`Resource ${i + 1}: ${p.join(' ')}`);
   });
   const personIds = new Set((doc.people ?? []).map((person) => person?.id));
   (doc.interactions ?? []).forEach((it, i) => {

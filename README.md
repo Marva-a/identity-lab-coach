@@ -49,7 +49,10 @@ node js/selftest.js
 | `js/scorecard.js` | Scorecard view and the quick "+1 application" log |
 | `js/records.js` | Evidence, person and interaction rules (validation) and what counts toward the scorecard |
 | `js/migrate.js` | Converts Stage 1–3 data to the Stage 4 format, with a before/after check |
-| `js/evidence.js` | Evidence log view |
+| `js/evidence.js` | Evidence log view (maturity, project, filters, Markdown export) |
+| `js/evidence-md.js` | Builds the Markdown export of published evidence |
+| `js/resources.js` | Content library: "Do this next" on Today, Week lists, the Library, notes |
+| `js/resource-import.js` | Checks a resource JSON file row by row before anything is added |
 | `js/people.js` | People log view and the follow-ups on Today |
 | `js/ui.js` | Small shared helpers |
 | `js/main.js` | The Today and Settings views, routing and events |
@@ -75,6 +78,14 @@ node js/selftest.js
   when published, on its published date. The brief's earlier fields (week or
   exercise, project, implemented/simulated/conceptual label) are not in this
   stage.
+- **Artifact maturity and project** (added after Stage 4): `maturity`
+  (implemented / simulated / conceptual / future phase) and `project`
+  (Project 1–3 / other). Both start empty; maturity is required to publish.
+  They never change scorecard counts, and older files load with both empty.
+- **Resource** (Stage 4b): a thing to read, watch or do, with title, source,
+  type, estimated minutes (never hours), link, an optional reason, the plan
+  days it belongs to, a status, your notes, and a retired flag. You provide
+  them: the app ships with none and never copies third-party content.
 - **Person and Interaction** (Stage 4): a person has a name, organization, role,
   how you connected, notes and an optional link. An interaction (conversation or
   referral ask) has a date, an outcome note and an optional follow-up date.
@@ -96,6 +107,7 @@ node js/selftest.js
 2. **Stage 2 (built):** spaced-repetition flashcards, the retrieval check on Today, card editor.
 3. **Stage 3 (built):** Week view (checklist, hours against budget) and Scorecard (pace against the plan).
 4. **Stage 4 (built):** Evidence log and People log, with the migration from quick entries.
+4b. **Stage 4b (built):** Content library (resources by plan day, notes, flashcards from notes).
 5. Application tracker (quick "+1 application" until then).
 6. People log and follow-ups on Today.
 7. Friday review with the reduced-mode and Nov 21 rules.

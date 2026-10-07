@@ -6,8 +6,11 @@ import { WEEKS, PLAN_START } from './plan-data.js';
 import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
 import { SEED_CARDS } from './cards-data.js';
 import { migrate, needsMigration, compareCounts } from './migrate.js';
+import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
+import { parseResourceImport } from './resource-import.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
+  validateResource, orderResources, totalMinutes, remainingMinutes, parseDays,
 } from './records.js';
 import {
   expectedHours, expectedArtifactsPeriod1, expectedFor, statusFor, countStudyDays, scorecard, PERIOD_1, PERIOD_2,
@@ -251,6 +254,80 @@ export function runDateChecks() {
     compareCounts(cb, { ...ca, conversation: ca.conversation.slice(1) }).length > 0, true);
   check('Migration: an invalid entry stops it', migrate({ schemaVersion: 3, tallies: [{ id: 'z', kind: 'artifact', date: 'nope' }] }).ok, false);
   check('Migration: a file with no entries still just upgrades', migrate({ schemaVersion: 2, sessions: [] }).doc.schemaVersion, 4);
+
+  // Evidence: maturity, project and the Markdown export (they must never change the counts).
+  const richPub = { ...pub, title: 'T', type: 'threat-model', tags: ['PKCE'], maturity: 'implemented', project: 'project-1' };
+  const richDraft = { ...draft, title: 'D', type: 'other', tags: ['x'], maturity: 'conceptual', project: 'project-2' };
+  check('Evidence: maturity and project do not change the scorecard counts',
+    JSON.stringify(countsFromDoc({ artifacts: [richPub, richDraft] })), JSON.stringify(countsFromDoc({ artifacts: [pub, draft] })));
+  check('Evidence: the scorecard rows are identical with or without them',
+    scorecard('2026-12-11', [], countsFromDoc({ artifacts: [richPub, richDraft] })).map((r) => r.actual).join(','),
+    scorecard('2026-12-11', [], countsFromDoc({ artifacts: [pub, draft] })).map((r) => r.actual).join(','));
+  const okBase = { ...pub, title: 't', type: 'other', tags: ['a'] };
+  check('Maturity: a published artifact needs one when saving', validateArtifact(okBase, { requireMaturity: true }).length > 0, true);
+  check('Maturity: a draft does not need one yet', validateArtifact({ ...draft, title: 't', type: 'other', tags: ['a'] }, { requireMaturity: true }).length, 0);
+  check('Maturity: an older published record without one still imports', validateArtifact(okBase).length, 0);
+  check('Maturity: a made-up value is refused', validateArtifact({ ...okBase, maturity: 'done' }).length > 0, true);
+  check('Project: a made-up value is refused', validateArtifact({ ...okBase, project: 'project-9' }).length > 0, true);
+  check('Maturity: converted entries stay empty', m1.doc.artifacts[0].maturity === '' && m1.doc.artifacts[0].project === '', true);
+  const md = evidenceToMarkdown([
+    { ...richPub, url: 'https://example.com/x', reflection: 'It worked.\nNext: *measure* it.' },
+    richDraft,
+    { ...pub, id: 'q', title: 'Older entry', type: 'other', publishedDate: '2026-10-10', tags: [], maturity: '', project: '' },
+  ], { exportedOn: '2026-10-29' });
+  check('Markdown: drafts are never included', md.includes('## D'), false);
+  check('Markdown: oldest published item comes first', md.indexOf('Older entry') < md.indexOf('## T'), true);
+  check('Markdown: it names title, type, project, maturity, date, skills, link and reflection',
+    ['## T', '**Type:** Threat model', '**Project:** Project 1', '**Maturity:** Implemented', '**Published:** 2026-10-17', '**Skills:** PKCE', '<https://example.com/x>', '**Reflection.** It worked.'].every((x) => md.includes(x)), true);
+  check('Markdown: missing maturity and project say "Not set"', md.includes('**Maturity:** Not set') && md.includes('**Project:** Not set'), true);
+  check('Markdown: text is escaped so it shows as written', escapeMd('a *b* _c_ [d]') === 'a \\*b\\* \\_c\\_ \\[d\\]' && escapeMd('# not a heading') === '\\# not a heading', true);
+  check('Markdown: a link that is not http(s) is left out', evidenceToMarkdown([{ ...richPub, url: 'javascript:alert(1)' }]).includes('javascript'), false);
+
+  // Stage 4b: Content library.
+  const good = { title: 'A real title', source: 'Some author', type: 'article', minutes: 30, url: 'https://oauth.net/2/', days: [8, 9] };
+  check('Library: a complete resource is valid', validateResource(good).length, 0);
+  check('Library: the link is required', validateResource({ ...good, url: '' }).length > 0, true);
+  check('Library: a link that is not http(s) is refused', validateResource({ ...good, url: 'javascript:alert(1)' }).length > 0, true);
+  check('Library: placeholder addresses (example.com) are refused', validateResource({ ...good, url: 'https://example.com/a' }).length > 0, true);
+  check('Library: a Sunday (Day 14) is not a plan day', validateResource({ ...good, days: [14] }).length > 0, true);
+  check('Library: Day 61 is not a plan day', validateResource({ ...good, days: [61] }).length > 0, true);
+  check('Library: minutes must be a whole number', validateResource({ ...good, minutes: 2.5 }).length > 0, true);
+  check('Library: type must be one of the five', validateResource({ ...good, type: 'podcast' }).length > 0, true);
+  check('Library: days "8, 9 10" read as three days', parseDays('8, 9 10').days.join(','), '8,9,10');
+  check('Library: a word in the days is reported', parseDays('8, x').problems.length, 1);
+
+  const file = (rows) => JSON.stringify({ resources: rows });
+  const row = (over = {}) => ({ title: 'T', source: 'S', type: 'video', minutes: 20, url: 'https://oauth.net/a', days: [8], ...over });
+  const okImport = parseResourceImport(file([row(), row({ title: 'U', url: 'https://oauth.net/b', days: [9, 10] })]));
+  check('Import: two good rows are accepted', okImport.ok && okImport.rows.length === 2, true);
+  check('Import: a bare list works too', parseResourceImport(JSON.stringify([row()])).ok, true);
+  check('Import: invalid JSON is reported', parseResourceImport('{oops').fileProblems.length, 1);
+  check('Import: an empty file is reported', parseResourceImport(file([])).fileProblems.length, 1);
+  const bad = parseResourceImport(file([row(), row({ minutes: 'twenty', url: 'https://oauth.net/b' }), row({ url: 'https://oauth.net/c', days: [14] }), row({ url: 'https://oauth.net/d', extra: 1 })]));
+  check('Import: it names exactly the wrong rows (2, 3 and 4)', bad.rowProblems.map((p) => p.row).join(','), '2,3,4');
+  check('Import: a wrong file imports nothing', bad.ok === false && bad.rows.length === 1, true);
+  check('Import: an unknown field is reported by name', bad.rowProblems.find((p) => p.row === 4).messages.some((m) => m.includes('"extra"')), true);
+  check('Import: text where a number belongs is reported once', bad.rowProblems.find((p) => p.row === 2).messages.length, 1);
+  check('Import: the same link twice in one file is reported',
+    parseResourceImport(file([row(), row({ title: 'again' })])).rowProblems[0]?.messages.some((m) => m.includes('Same link as row 1')), true);
+  const again = parseResourceImport(file([row()]), [{ url: 'https://oauth.net/a/#section', title: 'T' }]);
+  check('Import: a link already in the library is skipped, not duplicated', again.ok && again.rows.length === 0 && again.skipped.length === 1, true);
+  check('Import: placeholder addresses are refused', parseResourceImport(file([row({ url: 'https://example.com/replace' })])).ok, false);
+
+  const list = [
+    { id: 'a', status: 'done', minutes: 10, position: 1 },
+    { id: 'b', status: 'not-started', minutes: 20, position: 2 },
+    { id: 'c', status: 'in-progress', minutes: 30, position: 3 },
+    { id: 'd', status: 'not-started', minutes: 5, position: 4 },
+  ];
+  check('Do this next: in progress, then not started in plan order, then done', orderResources(list).map((r) => r.id).join(''), 'cbda');
+  check('Do this next: total estimated minutes', totalMinutes(list), 65);
+  check('Do this next: minutes still to do leave out done ones', remainingMinutes(list), 55);
+  check('Swap: Oct 19 shows week 5 resources (roadmap Day 29)', getDayContext('2026-10-19', { swapWeeks2and5: true }).contentDay, 29);
+  check('Swap: with no swap, Oct 19 is roadmap Day 8', getDayContext('2026-10-19', {}).contentDay, 8);
+  const withResources = { artifacts: [pub], interactions: [], tallies: [], resources: [{ ...good, id: 'r', status: 'done', minutes: 120 }] };
+  check('Hours: resource minutes never count as hours or change the scorecard',
+    scorecard('2026-10-18', [], countsFromDoc(withResources)).find((r) => r.id === 'hours').actual, 0);
 
   return results;
 }
