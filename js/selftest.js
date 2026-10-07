@@ -49,6 +49,20 @@ export function runDateChecks() {
     check(`${label}, 12:30 am Vancouver time is ${label}`, early ? vancouverDate(early) : 'no such time', date);
   }
 
+  // The checks you asked for before Stage 3 (Vancouver wall-clock times).
+  const nov1Late = vancouverInstant('2026-11-01', 23, 30);
+  const nov1Ctx = nov1Late ? getDayContext(vancouverDate(nov1Late)) : null;
+  check('Nov 1, 2026, 11:30 pm → Nov 1, Day 21, rest day',
+    nov1Ctx ? `${nov1Ctx.date}, Day ${nov1Ctx.dayNumber}, ${nov1Ctx.kind}` : 'no such time', '2026-11-01, Day 21, rest');
+  const nov2Early = vancouverInstant('2026-11-02', 0, 30);
+  const nov2Ctx = nov2Early ? getDayContext(vancouverDate(nov2Early)) : null;
+  check('Nov 2, 2026, 12:30 am → Nov 2, Day 22',
+    nov2Ctx ? `${nov2Ctx.date}, Day ${nov2Ctx.dayNumber}` : 'no such time', '2026-11-02, Day 22');
+  for (const [hh, label] of [[1, '1:30 am'], [3, '3:30 am']]) {
+    const instant = vancouverInstant('2027-03-14', hh, 30);
+    check(`Mar 14, 2027, ${label} → Mar 14`, instant ? vancouverDate(instant) : 'no such time', '2027-03-14');
+  }
+
   // Plan days.
   const oct7 = getDayContext('2026-10-07');
   check('Oct 7 is before Day 1', oct7.kind, 'before');
@@ -100,6 +114,8 @@ export function runDateChecks() {
   check('Cards: "Easy" on a new card jumps to box 2 (3 days)', nextState(s0, 'easy', '2026-10-12').due, '2026-10-15');
   check('Cards: "Again" is due again the same day', nextState({ ...s0, box: 4 }, 'again', '2026-10-20').due, '2026-10-20');
   check('Cards: "Hard" keeps the box (box 3 = 7 days)', nextState({ ...s0, box: 3 }, 'hard', '2026-10-20').due, '2026-10-27');
+  check('Cards: "Good" on Oct 31 into box 2 (3 days) is due Nov 3, not Nov 2 or Nov 4',
+    nextState({ ...s0, box: 1 }, 'good', '2026-10-31').due, '2026-11-03');
   check('Cards: box 5 is the top (30 days)', nextState({ ...s0, box: 5 }, 'easy', '2026-11-02').due, '2026-12-02');
   const history = [
     { date: '2026-10-13', createdAt: 'b', rating: 'good' },
@@ -124,12 +140,15 @@ export function runDateChecks() {
 export function timeZoneInfo() {
   const offset = vancouverOffset(new Date('2026-12-01T20:00:00Z'));
   const current = offset === 'UTC−07:00';
+  // 07:30 UTC on Nov 2, 2026 is the moment the Stage 1 check called "Nov 1, 11:30 pm PST".
+  const shown = vancouverDate(new Date('2026-11-02T07:30:00Z'));
+  const moment = `07:30 UTC on Nov 2, 2026 shows as ${shown} here`;
   return {
     offset,
     current,
     text: current
-      ? `This device's time zone data is up to date: Vancouver stays on ${offset} after Nov 1, 2026.`
-      : `This device's time zone data is out of date: it puts Vancouver on ${offset} after Nov 1, 2026, but BC now stays on UTC−7. Until the browser updates, the app's day changes at 1 am instead of midnight in winter.`,
+      ? `This device's time zone data is up to date: Vancouver stays on ${offset} after Nov 1, 2026, so ${moment} (12:30 am Vancouver time; PST no longer applies).`
+      : `This device's time zone data is out of date: it puts Vancouver on ${offset} after Nov 1, 2026, but BC now stays on UTC−7, so ${moment} instead of 2026-11-02. Until the browser updates, the app's day changes at 1 am instead of midnight in winter.`,
   };
 }
 
