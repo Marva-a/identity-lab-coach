@@ -111,6 +111,18 @@ function cardFaceHtml(card, sched, context, positionLabel) {
 
 // ─── Retrieval check on Today ────────────────────────────────────────────────
 
+/** How many retrieval-check cards are still to do today (0 means the warm-up has nothing left). */
+export function retrievalRemaining() {
+  const date = today();
+  const d = store.getData();
+  const sched = currentSchedule();
+  const doneToday = new Set(
+    d.cardReviews.filter((r) => r.date === date && r.context === 'retrieval').map((r) => r.cardId),
+  );
+  const candidates = dueCards(d.cards, sched).filter((c) => !sched.get(c.id).reviewedToday);
+  return Math.min(RETRIEVAL_SIZE - doneToday.size, candidates.length);
+}
+
 /** The 3-card retrieval check at the start of each Today session. */
 export function retrievalHtml() {
   const date = today();

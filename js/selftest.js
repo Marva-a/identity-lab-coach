@@ -10,6 +10,9 @@ import { SEED_CARDS } from './cards-data.js';
 import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
+import { courseProgress } from './progress.js';
+import { stepIndex, nextStep, previousStep, STEPS } from './session-flow.js';
+import { datedFilesToRemove, snapshotsToRemove, datedName, isOurDatedFile, KEEP_FILES, KEEP_SNAPSHOTS } from './backup-files.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
   SUGGESTED_SKILL_TAGS, validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
@@ -407,6 +410,55 @@ export function runDateChecks() {
   check('Cards: seed data never marks a card verified', SEED_CARDS.every((c) => !('verified' in c)), true);
   check('Cards: seed ids are unique, so re-seeding cannot duplicate', new Set(SEED_CARDS.map((c) => c.seedId)).size, SEED_CARDS.length);
   check('Skill tags: the five new suggestions are offered', ['network-security', 'cloud-security', 'zero-trust', 'segmentation', 'workload-identity'].every((t) => SUGGESTED_SKILL_TAGS.includes(t)), true);
+
+  // Course home and the guided session.
+  const emptyData = (over = {}) => ({ settings: {}, sessions: [], weekChecks: {}, resources: [], ...over });
+  const cp = (data, today) => courseProgress(emptyData(data), { today });
+  const w1Required = WEEKS[0].items.filter((i) => !i.optional && !i.conditional);
+  check('Course: nine weeks are listed', cp({}, '2026-10-14').weeks.length, 9);
+  check('Course: with nothing ticked, progress is 0%', cp({}, '2026-10-14').percent, 0);
+  check('Course: the current week is found by date', cp({}, '2026-10-14').weeks.map((w) => w.state).join(','), 'current,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming');
+  check('Course: Sunday still belongs to the week that just ended', cp({}, '2026-10-18').weeks[0].state, 'current');
+  check('Course: Monday starts the next week', `${cp({}, '2026-10-19').weeks[0].state} ${cp({}, '2026-10-19').weeks[1].state}`, 'past current');
+  const ticksOf = (ids) => Object.fromEntries(ids.map((id) => [id, { at: 'x' }]));
+  const allW1 = cp({ weekChecks: ticksOf(w1Required.map((i) => i.id)) }, '2026-10-14');
+  check('Course: ticking every required item of a week fills its bar', `${allW1.weeks[0].requiredTicked}/${allW1.weeks[0].required}`, `${w1Required.length}/${w1Required.length}`);
+  check('Course: an Optional item never counts toward required progress', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-10-14').weeks[0].requiredTicked, 0);
+  check('Course: the Optional tick is still shown separately', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-10-14').weeks[0].extraTicked, 1);
+  check('Course: overall percent follows the ticks', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-10-14').requiredTicked, 1);
+  check('Course: hours are only that calendar week’s sessions',
+    cp({ sessions: [{ date: '2026-10-13', minutes: 100 }, { date: '2026-10-19', minutes: 50 }] }, '2026-10-20').weeks.map((w) => w.loggedMinutes).slice(0, 2).join(','), '100,50');
+  check('Course: planned minutes come from the week budget (Week 1 is 11 h)', cp({}, '2026-10-14').weeks[0].plannedMinutes, 660);
+  const resDay29 = { id: 'r1', days: [29], status: 'done', minutes: 30, retired: false };
+  check('Course: a resource counts in the week its roadmap day belongs to', cp({ resources: [resDay29] }, '2026-11-09').weeks[4].resourcesTotal, 1);
+  check('Course: a done resource is counted as done', cp({ resources: [resDay29] }, '2026-11-09').weeks[4].resourcesDone, 1);
+  check('Course: a retired resource is left out', cp({ resources: [{ ...resDay29, retired: true }] }, '2026-11-09').weeks[4].resourcesTotal, 0);
+  check('Course: with weeks 2 and 5 swapped, a Week 5 resource shows in calendar week 2',
+    cp({ settings: { swapWeeks2and5: true }, resources: [resDay29] }, '2026-10-19').weeks[1].resourcesTotal, 1);
+  check('Continue: before the plan starts it points at Week 1’s first item', `${cp({}, '2026-10-07').next.weekNumber} ${cp({}, '2026-10-07').next.text.slice(0, 14)}`, '1 Authentication');
+  check('Continue: it points at the first required item not yet ticked', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-10-14').next.text, WEEKS[0].items.find((i) => i.id === 'w1-read-1').text);
+  check('Continue: this week comes before an earlier unfinished week', cp({}, '2026-10-21').next.weekNumber, 2);
+  check('Continue: when this week is done it returns to an earlier unfinished week',
+    cp({ weekChecks: ticksOf(WEEKS[1].items.filter((i) => !i.optional && !i.conditional).map((i) => i.id)) }, '2026-10-21').next.weekNumber, 1);
+  const everything = ticksOf(WEEKS.flatMap((w) => w.items.filter((i) => !i.optional && !i.conditional).map((i) => i.id)));
+  check('Continue: when every required item is ticked there is nothing to continue', cp({ weekChecks: everything }, '2026-12-11').next, null);
+  check('Course: planned-so-far hours match the scorecard’s expected hours', cp({}, '2026-10-19').plannedSoFarMinutes, 660);
+  check('Session: the steps are warm-up, focus, wrap-up', STEPS.map((x) => x.id).join(','), 'warmup,focus,wrapup');
+  check('Session: next moves forward and stops at the end', `${nextStep('warmup')} ${nextStep('focus')} ${nextStep('wrapup')}`, 'focus wrapup wrapup');
+  check('Session: back moves backward and stops at the start', `${previousStep('wrapup')} ${previousStep('focus')} ${previousStep('warmup')}`, 'focus warmup warmup');
+  check('Session: an unknown step falls back to the first', stepIndex('nonsense'), 0);
+
+  // Automatic backups: only our own dated files are ever pruned.
+  const many = Array.from({ length: 20 }, (_, i) => datedName(`2026-10-${String(i + 1).padStart(2, '0')}`));
+  const folder = [...many, 'identity-lab-coach-latest.json', 'my-notes.txt', 'identity-lab-coach-2026-10-5.json', 'taxes-2026-10-01.json'];
+  const gone = datedFilesToRemove(folder);
+  check('Backups: the newest 14 dated files are kept (6 removed)', `${KEEP_FILES} ${gone.length}`, '14 6');
+  check('Backups: it removes the six oldest', [...gone].sort().join(','), many.slice(0, 6).join(','));
+  check('Backups: the "latest" file is never removed', gone.includes('identity-lab-coach-latest.json'), false);
+  check('Backups: files that are not ours are never touched', ['my-notes.txt', 'identity-lab-coach-2026-10-5.json', 'taxes-2026-10-01.json'].some((n) => gone.includes(n)), false);
+  check('Backups: only exact dated names count as ours', `${isOurDatedFile('identity-lab-coach-2026-10-05.json')} ${isOurDatedFile('identity-lab-coach-latest.json')}`, 'true false');
+  check('Snapshots: the newest 14 days are kept', `${KEEP_SNAPSHOTS} ${snapshotsToRemove(many.map((n) => n.slice(18, 28))).length}`, '14 6');
+  check('Snapshots: nothing is removed under the limit', snapshotsToRemove(['2026-10-01', '2026-10-02']).length, 0);
 
   return results;
 }

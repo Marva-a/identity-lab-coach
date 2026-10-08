@@ -8,7 +8,7 @@ import { PLAN_START, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
 import { runDateChecks, timeZoneInfo } from './selftest.js';
 import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.js';
 import {
-  retrievalHtml, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
+  retrievalHtml, retrievalRemaining, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
 import { weekView, weekActions, handleWeekChange, resetWeekView } from './week.js';
 import {
@@ -27,6 +27,10 @@ import {
   selectPersonOnNavigate, resetPeopleView,
 } from './people.js';
 
+import { courseView, courseActions } from './course.js';
+import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
+import * as AB from './autobackup.js';
+
 const mainEl = document.getElementById('main');
 const bannersEl = document.getElementById('banners');
 const BASE_TITLE = 'Identity Lab Coach';
@@ -34,6 +38,7 @@ const BASE_TITLE = 'Identity Lab Coach';
 let route = 'today';
 let activeTimer = T.loadTimer();
 let renderedDate = null;
+let flow = null; // the guided session in progress: { date, step }
 
 // Transient UI state (not saved).
 const ui = {
@@ -44,6 +49,9 @@ const ui = {
   importProblems: [],
   dataMessage: null,
   checkResults: null,
+  flowErrors: [],
+  snapshots: [], // daily snapshots kept in this browser (loaded when Settings opens)
+  backupMessage: null,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -374,11 +382,141 @@ function logHtml(ctx) {
     </section>`;
 }
 
-function todayView() {
-  const ctx = getDayContext(today(), store.getSettings());
-  const studyish = ['study', 'bridge', 'applications'].includes(ctx.kind);
+// ─── Guided daily session ────────────────────────────────────────────────────
+// Warm-up (flashcards), focus (do this next + timer), wrap-up (one-tap log). It only
+// reuses the sections the full Today page already has; "Show the whole page" leaves it.
+
+const isStudyish = (ctx) => ['study', 'bridge', 'applications'].includes(ctx.kind);
+
+function activeFlow(ctx) {
+  return flow && flow.date === today() && isStudyish(ctx) ? flow : null;
+}
+
+function setFlow(next) {
+  flow = next;
+  saveFlow(next);
+}
+
+function startFlow() {
+  setFlow({ date: today(), step: retrievalRemaining() > 0 ? 'warmup' : 'focus' });
+}
+
+function flowStartCardHtml(ctx) {
+  const logged = store.sessionsOn(ctx.date).reduce((n, s) => n + s.minutes, 0);
+  const has = store.sessionsOn(ctx.date).length > 0;
+  return `
+    <section class="card card--notice" aria-labelledby="flow-heading">
+      <h2 id="flow-heading" tabindex="-1">Today’s session</h2>
+      ${has
+    ? `<p class="status-ok">${ui.flash ? esc(ui.flash) : `You have logged ${plural(logged, 'minute', 'minutes')} today.`}</p>`
+    : '<p>A few flashcards to warm up, then focus time with the timer, then log it in one tap.</p>'}
+      <div class="button-row"><button type="button" class="button--primary" data-action="flow-start">${has ? 'Start another session' : 'Start today’s session'}</button></div>
+      <p class="meta">Prefer to see everything at once? It is all below.</p>
+    </section>`;
+}
+
+function flowWrapUpHtml(ctx) {
+  const timerMinutes = activeTimer && activeTimer.date === ctx.date ? T.focusMinutes(activeTimer) : null;
+  const planned = ctx.kind === 'study' ? ctx.hours * 60 : null;
+  const errors = ui.flowErrors.length
+    ? `<div class="error-summary" role="alert" tabindex="-1" id="flow-errors">
+         <h3>Please fix this before saving</h3>
+         <ul>${ui.flowErrors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>
+       </div>`
+    : '';
+  return `
+    <section class="card" aria-labelledby="wrap-heading">
+      <h2 id="wrap-heading">Log your session</h2>
+      <form id="flow-log-form" novalidate>
+        ${errors}
+        <div class="field">
+          <label for="flow-minutes">Minutes studied</label>
+          <input id="flow-minutes" name="minutes" type="number" inputmode="numeric" min="0" max="${store.MINUTES_MAX}" step="1"
+            value="${timerMinutes ? esc(timerMinutes) : ''}" aria-describedby="flow-minutes-hint">
+          <span class="hint" id="flow-minutes-hint">${timerMinutes
+    ? `Filled in from the timer: ${timerMinutes} focus minutes. Change it if that is not right.`
+    : `The timer was not used.${planned ? ` Planned today: ${planned} min.` : ''} Type what you actually studied.`}</span>
+        </div>
+        <div class="button-row">
+          <button type="submit" name="status" value="done" class="button--primary">Log as done</button>
+          <button type="submit" name="status" value="partial">Log as partial</button>
+        </div>
+        <details>
+          <summary>Skipping today?</summary>
+          <div class="field">
+            <label for="flow-reason">One-line reason (required)</label>
+            <input id="flow-reason" name="reason" type="text" maxlength="${store.REASON_MAX}" autocomplete="off">
+          </div>
+          <button type="submit" name="status" value="skipped">Log as skipped</button>
+        </details>
+      </form>
+    </section>`;
+}
+
+function flowView(ctx, f) {
+  const idx = stepIndex(f.step);
+  const stepper = `
+    <ol class="flow-steps" aria-label="Today’s session, step ${idx + 1} of ${STEPS.length}">
+      ${STEPS.map((st, i) => `<li ${i === idx ? 'aria-current="step"' : ''} class="${i < idx ? 'is-done' : ''}">${i + 1}. ${esc(st.label)}${i < idx ? '<span class="visually-hidden"> (done)</span>' : ''}</li>`).join('')}
+    </ol>`;
+  const body = f.step === 'warmup'
+    ? retrievalHtml()
+    : f.step === 'focus'
+      ? [todayResourcesHtml(ctx), itemsHtml(ctx), timerHtml(ctx)].join('')
+      : flowWrapUpHtml(ctx);
+  const back = idx > 0 ? `<button type="button" data-action="flow-back">← ${esc(STEPS[idx - 1].label)}</button>` : '';
+  const next = idx < STEPS.length - 1 ? `<button type="button" class="button--primary" data-action="flow-next">Next: ${esc(STEPS[idx + 1].label)} →</button>` : '';
   return [
     headerHtml(ctx),
+    `<section class="card card--flow" aria-labelledby="flow-step-heading">
+       ${stepper}
+       <h2 id="flow-step-heading" tabindex="-1">${esc(STEPS[idx].title)}</h2>
+       <div class="button-row">${back}${next}<button type="button" class="button--small" data-action="flow-exit">Show the whole page</button></div>
+     </section>`,
+    body,
+  ].join('');
+}
+
+// ─── Backup notices on Today ────────────────────────────────────────────────
+
+const PROMPT_FLAG = 'identity-lab-coach:backup-prompt-dismissed';
+function promptDismissed() {
+  try { return localStorage.getItem(PROMPT_FLAG) === '1'; } catch { return false; }
+}
+
+/** A gentle note on Today only when automatic backups need you. It never blocks anything. */
+function backupNoticeHtml() {
+  if (!AB.supportsFolder() || store.getLoadProblem()) return '<div id="backup-notice"></div>';
+  const s = AB.status();
+  let inner = '';
+  if (s.folder === 'needs-permission') {
+    inner = `<h2 id="backup-heading" tabindex="-1">Automatic backups are paused</h2>
+      <p>After a browser restart, one click lets the app save to “${esc(s.folderName ?? 'your backup folder')}” again.</p>
+      <div class="button-row"><button type="button" class="button--primary" data-action="backup-resume">Resume automatic backups</button></div>`;
+  } else if (s.folder === 'error') {
+    inner = `<h2 id="backup-heading" tabindex="-1">Automatic backups hit a problem</h2>
+      <p>${esc(s.folderError || 'The backup folder could not be written to.')} Your data is still saved in this browser, and daily snapshots continue.</p>
+      <div class="button-row"><button type="button" class="button--primary" data-action="backup-choose-folder">Choose the folder again</button></div>`;
+  } else if (s.folder === 'none' && !promptDismissed()) {
+    inner = `<h2 id="backup-heading" tabindex="-1">Set up automatic backups, once</h2>
+      <p>Choose a folder (for example in Documents or iCloud Drive) and the app will keep a backup file there by itself, so you never have to remember to export.</p>
+      <div class="button-row">
+        <button type="button" class="button--primary" data-action="backup-choose-folder">Choose a backup folder</button>
+        <button type="button" data-action="backup-prompt-dismiss">Not now</button>
+      </div>`;
+  }
+  return `<div id="backup-notice">${inner ? `<section class="card card--notice" aria-labelledby="backup-heading">${inner}</section>` : ''}</div>`;
+}
+
+function todayView() {
+  const ctx = getDayContext(today(), store.getSettings());
+  const studyish = isStudyish(ctx);
+  const f = activeFlow(ctx);
+  if (f) return flowView(ctx, f);
+  return [
+    headerHtml(ctx),
+    studyish ? flowStartCardHtml(ctx) : '',
+    backupNoticeHtml(),
     todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
     todayResourcesHtml(ctx),
@@ -389,6 +527,67 @@ function todayView() {
 }
 
 // ─── Settings view ───────────────────────────────────────────────────────────
+
+/** The "Automatic backups" card in Settings. It is redrawn by itself when a backup finishes. */
+function backupPanelHtml() {
+  const s = AB.status();
+  const when = (iso) => new Date(iso).toLocaleString('en-CA', { timeZone: 'America/Vancouver', dateStyle: 'medium', timeStyle: 'short' });
+  const folderText = {
+    none: AB.supportsFolder() ? 'No folder chosen yet.' : 'Not available in this browser (Chrome, Edge, Brave and Arc can do it).',
+    ready: `Saving to “${esc(s.folderName ?? 'your folder')}”.${s.lastFileAt ? ` Last written ${esc(when(s.lastFileAt))}` : ''}`,
+    'needs-permission': `“${esc(s.folderName ?? 'Your folder')}” needs one click to be allowed again.`,
+    error: `Problem: ${esc(s.folderError || 'the folder could not be written to')}.`,
+  }[s.folder];
+  const folderButtons = !AB.supportsFolder() ? '' : s.folder === 'none' || s.folder === 'error'
+    ? '<button type="button" class="button--primary" data-action="backup-choose-folder">Choose a backup folder</button>'
+    : `${s.folder === 'needs-permission' ? '<button type="button" class="button--primary" data-action="backup-resume">Resume automatic backups</button>' : ''}
+       <button type="button" data-action="backup-stop">Stop saving to the folder</button>`;
+  const snaps = ui.snapshots;
+  return `
+    <section class="card" id="backup-panel" aria-labelledby="autobackup-heading">
+      <h2 id="autobackup-heading" tabindex="-1">Automatic backups</h2>
+      <p>Your data is saved in this browser as you work. These backups happen by themselves, so you do not have to remember to export. Nothing is sent anywhere.</p>
+      <dl class="facts">
+        <div><dt>Protected storage</dt><dd>${s.persisted === true
+    ? 'Yes: the browser will not clear your data to free up space.'
+    : s.persisted === false
+      ? 'Not granted: the browser may clear your data if the device runs low on space. The snapshots and folder backups below protect you from that.'
+      : 'Not known yet.'}</dd></div>
+        <div><dt>Daily snapshots</dt><dd>${snaps.length ? `${plural(snaps.length, 'day', 'days')} kept inside this browser (the newest 14). Latest: ${esc(formatShort(snaps[0].date))}.` : 'None yet. The first one is taken a moment after you open the app.'}</dd></div>
+        <div><dt>Backup folder</dt><dd>${folderText}</dd></div>
+      </dl>
+      ${ui.backupMessage ? `<p class="status-ok" id="backup-message" tabindex="-1">${esc(ui.backupMessage)}</p>` : ''}
+      <div class="button-row">
+        ${folderButtons}
+        <button type="button" data-action="backup-now">Back up now</button>
+      </div>
+      ${snaps.length ? `
+        <details>
+          <summary>Restore from a daily snapshot</summary>
+          <p class="meta">Choosing one shows what it contains first. Nothing is replaced until you confirm, and your current data is kept as a backup.</p>
+          <ul class="log-list">
+            ${snaps.map((sn) => `
+              <li>
+                <span><strong>${esc(formatShort(sn.date))}</strong> · saved ${esc(when(sn.savedAt))} · ${Math.max(1, Math.round(sn.bytes / 1024))} KB</span>
+                <button type="button" class="button--small" data-action="backup-restore" data-date="${esc(sn.date)}" aria-label="Restore the snapshot from ${esc(formatShort(sn.date))}">Restore…</button>
+              </li>`).join('')}
+          </ul>
+        </details>` : ''}
+    </section>`;
+}
+
+/** Redraws only the backup card and the Today note, so a finished backup never disturbs what you are doing. */
+function refreshBackupUi() {
+  const panel = document.getElementById('backup-panel');
+  if (panel) panel.outerHTML = backupPanelHtml();
+  const notice = document.getElementById('backup-notice');
+  if (notice) notice.outerHTML = backupNoticeHtml();
+}
+
+async function loadSnapshots() {
+  ui.snapshots = await AB.listSnapshots();
+  refreshBackupUi();
+}
 
 function settingsView() {
   const s = store.getSettings();
@@ -488,6 +687,8 @@ function settingsView() {
       </fieldset>
     </section>
 
+    ${backupPanelHtml()}
+
     <section class="card" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p>Your data is saved in this browser only. Nothing is sent anywhere. Clearing site data, or opening the app in another browser or at a different address, starts empty, so export now and then.</p>
@@ -572,12 +773,13 @@ function render({ focus } = {}) {
   });
   renderedDate = today();
   const views = {
-    today: todayView, week: weekView, library: libraryView, cards: flashcardsView, evidence: evidenceView,
+    today: todayView, home: courseView, week: weekView, library: libraryView, cards: flashcardsView, evidence: evidenceView,
     people: peopleView, scorecard: scorecardView, settings: settingsView,
   };
   const problem = store.getLoadProblem();
   mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
   updateTimerDisplay();
+  if (route === 'settings' && !problem) loadSnapshots();
 
   // `focus` may list fallbacks ("#a, #b"): use the first one that exists, in that order.
   const target = focus
@@ -620,6 +822,7 @@ function tick() {
       return `Ready for focus block ${e.started.block}. Press Start when you're ready.`;
     });
     if (activeTimer.finished) messages.push('Session complete. You can log it now.');
+    if (activeTimer.finished && flow && flow.date === today() && flow.step === 'focus') setFlow({ ...flow, step: 'wrapup' });
     announce(messages.join(' '));
     if (route === 'today') render();
   } else {
@@ -669,6 +872,36 @@ function saveLog(form) {
   render({ focus: '#log-flash' });
 }
 
+function submitFlowLog(form, status) {
+  const date = today();
+  const raw = form.querySelector('#flow-minutes').value.trim();
+  const result = store.addSession({
+    date,
+    dayNumber: planDayFor(date),
+    minutes: status === 'skipped' ? 0 : raw === '' ? NaN : Number(raw),
+    status,
+    reason: form.querySelector('#flow-reason')?.value ?? '',
+    testMode: testMode(),
+  });
+  if (!result.ok) {
+    ui.flowErrors = result.problems;
+    render({ focus: '#flow-errors' });
+    return;
+  }
+  const sess = result.session;
+  if (activeTimer && activeTimer.date === sess.date) {
+    activeTimer = null;
+    T.saveTimer(null);
+  }
+  ui.flowErrors = [];
+  ui.logDraft = { status: '', minutes: '', reason: '', date: '' };
+  ui.flash = `Saved: ${statusLabel(sess.status)}, ${sess.minutes} min on ${formatShort(sess.date)}${sess.dayNumber ? ` (Day ${sess.dayNumber})` : ''}${sess.testMode ? ', marked as a test session' : ''}.`
+    + (result.saved ? '' : ' Warning: this browser blocked saving.');
+  setFlow(null);
+  announce(ui.flash);
+  render({ focus: '#flow-heading' });
+}
+
 const downloadText = (fileName, text) => downloadFile(fileName, text, 'application/json');
 
 function downloadExport() {
@@ -680,6 +913,72 @@ function downloadExport() {
 }
 
 const actions = {
+  'flow-start': () => {
+    startFlow();
+    announce('Session started.');
+    render({ focus: '#flow-step-heading' });
+  },
+  'flow-start-from-home': () => {
+    startFlow();
+    nav.focus = '#flow-step-heading';
+    location.hash = '#today';
+  },
+  'flow-next': () => {
+    setFlow({ ...flow, step: nextStep(flow.step) });
+    render({ focus: '#flow-step-heading' });
+  },
+  'flow-back': () => {
+    setFlow({ ...flow, step: previousStep(flow.step) });
+    render({ focus: '#flow-step-heading' });
+  },
+  'flow-exit': () => {
+    setFlow(null);
+    announce('Showing the whole page. Your timer and progress are kept.');
+    render({ focus: '#flow-heading, #day-heading' });
+  },
+  'backup-choose-folder': async () => {
+    try {
+      await AB.chooseFolder();
+      ui.backupMessage = 'Automatic backups are on. A backup file was just saved to your folder.';
+    } catch (error) {
+      if (error?.name === 'AbortError') return; // closed the picker without choosing
+      ui.backupMessage = 'The folder could not be used. Try another folder.';
+    }
+    announce(ui.backupMessage);
+    refreshBackupUi();
+  },
+  'backup-resume': async () => {
+    await AB.resumeFolder();
+    ui.backupMessage = AB.status().folder === 'ready' ? 'Automatic backups resumed.' : 'The folder is still not allowed. Choose it again in Settings.';
+    announce(ui.backupMessage);
+    refreshBackupUi();
+  },
+  'backup-stop': async () => {
+    await AB.stopFolder();
+    ui.backupMessage = 'Stopped saving to the folder. Files already there are left alone. Daily snapshots continue.';
+    announce(ui.backupMessage);
+    refreshBackupUi();
+  },
+  'backup-now': async () => {
+    const result = await AB.backupNow();
+    ui.backupMessage = result.folder === 'ready' ? 'Backed up to your folder and to a daily snapshot.' : 'Daily snapshot saved in this browser.';
+    announce(ui.backupMessage);
+    await loadSnapshots();
+  },
+  'backup-prompt-dismiss': () => {
+    try { localStorage.setItem(PROMPT_FLAG, '1'); } catch { /* the note simply shows again next time */ }
+    refreshBackupUi();
+    announce('Okay. You can set up automatic backups any time in Settings.');
+  },
+  'backup-restore': async (el) => {
+    const text = await AB.getSnapshotText(el.dataset.date);
+    const parsed = text ? store.parseImport(text) : { ok: false, problems: ['That snapshot could not be read.'] };
+    ui.importPreview = null;
+    ui.importProblems = [];
+    if (parsed.ok) ui.importPreview = parsed;
+    else ui.importProblems = parsed.problems;
+    render({ focus: parsed.ok ? '#import-preview' : '#import-errors' });
+  },
   'test-off': () => {
     store.updateSettings({ testDate: { ...store.getSettings().testDate, enabled: false } });
     announce('Test date turned off. Showing today.');
@@ -803,7 +1102,7 @@ mainEl.addEventListener('click', (e) => {
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
   else {
     const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action]
-      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action] ?? resourceActions[el.dataset.action];
+      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action] ?? resourceActions[el.dataset.action] ?? courseActions[el.dataset.action];
     if (!handler) return;
     const focus = handler(el);
     render(focus ? { focus } : {});
@@ -830,6 +1129,9 @@ mainEl.addEventListener('submit', (e) => {
   } else if (e.target.id === 'publish-form') {
     e.preventDefault();
     render({ focus: submitPublishForm(e.target) });
+  } else if (e.target.id === 'flow-log-form') {
+    e.preventDefault();
+    submitFlowLog(e.target, e.submitter?.value || 'done');
   } else if (e.target.id === 'resource-form') {
     e.preventDefault();
     render({ focus: submitResourceForm(e.target) });
@@ -912,7 +1214,7 @@ mainEl.addEventListener('change', async (e) => {
 function routeFromHash() {
   return {
     '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard',
-    '#evidence': 'evidence', '#people': 'people', '#library': 'library',
+    '#evidence': 'evidence', '#people': 'people', '#library': 'library', '#home': 'home',
   }[location.hash] ?? 'today';
 }
 
@@ -932,14 +1234,23 @@ window.addEventListener('hashchange', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) flushResourceNotes();
+  if (document.hidden) { flushResourceNotes(); AB.backupNow().catch(() => {}); }
   else tick();
 });
-window.addEventListener('pagehide', flushResourceNotes);
+window.addEventListener('pagehide', () => { flushResourceNotes(); AB.backupNow().catch(() => {}); });
 
 store.load();
+flow = loadFlow(today());
+if (!store.getLoadProblem()) {
+  store.onSave(AB.noteChanged);
+  AB.onStatusChange(refreshBackupUi);
+  // Backups are named by the real Vancouver date, even while a test date is on.
+  AB.init({ json: () => store.exportJson(), today: () => vancouverDate() });
+}
 // Catch the timer up on anything that happened while the page was closed.
 if (activeTimer && T.advance(activeTimer).length) T.saveTimer(activeTimer);
+// If the timer ended while the page was closed, a guided session goes straight to wrap-up.
+if (activeTimer?.finished && flow && flow.date === today() && flow.step === 'focus') setFlow({ ...flow, step: 'wrapup' });
 route = routeFromHash();
 render();
 setInterval(tick, 1000);

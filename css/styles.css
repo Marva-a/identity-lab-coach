@@ -353,10 +353,23 @@ thead th { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
 pre.code { overflow-x: auto; background: var(--surface-2); border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; line-height: 1.45; }
 code { background: var(--surface-2); border-radius: 4px; padding: 0 0.25rem; font-size: 0.9em; }
 
+.card--notice { border-left: 6px solid var(--accent); }
+.flow-steps { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; margin: 0 0 0.75rem; }
+.flow-steps li { padding: 0.25rem 0.75rem; border: 1px solid var(--control-border, var(--border)); border-radius: 999px; color: var(--muted); }
+.flow-steps li[aria-current="step"] { border-color: var(--accent); border-width: 2px; color: var(--text); font-weight: 700; }
+.flow-steps li.is-done { text-decoration: line-through; }
+.card--flow h2 { margin-top: 0; }
+.course-weeks { list-style: none; padding: 0; margin: 0; }
+.course-week { padding: 0.8rem 0; border-top: 1px solid var(--border); }
+.course-weeks > .course-week:first-child { border-top: 0; }
+.course-week__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 0.75rem; }
+.course-week__head h3 { margin: 0; font-size: 1rem; }
+.course-week--current { border-left: 4px solid var(--accent); padding-left: 0.6rem; }
+
 /* Seven menu links fit on two rows at phone width. */
 @media (max-width: 34rem) {
   .nav-list { gap: 0; }
-  .nav-list a { padding: 0.5rem 0.55rem; }
+  .nav-list a { padding: 0.5rem 0.38rem; font-size: 0.95rem; }
 }
 
 /* ─── Evidence, People, follow-ups ───────────────────── */

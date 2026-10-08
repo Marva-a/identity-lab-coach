@@ -9,6 +9,21 @@ tracking, no dependencies. Your data stays in your browser.
 Each browser keeps its own data (the live link, your phone and `localhost`
 don't share it). Use Export and Import in Settings to move data between them.
 
+## Less manual work
+
+- **Guided daily session** (Today → "Start today's session"): warm-up flashcards,
+  then "do this next" with the timer, then one tap to log. It reuses the same
+  sections as the full Today page, which is still there ("Show the whole page").
+  A finished timer takes you straight to the wrap-up, and the minutes are filled in.
+- **Course home**: overall and per-week progress, and a "continue where you left off"
+  button that points at the first required item you have not ticked.
+- **Automatic backups**: the browser is asked to protect your data from being cleared;
+  a snapshot of your data is kept inside the browser once a day (the newest 14); and,
+  in Chrome, Edge, Brave and Arc, a backup folder you choose once gets a "latest" file
+  and a dated file (the newest 14) by itself a few seconds after each change. After a
+  browser restart it may need one click to be allowed again. Nothing is ever sent anywhere.
+  Safari and Firefox cannot write to a folder, so they keep the daily snapshots only.
+
 ## Time zone note
 
 British Columbia stopped changing clocks in 2026 and stays on UTC−7. The app
@@ -54,6 +69,12 @@ node js/selftest.js
 | `js/resources.js` | Content library: "Do this next" on Today, Week lists, the Library, notes |
 | `js/resource-import.js` | Checks a resource JSON file row by row before anything is added |
 | `js/people.js` | People log view and the follow-ups on Today |
+| `js/progress.js` | Course progress and the "continue where you left off" rule (no page code) |
+| `js/course.js` | Course home: overall and per-week progress |
+| `js/session-flow.js` | Which step of the guided daily session you are on |
+| `js/autobackup.js` | Automatic backups: protected storage, daily snapshots, backup folder |
+| `js/backup-files.js` | Writing and pruning the backup files (only our own file names are ever touched) |
+| `js/idb.js` | A tiny wrapper around the browser's IndexedDB, used for backups |
 | `js/ui.js` | Small shared helpers |
 | `js/main.js` | The Today and Settings views, routing and events |
 | `js/selftest.js` | Date and scheduling checks (in Settings, or `node js/selftest.js`) |

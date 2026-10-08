@@ -361,9 +361,21 @@ function seedCards() {
   return true;
 }
 
+const saveListeners = new Set();
+/** Runs `fn` after each successful save (used to schedule automatic backups). */
+export function onSave(fn) {
+  saveListeners.add(fn);
+}
+
 function persist() {
   if (loadProblem) return false; // never overwrite data we could not convert safely
-  return writeKey(STORAGE_KEY, JSON.stringify(data));
+  const ok = writeKey(STORAGE_KEY, JSON.stringify(data));
+  if (ok) {
+    for (const fn of saveListeners) {
+      try { fn(); } catch { /* a listener failing must never stop a save */ }
+    }
+  }
+  return ok;
 }
 
 export function getData() {

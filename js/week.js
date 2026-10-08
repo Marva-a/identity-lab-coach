@@ -9,7 +9,7 @@ import { weekDayResourcesHtml } from './resources.js';
 const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
 
-const ui = { week: null }; // calendar week shown; null = the current week
+const ui = { week: null, pendingWeek: null }; // week shown (null = the current week); pendingWeek is set by another screen
 
 /** The calendar week (1–9) that contains a date, clamped to the plan. */
 export function weekForDate(date) {
@@ -160,5 +160,11 @@ export function handleWeekChange(target) {
 
 /** Called when the date changes or the view is opened from the nav, to show the current week. */
 export function resetWeekView() {
-  ui.week = null;
+  ui.week = ui.pendingWeek;
+  ui.pendingWeek = null;
+}
+
+/** Asks for a particular week to be shown the next time the Week screen opens. */
+export function showWeekNext(n) {
+  ui.pendingWeek = n;
 }
