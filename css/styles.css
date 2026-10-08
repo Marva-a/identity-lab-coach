@@ -113,6 +113,13 @@ a { color: var(--accent); text-underline-offset: 2px; }
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
 }
 .app-name { margin: 0; font-weight: 700; }
+.settings-link {
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border-radius: 999px; color: var(--text); text-decoration: none;
+}
+.settings-link[aria-current="page"] { background: var(--accent-soft); }
+.tabbar { background: var(--surface); border-bottom: 1px solid var(--border); }
+.tabbar .nav-list { max-width: 44rem; margin: 0 auto; padding: 0.25rem 1rem; }
 .nav-list { list-style: none; display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0; padding: 0; }
 .nav-list a {
   display: inline-block; padding: 0.5rem 0.75rem; min-height: 44px;
@@ -368,11 +375,22 @@ code { background: var(--surface-2); border-radius: 4px; padding: 0 0.25rem; fon
 .course-week__head h3 { margin: 0; font-size: 1rem; }
 .course-week--current { border-left: 4px solid var(--accent); padding-left: 0.6rem; }
 
-/* Seven menu links fit on two rows at phone width. */
-@media (max-width: 34rem) {
-  .nav-list { gap: 0; }
-  .nav-list a { padding: 0.5rem 0.38rem; font-size: 0.95rem; }
+/* Phone width: the five main tabs become a bar fixed to the bottom of the screen. */
+@media (max-width: 40rem) {
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; border-top: 1px solid var(--border); border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .tabbar .nav-list { flex-wrap: nowrap; gap: 0; padding: 0; }
+  .tabbar .nav-list li { flex: 1 1 0; }
+  .tabbar .nav-list a { display: block; text-align: center; padding: 0.7rem 0.1rem; font-size: 0.95rem; border-radius: 0; }
+  main { padding-bottom: 6rem; }
 }
+
+/* Section switcher inside Learn and Proof. */
+.subnav { list-style: none; display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 1rem; padding: 0; }
+.subnav a { display: inline-block; padding: 0.5rem 0.85rem; min-height: 44px; border: 1px solid var(--border); border-radius: 999px; text-decoration: none; color: var(--text); }
+.subnav a[aria-current="page"] { background: var(--accent-soft); font-weight: 600; border-color: var(--accent); }
+
+/* A script-focused heading or panel shows no ring unless you are using the keyboard. */
+body:not(.using-keyboard) [tabindex="-1"]:focus { outline: none; }
 
 /* ─── Evidence, People, follow-ups ───────────────────── */
 .banner--info { background: var(--accent-soft); color: var(--text); border-bottom-color: var(--accent); }
@@ -403,3 +421,12 @@ code { background: var(--surface-2); border-radius: 4px; padding: 0 0.25rem; fon
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 .coverage { list-style: none; padding: 0; margin: 0.25rem 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+
+/* ─── Simplified structure: Today, Plan, Settings ─────── */
+.banner-inline { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius); padding: 0.75rem 1rem; margin: 0 0 1rem; }
+.banner-inline h2 { font-size: 1rem; margin: 0 0 0.35rem; }
+.log-time { margin-top: 0.75rem; }
+.log-quick { margin-top: 0.75rem; }
+.before-list { margin: 0.25rem 0 0; padding-left: 1.25rem; }
+.edit-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.5rem 0 1rem; }
+details.card > summary { font-weight: 600; cursor: pointer; }

@@ -9,7 +9,7 @@ import { weekDayResourcesHtml } from './resources.js';
 const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence', 'design'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
 
-const ui = { week: null, pendingWeek: null }; // week shown (null = the current week); pendingWeek is set by another screen
+const ui = { week: null, pendingWeek: null, editPlan: false }; // week shown (null = the current week); pendingWeek is set by another screen
 
 /** The calendar week (1–9) that contains a date, clamped to the plan. */
 export function weekForDate(date) {
@@ -23,13 +23,18 @@ function formatHours(h) {
   return `${Number.isInteger(h) ? h : h.toFixed(1)} h`;
 }
 
-/** Flags shown next to a plan item: Optional, Flagship, extra time, Conditional, and "Changed by me". */
+const capitalFirst = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/**
+ * Flags shown next to a plan item. The words are Required and Optional only: an item that depends on
+ * something ("if you attend") is Optional with that as a small note, and extra time is a note too.
+ */
 export function itemFlagsHtml(item) {
   const flags = [];
-  if (store.isOptionalItem(item)) flags.push('<span class="flag">Optional</span>');
+  if (store.isOptionalItem(item) || item.conditional) flags.push('<span class="flag">Optional</span>');
   if (item.flagship) flags.push('<span class="flag">Flagship</span>');
-  if (item.extraMinutes) flags.push(`<span class="flag">${esc(extraTimeLabel(item))}</span>`);
-  if (item.conditional) flags.push(`<span class="flag">Conditional: ${esc(item.conditional)}</span>`);
+  if (item.extraMinutes) flags.push(`<span class="flag">${esc(capitalFirst(extraTimeLabel(item)))}</span>`);
+  if (item.conditional) flags.push(`<span class="flag">${esc(capitalFirst(item.conditional))}</span>`);
   if (store.isChangedByMe('item', item.id, item.optional)) flags.push('<span class="flag">Changed by me</span>');
   return flags.join(' ');
 }
@@ -43,7 +48,7 @@ function itemRowHtml(item) {
         <input type="checkbox" id="chk-${esc(item.id)}" data-week-item="${esc(item.id)}" ${checked ? 'checked' : ''}>
         <span><span class="item-text">${esc(item.text)}</span>${itemFlagsHtml(item)}</span>
       </label>
-      <button type="button" class="button--small" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="${optional ? 'Mark as required' : 'Mark as optional'}: ${esc(item.text)}">${optional ? 'Mark as required' : 'Mark as optional'}</button>
+      ${ui.editPlan ? `<button type="button" class="button--small" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="${optional ? 'Mark as required' : 'Mark as optional'}: ${esc(item.text)}">${optional ? 'Mark as required' : 'Mark as optional'}</button>` : ''}
     </li>`;
 }
 
@@ -112,9 +117,13 @@ export function weekView() {
 
   return `
     <p class="eyebrow">${esc(formatShort(weekStart))} – ${esc(formatShort(calWeek.days[calWeek.days.length - 1].date))}${n === current ? (date < calWeek.start ? ` · Starts ${esc(formatShort(calWeek.start))}` : ' · This week') : ''}</p>
-    <h1 id="day-heading" tabindex="-1">Week ${n} of 9: ${esc(content.title)}</h1>
+    <h2 id="week-heading" tabindex="-1">Week ${n} of 9: ${esc(content.title)}</h2>
     ${content.number !== n ? `<p class="meta">Showing week ${content.number}'s content (weeks 2 and 5 are swapped in Settings).</p>` : ''}
     ${nav('Weeks')}
+    <div class="edit-plan">
+      <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">Edit plan: ${ui.editPlan ? 'on' : 'off'}</button>
+      <span class="meta">${ui.editPlan ? 'Each item has a button to mark it Required or Optional.' : 'Turn on to mark items Required or Optional.'}</span>
+    </div>
 
     <section class="card" aria-labelledby="hours-heading">
       <h2 id="hours-heading">Hours</h2>
@@ -131,7 +140,7 @@ export function weekView() {
     <section class="card" aria-labelledby="checklist-heading">
       <h2 id="checklist-heading">Checklist</h2>
       ${content.items.length
-        ? `<p class="meta" id="checklist-progress">${done} of ${plural(required.length, 'item', 'items')} done${content.items.length > required.length ? ' (optional and conditional items not counted)' : ''}.</p>${groups}`
+        ? `<p class="meta" id="checklist-progress">${done} of ${plural(required.length, 'item', 'items')} done${content.items.length > required.length ? ' (optional items not counted)' : ''}.</p>${groups}`
         : '<p class="meta">The capstone week has no item checklist in the roadmap. Follow the daily focus below.</p>'}
       ${content.notes.map((note) => `<p class="note">${esc(note)}</p>`).join('')}
     </section>
@@ -147,15 +156,20 @@ export function weekView() {
 export const weekActions = {
   'week-prev': () => {
     ui.week = Math.max(1, (ui.week ?? weekForDate(today())) - 1);
-    return '[data-action="week-prev"]:not([disabled]), #day-heading';
+    return '[data-action="week-prev"]:not([disabled]), #week-heading';
   },
   'week-next': () => {
     ui.week = Math.min(9, (ui.week ?? weekForDate(today())) + 1);
-    return '[data-action="week-next"]:not([disabled]), #day-heading';
+    return '[data-action="week-next"]:not([disabled]), #week-heading';
   },
   'week-current': () => {
     ui.week = null;
-    return '#day-heading';
+    return '#week-heading';
+  },
+  'plan-edit-toggle': () => {
+    ui.editPlan = !ui.editPlan;
+    announce(`Edit plan is ${ui.editPlan ? 'on' : 'off'}.`);
+    return '[data-action="plan-edit-toggle"]';
   },
   'item-toggle-optional': (el) => {
     const item = WEEKS.flatMap((w) => w.items).find((i) => i.id === el.dataset.id);
@@ -180,6 +194,11 @@ export function handleWeekChange(target) {
 export function resetWeekView() {
   ui.week = ui.pendingWeek;
   ui.pendingWeek = null;
+}
+
+/** Shows a week right away (used by the week list on Plan). */
+export function setWeek(n) {
+  ui.week = n;
 }
 
 /** Asks for a particular week to be shown the next time the Week screen opens. */

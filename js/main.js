@@ -12,7 +12,7 @@ import {
 } from './flashcards.js';
 import { weekView, weekActions, handleWeekChange, resetWeekView, itemFlagsHtml } from './week.js';
 import {
-  scorecardView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
+  scorecardView, applicationsView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
 } from './scorecard.js';
 import {
   evidenceView, evidenceActions, submitEvidenceForm, submitPublishForm, handleEvidenceChange, handleEvidenceInput,
@@ -27,7 +27,8 @@ import {
   selectPersonOnNavigate, resetPeopleView,
 } from './people.js';
 
-import { courseView, courseActions } from './course.js';
+import { planTopHtml, courseActions } from './course.js';
+import { resolveHash } from './routes.js';
 import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
 import * as AB from './autobackup.js';
 
@@ -36,6 +37,8 @@ const bannersEl = document.getElementById('banners');
 const BASE_TITLE = 'Identity Lab Coach';
 
 let route = 'today';
+let section = null; // the part of Learn or Proof being shown
+let testsOpen = false; // the collapsed Testing part of Settings
 let activeTimer = T.loadTimer();
 let renderedDate = null;
 let flow = null; // the guided session in progress: { date, step }
@@ -52,6 +55,7 @@ const ui = {
   flowErrors: [],
   snapshots: [], // daily snapshots kept in this browser (loaded when Settings opens)
   backupMessage: null,
+  logOpen: false, // the quick "Log time" form on Today
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -105,22 +109,21 @@ function itemHtml(item, showKind = true) {
     </li>`;
 }
 
-function headerHtml(ctx) {
+function headerHtml(ctx, { log = true } = {}) {
   switch (ctx.kind) {
     case 'before': {
       const p = ctx.preview;
       return `
         <section class="card" aria-labelledby="day-heading">
-          <p class="eyebrow">${esc(formatLong(ctx.date))}</p>
-          <h1 id="day-heading" tabindex="-1">Before Day 1</h1>
-          <p>The plan starts on <strong>${esc(formatLong(PLAN_START))}</strong>, in ${ctx.daysUntilStart} ${ctx.daysUntilStart === 1 ? 'day' : 'days'}.</p>
-          <h2>Day 1 preview</h2>
-          <ul class="tags" aria-label="Day 1 details">
-            <li class="tag tag--block">${esc(p.blockLabel)}</li>
-            <li class="tag">${p.hours} h planned</li>
-            ${p.holiday ? `<li class="tag">${esc(p.holiday)}</li>` : ''}
-          </ul>
+          <h1 id="day-heading" tabindex="-1">Starts ${esc(formatMonthDay(PLAN_START))} (in ${plural(ctx.daysUntilStart, 'day', 'days')})</h1>
+          <p class="meta">Day 1 · ${p.hours} h planned${p.holiday ? ` · ${esc(p.holiday)}` : ''}</p>
           <p class="focus-line">${esc(p.focus)}</p>
+          <h2>Before you start</h2>
+          <ul class="before-list">
+            <li>Install Docker Desktop. Day 1 checks that it works.</li>
+            <li>Set aside Mon–Sat study time. Sunday is a rest day.</li>
+            <li>Choose a backup folder in <a href="#settings">Settings</a>, once, so you never have to remember to export.</li>
+          </ul>
         </section>`;
     }
     case 'study': {
@@ -136,8 +139,9 @@ function headerHtml(ctx) {
             ${ctx.holiday ? `<li class="tag">${esc(ctx.holiday)}</li>` : ''}
           </ul>
           <p class="focus-line"><span class="visually-hidden">Focus: </span>${esc(ctx.focus)}</p>
-          ${ctx.conditional ? `<p class="meta">Conditional: ${esc(ctx.conditional)}.</p>` : ''}
+          ${ctx.conditional ? `<p class="meta">Optional: ${esc(ctx.conditional)}.</p>` : ''}
           ${ctx.gate ? `<p class="note note--gate"><strong>Gate:</strong> ${esc(ctx.gate)}</p>` : ''}
+          ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     }
     case 'rest': {
@@ -158,6 +162,7 @@ function headerHtml(ctx) {
           <ul class="tags"><li class="tag tag--block">Block: ${esc(BLOCK_LABELS.bridge)}</li></ul>
           <p class="focus-line">${esc(ctx.phase.focus)}</p>
           ${applicationHtml(ctx)}
+          ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     case 'bridge-rest':
       return `
@@ -174,6 +179,7 @@ function headerHtml(ctx) {
           <p class="meta">Output: ${esc(ctx.application.output)}</p>
           ${ctx.interviewPrep ? `<p class="note"><strong>Interview prep:</strong> ${esc(ctx.interviewPrep)}</p>` : ''}
           ${ctx.febReview ? '<p class="note note--gate"><strong>Gate:</strong> this is the application review week (week of Feb 15).</p>' : ''}
+          ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     default:
       return `
@@ -183,6 +189,21 @@ function headerHtml(ctx) {
           <p>The dated roadmap ends on Mar 31, 2027.</p>
         </section>`;
   }
+}
+
+/** "June 3" style, for the line that says when the plan starts: "Monday, October 12". */
+function formatMonthDay(date) {
+  return formatLong(date).replace(/,\s*\d{4}$/, '');
+}
+
+/** The one main button on Today, and the quick form it opens. */
+function logTimeHtml(ctx) {
+  const open = ui.logOpen;
+  return `
+    <div class="log-time">
+      <button type="button" class="button--primary" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>
+      <div id="log-time-panel" ${open ? '' : 'hidden'}>${open ? flowWrapUpHtml(ctx, { heading: false }) : ''}</div>
+    </div>`;
 }
 
 function applicationHtml(ctx) {
@@ -407,12 +428,12 @@ function flowStartCardHtml(ctx) {
       ${has
     ? `<p class="status-ok">${ui.flash ? esc(ui.flash) : `You have logged ${plural(logged, 'minute', 'minutes')} today.`}</p>`
     : '<p>A few flashcards to warm up, then focus time with the timer, then log it in one tap.</p>'}
-      <div class="button-row"><button type="button" class="button--primary" data-action="flow-start">${has ? 'Start another session' : 'Start today’s session'}</button></div>
+      <div class="button-row"><button type="button" data-action="flow-start">${has ? 'Start another session' : 'Start today’s session'}</button></div>
       <p class="meta">Prefer to see everything at once? It is all below.</p>
     </section>`;
 }
 
-function flowWrapUpHtml(ctx) {
+function flowWrapUpHtml(ctx, { heading = true } = {}) {
   const timerMinutes = activeTimer && activeTimer.date === ctx.date ? T.focusMinutes(activeTimer) : null;
   const planned = ctx.kind === 'study' ? ctx.hours * 60 : null;
   const errors = ui.flowErrors.length
@@ -422,8 +443,8 @@ function flowWrapUpHtml(ctx) {
        </div>`
     : '';
   return `
-    <section class="card" aria-labelledby="wrap-heading">
-      <h2 id="wrap-heading">Log your session</h2>
+    <section ${heading ? 'class="card"' : 'class="log-quick"'} aria-labelledby="wrap-heading">
+      <h2 id="wrap-heading" ${heading ? '' : 'class="visually-hidden"'}>Log your session</h2>
       <form id="flow-log-form" novalidate>
         ${errors}
         <div class="field">
@@ -464,7 +485,7 @@ function flowView(ctx, f) {
   const back = idx > 0 ? `<button type="button" data-action="flow-back">← ${esc(STEPS[idx - 1].label)}</button>` : '';
   const next = idx < STEPS.length - 1 ? `<button type="button" class="button--primary" data-action="flow-next">Next: ${esc(STEPS[idx + 1].label)} →</button>` : '';
   return [
-    headerHtml(ctx),
+    headerHtml(ctx, { log: false }),
     `<section class="card card--flow" aria-labelledby="flow-step-heading">
        ${stepper}
        <h2 id="flow-step-heading" tabindex="-1">${esc(STEPS[idx].title)}</h2>
@@ -502,7 +523,7 @@ function backupNoticeHtml() {
         <button type="button" data-action="backup-prompt-dismiss">Not now</button>
       </div>`;
   }
-  return `<div id="backup-notice">${inner ? `<section class="card card--notice" aria-labelledby="backup-heading">${inner}</section>` : ''}</div>`;
+  return `<div id="backup-notice">${inner ? `<section class="banner-inline" aria-labelledby="backup-heading">${inner}</section>` : ''}</div>`;
 }
 
 function todayView() {
@@ -510,10 +531,11 @@ function todayView() {
   const studyish = isStudyish(ctx);
   const f = activeFlow(ctx);
   if (f) return flowView(ctx, f);
+  if (ctx.kind === 'before') return [headerHtml(ctx), backupNoticeHtml(), todayFollowUpsHtml()].join('');
   return [
     headerHtml(ctx),
-    studyish ? flowStartCardHtml(ctx) : '',
     backupNoticeHtml(),
+    studyish ? flowStartCardHtml(ctx) : '',
     todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
     todayResourcesHtml(ctx),
@@ -521,6 +543,32 @@ function todayView() {
     timerHtml(ctx),
     logHtml(ctx),
   ].join('');
+}
+
+// ─── Plan, Learn and Proof ───────────────────────────────────────────────────
+
+/** The switcher inside Learn and Proof. */
+function subnavHtml(place, label, items) {
+  return `
+    <nav aria-label="${esc(label)}">
+      <ul class="subnav">
+        ${items.map(([id, text]) => `<li><a href="#${place}/${id}" ${section === id ? 'aria-current="page"' : ''}>${esc(text)}</a></li>`).join('')}
+      </ul>
+    </nav>`;
+}
+
+function planView() {
+  return planTopHtml() + weekView();
+}
+
+function learnView() {
+  return subnavHtml('learn', 'Learn sections', [['library', 'Library'], ['cards', 'Flashcards']])
+    + (section === 'cards' ? flashcardsView() : libraryView());
+}
+
+function proofView() {
+  const body = section === 'people' ? peopleView() : section === 'applications' ? applicationsView() : evidenceView();
+  return subnavHtml('proof', 'Proof sections', [['evidence', 'Evidence'], ['people', 'People'], ['applications', 'Applications']]) + body;
 }
 
 // ─── Settings view ───────────────────────────────────────────────────────────
@@ -543,12 +591,12 @@ function backupPanelHtml() {
   return `
     <section class="card" id="backup-panel" aria-labelledby="autobackup-heading">
       <h2 id="autobackup-heading" tabindex="-1">Automatic backups</h2>
-      <p>Your data is saved in this browser as you work. These backups happen by themselves, so you do not have to remember to export. Nothing is sent anywhere.</p>
+      <p>Your data is saved in this browser as you work. These backups happen by themselves, so you do not have to remember to export.</p>
       <dl class="facts">
-        <div><dt>Protected storage</dt><dd>${s.persisted === true
-    ? 'Yes: the browser will not clear your data to free up space.'
+        <div><dt>Storage protection</dt><dd>${s.persisted === true
+    ? 'On: the browser will not clear your data to free up space.'
     : s.persisted === false
-      ? 'Not granted: the browser may clear your data if the device runs low on space. The snapshots and folder backups below protect you from that.'
+      ? `Off. If this device runs low on space, the browser is allowed to clear this app's data. Your daily snapshots and backup folder still protect you. You can ask the browser to protect it; it may say no. <button type="button" class="button--small" data-action="backup-protect">Ask the browser to protect it</button>`
       : 'Not known yet.'}</dd></div>
         <div><dt>Daily snapshots</dt><dd>${snaps.length ? `${plural(snaps.length, 'day', 'days')} kept inside this browser (the newest 14). Latest: ${esc(formatShort(snaps[0].date))}.` : 'None yet. The first one is taken a moment after you open the app.'}</dd></div>
         <div><dt>Backup folder</dt><dd>${folderText}</dd></div>
@@ -641,54 +689,13 @@ function settingsView() {
     : '';
 
   return `
-    <h1 id="day-heading" tabindex="-1">Settings and data</h1>
-
-    <section class="card" aria-labelledby="test-heading">
-      <h2 id="test-heading">Test date (for testing only)</h2>
-      <p class="meta">Off by default. While it's on, the app shows the plan, due flashcards and scorecard for the date you choose, a banner appears at the top of every page, and anything you log, rate or tick is marked as test data. The timer still runs on the real clock.</p>
-      <label class="check" for="test-enabled">
-        <input type="checkbox" id="test-enabled" ${s.testDate.enabled ? 'checked' : ''}>
-        <span>Use a test date instead of today</span>
-      </label>
-      <div class="field">
-        <label for="test-date">Test date</label>
-        <input type="date" id="test-date" value="${esc(s.testDate.date || PLAN_START)}" aria-describedby="test-date-hint">
-        <span class="hint" id="test-date-hint">Applies only while the box above is checked. Real today in Vancouver: ${esc(formatLong(vancouverDate()))}.</span>
-      </div>
-      ${testCount ? `
-        <p>Test data saved: ${esc(describeTestData(testData))}.</p>
-        <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
-      <h3>Date and scheduling checks</h3>
-      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence, people and library rules, the Markdown export and the data migration. Nothing is changed.</p>
-      <button type="button" data-action="run-checks">Run date checks</button>
-      ${checks}
-    </section>
-
-    <section class="card" aria-labelledby="plan-heading">
-      <h2 id="plan-heading">Plan options</h2>
-      <label class="check" for="swap-weeks">
-        <input type="checkbox" id="swap-weeks" ${s.swapWeeks2and5 ? 'checked' : ''} aria-describedby="swap-hint">
-        <span>Swap weeks 2 and 5</span>
-      </label>
-      <span class="hint" id="swap-hint">From the roadmap: "If your Tailscale process is active, swap this week with week 2." Dates, day numbers and holidays stay the same; only the content moves.</span>
-    </section>
-
-    <section class="card" aria-labelledby="theme-heading">
-      <h2 id="theme-heading">Appearance</h2>
-      <fieldset>
-        <legend>Theme</legend>
-        <div class="choice-group">
-          ${['system', 'light', 'dark'].map((t) => `
-            <label class="choice"><input type="radio" name="theme" value="${t}" ${s.theme === t ? 'checked' : ''}> ${{ system: 'Match my device', light: 'Light', dark: 'Dark' }[t]}</label>`).join('')}
-        </div>
-      </fieldset>
-    </section>
+    <h1 id="day-heading" tabindex="-1">Settings</h1>
 
     ${backupPanelHtml()}
 
     <section class="card" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
-      <p>Your data is saved in this browser only. Nothing is sent anywhere. Clearing site data, or opening the app in another browser or at a different address, starts empty, so export now and then.</p>
+      <p><strong>Local only.</strong> Your data is saved in this browser only, and nothing is sent anywhere. Clearing site data, or opening the app in another browser or at a different address, starts empty, so export now and then.</p>
       <p><strong>Do not put passwords, keys or confidential employer details in notes, evidence or people.</strong> Browser storage is not a password vault and is not encrypted.</p>
       <p class="meta">Currently saved: ${esc(summaryText(store.summarize(store.getData())))}. Last export: ${s.lastExportedAt ? esc(when(s.lastExportedAt)) : 'never'}.</p>
       ${ui.dataMessage ? `<p class="status-ok" id="data-message" tabindex="-1">${esc(ui.dataMessage)}</p>` : ''}
@@ -723,7 +730,50 @@ function settingsView() {
               </span>
             </li>`).join('')}
         </ul>` : ''}
-    </section>`;
+    </section>
+
+    <section class="card" aria-labelledby="theme-heading">
+      <h2 id="theme-heading">Appearance</h2>
+      <fieldset>
+        <legend>Theme</legend>
+        <div class="choice-group">
+          ${['system', 'light', 'dark'].map((t) => `
+            <label class="choice"><input type="radio" name="theme" value="${t}" ${s.theme === t ? 'checked' : ''}> ${{ system: 'Match my device', light: 'Light', dark: 'Dark' }[t]}</label>`).join('')}
+        </div>
+      </fieldset>
+    </section>
+
+    <section class="card" aria-labelledby="plan-heading">
+      <h2 id="plan-heading">Plan options</h2>
+      <label class="check" for="swap-weeks">
+        <input type="checkbox" id="swap-weeks" ${s.swapWeeks2and5 ? 'checked' : ''} aria-describedby="swap-hint">
+        <span>Swap weeks 2 and 5</span>
+      </label>
+      <span class="hint" id="swap-hint">From the roadmap: "If your Tailscale process is active, swap this week with week 2." Dates, day numbers and holidays stay the same; only the content moves.</span>
+    </section>
+
+    <details class="card" id="test-section" ${testsOpen || s.testDate.enabled ? 'open' : ''}>
+      <summary id="test-heading">Testing (for testing only)</summary>
+      <h2 class="visually-hidden">Test date</h2>
+      <p class="meta">Off by default. While it's on, the app shows the plan, due flashcards and scorecard for the date you choose, a banner appears at the top of every page, and anything you log, rate or tick is marked as test data. The timer still runs on the real clock.</p>
+      <label class="check" for="test-enabled">
+        <input type="checkbox" id="test-enabled" ${s.testDate.enabled ? 'checked' : ''}>
+        <span>Use a test date instead of today</span>
+      </label>
+      <div class="field">
+        <label for="test-date">Test date</label>
+        <input type="date" id="test-date" value="${esc(s.testDate.date || PLAN_START)}" aria-describedby="test-date-hint">
+        <span class="hint" id="test-date-hint">Applies only while the box above is checked. Real today in Vancouver: ${esc(formatLong(vancouverDate()))}.</span>
+      </div>
+      ${testCount ? `
+        <p>Test data saved: ${esc(describeTestData(testData))}.</p>
+        <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
+      <h3>Date and scheduling checks</h3>
+      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence, people and library rules, the Markdown export and the data migration. Nothing is changed.</p>
+      <button type="button" data-action="run-checks">Run date checks</button>
+      ${checks}
+    </details>
+    `;
 }
 
 /** A readable list of the test data present, leaving out categories with none. */
@@ -772,8 +822,7 @@ function render({ focus } = {}) {
   });
   renderedDate = today();
   const views = {
-    today: todayView, home: courseView, week: weekView, library: libraryView, cards: flashcardsView, evidence: evidenceView,
-    people: peopleView, scorecard: scorecardView, settings: settingsView,
+    today: todayView, plan: planView, learn: learnView, proof: proofView, progress: scorecardView, settings: settingsView,
   };
   const problem = store.getLoadProblem();
   mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
@@ -897,6 +946,7 @@ function submitFlowLog(form, status) {
   ui.flash = `Saved: ${statusLabel(sess.status)}, ${sess.minutes} min on ${formatShort(sess.date)}${sess.dayNumber ? ` (Day ${sess.dayNumber})` : ''}${sess.testMode ? ', marked as a test session' : ''}.`
     + (result.saved ? '' : ' Warning: this browser blocked saving.');
   setFlow(null);
+  ui.logOpen = false;
   announce(ui.flash);
   render({ focus: '#flow-heading' });
 }
@@ -912,6 +962,11 @@ function downloadExport() {
 }
 
 const actions = {
+  'log-time': () => {
+    ui.logOpen = !ui.logOpen;
+    ui.flowErrors = [];
+    render({ focus: ui.logOpen ? '#flow-minutes' : '[data-action="log-time"]' });
+  },
   'flow-start': () => {
     startFlow();
     announce('Session started.');
@@ -955,6 +1010,12 @@ const actions = {
   'backup-stop': async () => {
     await AB.stopFolder();
     ui.backupMessage = 'Stopped saving to the folder. Files already there are left alone. Daily snapshots continue.';
+    announce(ui.backupMessage);
+    refreshBackupUi();
+  },
+  'backup-protect': async () => {
+    const granted = await AB.requestPersistence();
+    ui.backupMessage = granted ? 'Storage protection is on.' : 'The browser said no. Storage protection stays off, and your backups still protect you.';
     announce(ui.backupMessage);
     refreshBackupUi();
   },
@@ -1158,7 +1219,10 @@ mainEl.addEventListener('input', (e) => {
 });
 
 // Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
-mainEl.addEventListener('toggle', handleResourceToggle, true);
+mainEl.addEventListener('toggle', (e) => {
+  if (e.target.id === 'test-section') testsOpen = e.target.open;
+  else handleResourceToggle(e);
+}, true);
 // Leaving a notes box saves it straight away.
 mainEl.addEventListener('focusout', (e) => { if (e.target.dataset?.resNotes) flushResourceNotes(); });
 
@@ -1208,18 +1272,24 @@ mainEl.addEventListener('change', async (e) => {
   }
 });
 
+// The focus ring on a heading that a script focused shows only for keyboard users.
+document.addEventListener('keydown', (e) => { if (e.key !== 'Escape' && !e.metaKey) document.body.classList.add('using-keyboard'); });
+document.addEventListener('pointerdown', () => document.body.classList.remove('using-keyboard'));
+
 // ─── Routing and start-up ────────────────────────────────────────────────────
 
+/** Reads the address, sends an old one to its new place, and sets the place and section to show. */
 function routeFromHash() {
-  return {
-    '#settings': 'settings', '#cards': 'cards', '#week': 'week', '#scorecard': 'scorecard',
-    '#evidence': 'evidence', '#people': 'people', '#library': 'library', '#home': 'home',
-  }[location.hash] ?? 'today';
+  const r = resolveHash(location.hash);
+  if (r.redirect) history.replaceState(null, '', r.redirect);
+  section = r.section;
+  return r.route;
 }
 
 window.addEventListener('hashchange', () => {
   route = routeFromHash();
   ui.flash = null;
+  ui.logOpen = false;
   ui.dataMessage = null;
   resetCardMessages();
   resetScorecardMessages();
@@ -1239,7 +1309,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { flushResourceNotes(); AB.backupNow().catch(() => {}); });
 
 store.load();
-setContentRefresh((focus) => { if (route === 'library') render({ focus }); });
+setContentRefresh((focus) => { if (route === 'learn' && section === 'library') render({ focus }); });
 flow = loadFlow(today());
 if (!store.getLoadProblem()) {
   store.onSave(AB.noteChanged);

@@ -2,7 +2,10 @@
 import * as store from './store.js';
 import { esc, announce, today, testMode } from './ui.js';
 import { formatShort, isValidDateString } from './dates.js';
-import { PLAN_START, PLAN_END } from './plan-data.js';
+import { PLAN_START, PLAN_END, WEEKS } from './plan-data.js';
+
+/** The plan's total study hours (103), shown as the hours target. */
+export const PLANNED_HOURS = WEEKS.reduce((n, w) => n + w.days.reduce((m, d) => m + d.hours, 0), 0);
 import {
   scorecard, activePeriod, PERIOD_1, PERIOD_2, targetsFor, MEASURES, STATUS_RULE, STATUS_LABELS,
 } from './pace.js';
@@ -12,10 +15,10 @@ const KIND_LABELS = { application: 'Targeted application' };
 /** Where each measure's number comes from. */
 const SOURCES = {
   hours: 'From the sessions you log on <a href="#today">Today</a>.',
-  artifact: 'From the <a href="#evidence">Evidence log</a>: published artifacts only, on their published date.',
-  conversation: 'From the interactions in the <a href="#people">People log</a>.',
-  referral: 'From the interactions in the <a href="#people">People log</a>.',
-  application: 'From the quick entries below.',
+  artifact: 'From the <a href="#proof/evidence">Evidence log</a>: published artifacts only, on their published date.',
+  conversation: 'From the interactions in the <a href="#proof/people">People log</a>.',
+  referral: 'From the interactions in the <a href="#proof/people">People log</a>.',
+  application: 'From the quick entries in <a href="#proof/applications">Proof</a>.',
 };
 
 const ui = {
@@ -30,13 +33,16 @@ function formatValue(row, value) {
   return String(value);
 }
 
-function formatTarget(target, unit) {
+function formatTarget(target, unit, row, period) {
   if (!target) return 'No target';
+  if (row?.id === 'hours' && period?.id === 'dec10') return `${PLANNED_HOURS} h planned`;
   const range = target.low === target.high ? `${target.low}` : `${target.low}–${target.high}`;
   return unit ? `about ${range} ${unit}` : range;
 }
 
 function statusHtml(row) {
+  // Until the first date that expects anything, there is nothing to be behind on.
+  if (row.status === 'on' && !row.expected && !row.actual) return '<span class="status status--none">Not started</span>';
   const label = STATUS_LABELS[row.status];
   return `<span class="status status--${row.status}">${esc(label)}</span>${row.reached ? ' <span class="meta">(target reached)</span>' : ''}`;
 }
@@ -69,7 +75,7 @@ function tableHtml(rows, period) {
               <th scope="row">${esc(r.label)}<span class="cell-note">${SOURCES[r.id]}</span></th>
               <td>${esc(formatValue(r, r.actual))}</td>
               <td>${esc(formatValue(r, r.expected))}<span class="cell-note">${esc(expectedNote(r, period))}</span></td>
-              <td>${esc(formatTarget(r.target, r.unit))}</td>
+              <td>${esc(formatTarget(r.target, r.unit, r, period))}</td>
               <td>${statusHtml(r)}</td>
             </tr>`).join('')}
         </tbody>
@@ -141,7 +147,7 @@ export function scorecardView() {
   else context = `Today is ${formatShort(date)}. "Expected" only counts days that have ended, so a Sunday or the morning of a study day never puts you behind.`;
 
   return `
-    <h1 id="day-heading" tabindex="-1">Scorecard</h1>
+    <h1 id="day-heading" tabindex="-1">Progress</h1>
 
     <section class="card" aria-labelledby="period-heading">
       <h2 id="period-heading">${esc(period.label)}${period.id === 'jan31' ? ' (cumulative since Oct 12)' : ''}</h2>
@@ -151,10 +157,15 @@ export function scorecardView() {
       ${otherPeriodHtml(period)}
       <p class="meta">Calculated only from what you log. Never type totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
     </section>
+`;
+}
 
+export function applicationsView() {
+  return `
+    <h1 id="day-heading" tabindex="-1">Applications</h1>
     <section class="card" aria-labelledby="tally-heading">
       <h2 id="tally-heading">Log an application</h2>
-      <p class="meta">A quick "+1 with date" for targeted applications. Artifacts go in the <a href="#evidence">Evidence log</a>; conversations and referral asks go in the <a href="#people">People log</a>.</p>
+      <p class="meta">A quick "+1 with date" for targeted applications. Artifacts go in the <a href="#proof/evidence">Evidence log</a>; conversations and referral asks go in the <a href="#proof/people">People log</a>.</p>
       ${ui.message ? `<p class="status-ok" id="tally-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       ${logFormHtml()}
       <h3>Recent entries</h3>

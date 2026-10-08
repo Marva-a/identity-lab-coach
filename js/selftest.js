@@ -11,6 +11,7 @@ import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
 import { courseProgress } from './progress.js';
+import { resolveHash, ROUTES, SECTIONS, LEGACY_HASHES } from './routes.js';
 import {
   validateManifest, parseCardPack, planContent, summarizePlan, contentUrl, CONTENT_REQUEST_INIT,
 } from './content.js';
@@ -542,7 +543,7 @@ export function runDateChecks() {
     ['Enterprise identity mental model', 'Consent screen and scopes', 'Admin provisioning flow', 'Redesign account recovery', 'Device posture failure experience',
       'Permission management for a non-security admin', 'Account-takeover investigation console', 'Agent authorization case-study outline'].join('|'));
   check('Plan v3: the weekly hour budgets are still 11, 12 ×7, 8 (extra time is not added)', WEEKS.map((w) => Object.values(w.budget).reduce((a, b) => a + b, 0)).join(','), '11,12,12,12,12,12,12,12,8');
-  check('Plan v3: the extra time is described in words', extraTimeLabel(design[3]), 'about 3 h, on top of the 12');
+  check('Plan v3: the extra time is described in words', extraTimeLabel(design[3]), 'about 3 h, on top of the 12 h');
   check('Plan v3: required item counts per week were 9,11,12,9,10,11,9,10 and are now +1 in weeks 4, 6 and 8',
     WEEKS.slice(0, 8).map((w) => w.items.filter((i) => !i.optional && !i.conditional).length).join(','), '9,11,12,10,10,12,9,11');
   const tickedAll = Object.fromEntries(v2Ids.map((id) => [id, { at: 'x', testMode: false }]));
@@ -601,6 +602,44 @@ export function runDateChecks() {
   check('Coverage: uncategorised entries are counted separately', cov.uncategorised, 1);
   check('Coverage: a category does not change the scorecard', JSON.stringify(countsFromDoc({ artifacts: [{ ...legacyArtifact, category: 'systems' }] })), JSON.stringify(countsFromDoc({ artifacts: [legacyArtifact] })));
   check('Coverage: label for a missing category', categoryLabel(undefined), 'Uncategorised');
+
+  // Simplified navigation: five places plus Settings, and every old address still works.
+  const at = (h) => resolveHash(h);
+  const where = (h) => `${at(h).route}${at(h).section ? `/${at(h).section}` : ''}`;
+  check('Routes: the places are Today, Plan, Learn, Proof, Progress and Settings', ROUTES.join(','), 'today,plan,learn,proof,progress,settings');
+  check('Routes: an empty address opens Today', where(''), 'today');
+  check('Routes: an unknown address opens Today', where('#nonsense'), 'today');
+  check('Routes: #today', where('#today'), 'today');
+  check('Routes: #plan', where('#plan'), 'plan');
+  check('Routes: #progress', where('#progress'), 'progress');
+  check('Routes: #settings', where('#settings'), 'settings');
+  check('Routes: #learn opens the Library first', where('#learn'), 'learn/library');
+  check('Routes: #learn/cards', where('#learn/cards'), 'learn/cards');
+  check('Routes: #proof opens Evidence first', where('#proof'), 'proof/evidence');
+  check('Routes: #proof/people', where('#proof/people'), 'proof/people');
+  check('Routes: #proof/applications', where('#proof/applications'), 'proof/applications');
+  check('Routes: an unknown section falls back to the first', where('#learn/nope'), 'learn/library');
+  check('Routes: new addresses are not redirected', ['#today', '#plan', '#learn/cards', '#proof/people', '#progress', '#settings'].every((h) => at(h).redirect === null), true);
+  check('Redirect: #home goes to Plan', `${where('#home')}|${at('#home').redirect}`, 'plan|#plan');
+  check('Redirect: #week goes to Plan', `${where('#week')}|${at('#week').redirect}`, 'plan|#plan');
+  check('Redirect: #library goes to Learn / Library', `${where('#library')}|${at('#library').redirect}`, 'learn/library|#learn/library');
+  check('Redirect: #cards goes to Learn / Flashcards', `${where('#cards')}|${at('#cards').redirect}`, 'learn/cards|#learn/cards');
+  check('Redirect: #evidence goes to Proof / Evidence', `${where('#evidence')}|${at('#evidence').redirect}`, 'proof/evidence|#proof/evidence');
+  check('Redirect: #people goes to Proof / People', `${where('#people')}|${at('#people').redirect}`, 'proof/people|#proof/people');
+  check('Redirect: #scorecard goes to Progress', `${where('#scorecard')}|${at('#scorecard').redirect}`, 'progress|#progress');
+  check('Redirect: with a slash form (#/week) too', where('#/week'), 'plan');
+  check('Redirect: all seven old addresses are covered', Object.keys(LEGACY_HASHES).sort().join(','), 'cards,evidence,home,library,people,scorecard,week');
+  check('Redirect: every redirect lands on a known place and section', Object.values(LEGACY_HASHES).every((h) => ROUTES.includes(at(h).route)
+    && (!SECTIONS[at(h).route] || SECTIONS[at(h).route].includes(at(h).section))), true);
+  check('Redirect: a redirect target is never redirected again', Object.values(LEGACY_HASHES).every((h) => at(h).redirect === null || at(h).redirect === h), true);
+
+  // One vocabulary: Required and Optional. "extra" and "conditional" are notes, not words in the item text.
+  check('Words: no plan item text says "extra"', WEEKS.flatMap((w) => w.items).filter((i) => /\bextra\b/i.test(i.text)).length, 0);
+  check('Words: no plan item text says "(conditional)"', WEEKS.flatMap((w) => w.items).filter((i) => /\(conditional\)/i.test(i.text)).length, 0);
+  check('Words: the items that said "extra" now carry their time as a note',
+    ['w1-read-3', 'w4-read-3', 'w6-read-3', 'w6-apply-2', 'w7-apply-2', 'w8-read-3', 'w8-read-4'].every((id) => item(id).extraMinutes > 0 && item(id).optional), true);
+  check('Words: planned study hours are 103 (shown on the scorecard)', WEEKS.reduce((n, w) => n + w.days.reduce((m, d) => m + d.hours, 0), 0), 103);
+  check('Words: marking a week 1 note item optional by default is unchanged', item('w1-read-3').optional, true);
 
   return results;
 }

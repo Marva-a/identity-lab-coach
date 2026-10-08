@@ -22,21 +22,21 @@
   <header class="app-header">
     <div class="app-header__inner">
       <p class="app-name">Identity Lab Coach</p>
-      <nav aria-label="Main">
-        <ul class="nav-list">
-          <li><a href="#home" data-route="home">Course</a></li>
-          <li><a href="#today" data-route="today">Today</a></li>
-          <li><a href="#week" data-route="week">Week</a></li>
-          <li><a href="#library" data-route="library">Library</a></li>
-          <li><a href="#cards" data-route="cards">Flashcards</a></li>
-          <li><a href="#evidence" data-route="evidence">Evidence</a></li>
-          <li><a href="#people" data-route="people">People</a></li>
-          <li><a href="#scorecard" data-route="scorecard">Scorecard</a></li>
-          <li><a href="#settings" data-route="settings">Settings</a></li>
-        </ul>
-      </nav>
+      <a class="settings-link" href="#settings" data-route="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm7.4-2.4 1.6 1.2-1.6 2.8-1.9-.7a7 7 0 0 1-1.6.9l-.3 2h-3.2l-.3-2a7 7 0 0 1-1.6-.9l-1.9.7L5 14l1.6-1.2a7 7 0 0 1 0-1.8L5 9.8l1.6-2.8 1.9.7a7 7 0 0 1 1.6-.9l.3-2h3.2l.3 2a7 7 0 0 1 1.6.9l1.9-.7L21 9.8l-1.6 1.2a7 7 0 0 1 0 1.8Z"/></svg>
+      </a>
     </div>
   </header>
+
+  <nav class="tabbar" aria-label="Main">
+    <ul class="nav-list">
+      <li><a href="#today" data-route="today">Today</a></li>
+      <li><a href="#plan" data-route="plan">Plan</a></li>
+      <li><a href="#learn" data-route="learn">Learn</a></li>
+      <li><a href="#proof" data-route="proof">Proof</a></li>
+      <li><a href="#progress" data-route="progress">Progress</a></li>
+    </ul>
+  </nav>
 
   <main id="main" tabindex="-1"></main>
 

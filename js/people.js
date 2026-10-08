@@ -39,7 +39,7 @@ function followUpItemHtml(i, date) {
     <li class="followup followup--${st.kind}">
       <div>
         <span class="followup__state">${esc(st.label)}</span>
-        <a href="#people" data-person-link="${esc(i.personId)}">${esc(name)}</a>
+        <a href="#proof/people" data-person-link="${esc(i.personId)}">${esc(name)}</a>
         <span class="meta"> · ${esc(INTERACTION_TYPES[i.type])} on ${esc(formatShort(i.date))} · follow-up due ${esc(formatShort(i.followUpDue))}</span>
         ${i.outcome ? `<p class="meta followup__note">${esc(i.outcome)}</p>` : ''}
       </div>
@@ -153,7 +153,7 @@ function interactionFormHtml(existing, person) {
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
-const PRIVACY = 'Everything in the People log stays in this browser. Nothing is sent anywhere, and the app never fetches anything from LinkedIn or any other link you add; a link only opens if you click it.';
+const PRIVACY = 'The app never fetches anything from LinkedIn or any other link you add; a link only opens if you click it.';
 
 function interactionRowHtml(i, person, date) {
   if (ui.interaction === i.id) return `<li class="card-row">${interactionFormHtml(i, person)}</li>`;

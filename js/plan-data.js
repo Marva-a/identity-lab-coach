@@ -72,11 +72,11 @@ export function itemIsOptional(item, overrides) {
   return typeof o?.optional === 'boolean' ? o.optional : Boolean(item.optional);
 }
 
-/** Text for the extra time on a Design item, for example "about 3 h, on top of the 12". */
+/** Text for the extra time on a Design item, for example "about 3 h, on top of the 12 h". */
 export function extraTimeLabel(item) {
   if (!item.extraMinutes) return '';
   const h = item.extraMinutes / 60;
-  return `about ${Number.isInteger(h) ? h : h.toFixed(1)} h, on top of the 12`;
+  return `about ${Number.isInteger(h) ? h : h.toFixed(1)} h, on top of the 12 h`;
 }
 
 /**
@@ -132,7 +132,7 @@ export const ITEM_KIND_LABELS = {
   apply: 'Apply',
   network: 'Network (evenings, outside the 12 h)',
   evidence: 'Evidence',
-  design: 'Design (extra time, outside the 12 h)',
+  design: 'Design (on top of the 12 h)',
 };
 
 /**
@@ -158,7 +158,7 @@ export const WEEKS = [
       { id: 'w1-learn-1', kind: 'learn', text: 'Authentication vs authorization vs accounting; identity lifecycle (joiner, mover, leaver); credentials, sessions, tokens; threat-model vocabulary' },
       { id: 'w1-read-1', kind: 'read', text: "Professor Messer's SY0-701 access-control and authentication videos only (3 hours maximum)" },
       { id: 'w1-read-2', kind: 'read', text: 'The Threat Modeling Manifesto' },
-      { id: 'w1-read-3', kind: 'read', text: 'NIST Cybersecurity Framework 2.0 overview and one Quick Start Guide (about 1 hour, extra)', optional: true },
+      { id: 'w1-read-3', kind: 'read', text: 'NIST Cybersecurity Framework 2.0 overview and one Quick Start Guide', optional: true, extraMinutes: 60 },
       { id: 'w1-practice-1', kind: 'practice', text: 'Exercise 1: Keycloak realm, users, groups, roles', exercises: [1] },
       { id: 'w1-build-1', kind: 'build', text: 'A seed script for 50 users and 8 "apps" (groups), with several planted stale accounts' },
       { id: 'w1-apply-1', kind: 'apply', text: 'Read the admin getting-started docs for Tailscale, 1Password and Okta; list what an admin must do on day one' },
@@ -246,7 +246,7 @@ export const WEEKS = [
       { id: 'w4-learn-1', kind: 'learn', text: 'Factor types, TOTP, push fatigue, WebAuthn and passkeys (synced vs device-bound), phishing resistance, step-up, account-recovery attacks, and WCAG 2.2 success criterion 3.3.8, Accessible Authentication' },
       { id: 'w4-read-1', kind: 'read', text: 'passkeys.dev' },
       { id: 'w4-read-2', kind: 'read', text: 'The syncable-authenticator and recovery sections of NIST SP 800-63B-4 (final, July 2025)' },
-      { id: 'w4-read-3', kind: 'read', text: 'FIDO Alliance passkey design guidelines on Passkey Central (about 1 hour, extra)', optional: true },
+      { id: 'w4-read-3', kind: 'read', text: 'FIDO Alliance passkey design guidelines on Passkey Central', optional: true, extraMinutes: 60 },
       { id: 'w4-practice-1', kind: 'practice', text: 'Exercise 3: TOTP and passkeys in Keycloak', exercises: [3] },
       { id: 'w4-practice-2', kind: 'practice', text: 'Exercise 11: STRIDE model of account recovery', exercises: [11] },
       { id: 'w4-build-1', kind: 'build', text: 'Offboarding, part 2: revoke active sessions through the Keycloak admin API and write every step to an append-only audit log' },
@@ -276,7 +276,7 @@ export const WEEKS = [
       { id: 'w5-read-2', kind: 'read', text: 'A summary of NIST SP 800-207' },
       { id: 'w5-read-3', kind: 'read', text: "Cloudflare's Zero Trust and ZTNA explainers, Google's BeyondCorp paper, and the Professor Messer Network+ videos on segmentation, security rules, Zero Trust and VPNs (selected, about 90 minutes)" },
       { id: 'w5-practice-1', kind: 'practice', text: 'A tailnet with two devices, tag-based access rules, and sign-in through an identity provider' },
-      { id: 'w5-practice-2', kind: 'practice', text: 'Extra: exercise 21, capture a DNS lookup and a TLS handshake in Wireshark on your own machine and note what an observer can and cannot see (60–90 minutes)', exercises: [21], optional: true },
+      { id: 'w5-practice-2', kind: 'practice', text: 'Exercise 21: capture a DNS lookup and a TLS handshake in Wireshark on your own machine and note what an observer can and cannot see (60–90 minutes)', exercises: [21], optional: true },
       { id: 'w5-build-1', kind: 'build', text: 'Access requests: request, approve, and automatic expiry (API and data model)' },
       { id: 'w5-apply-1', kind: 'apply', text: 'An access-policy design for a fictional 20-person startup, plus five specific, constructive observations on a zero-trust admin experience' },
       { id: 'w5-network-1', kind: 'network', text: 'Ask two networking or zero-trust practitioners which policy mistakes they see most' },
@@ -306,14 +306,14 @@ export const WEEKS = [
       { id: 'w6-learn-2', kind: 'learn', text: 'The shared responsibility model; VPCs, subnets and security groups' },
       { id: 'w6-read-1', kind: 'read', text: 'AWS IAM security best practices' },
       { id: 'w6-read-2', kind: 'read', text: 'Three selected modules of the free Microsoft Learn SC-300 path (conditional access, app registrations, identity governance basics), not the whole path' },
-      { id: 'w6-read-3', kind: 'read', text: 'The AWS shared responsibility model, VPC and security group documentation (about 2 hours, extra)', optional: true },
+      { id: 'w6-read-3', kind: 'read', text: 'The AWS shared responsibility model, VPC and security group documentation', optional: true, extraMinutes: 120 },
       { id: 'w6-practice-1', kind: 'practice', text: 'Exercise 9: AWS role, STS, Access Analyzer (set a budget alert first)', exercises: [9] },
       { id: 'w6-practice-2', kind: 'practice', text: 'Exercise 15: gitleaks', exercises: [15] },
       { id: 'w6-practice-3', kind: 'practice', text: 'Exercise 10: Entra conditional access', exercises: [10], optional: true },
-      { id: 'w6-practice-4', kind: 'practice', text: 'Extra: exercise 22, a VPC with one public and one private subnet and a security group that allows only the traffic you intend; turn on flow logs, read them, then delete everything (60–90 minutes)', exercises: [22], optional: true },
+      { id: 'w6-practice-4', kind: 'practice', text: 'Exercise 22: a VPC with one public and one private subnet and a security group that allows only the traffic you intend; turn on flow logs, read them, then delete everything (60–90 minutes)', exercises: [22], optional: true },
       { id: 'w6-build-1', kind: 'build', text: 'A simple UI for request, approve, offboard and audit' },
       { id: 'w6-apply-1', kind: 'apply', text: 'Write half a page on why AI agents need workload identity rather than user credentials (this feeds week 8)' },
-      { id: 'w6-apply-2', kind: 'apply', text: "A 30-minute teardown of one security product's access-review or alert screens (extra)", optional: true },
+      { id: 'w6-apply-2', kind: 'apply', text: "A 30-minute teardown of one security product's access-review or alert screens", optional: true, extraMinutes: 30 },
       { id: 'w6-network-1', kind: 'network', text: 'One ISACA Vancouver or OWASP Vancouver event' },
       { id: 'w6-evidence-1', kind: 'evidence', text: 'A bad-to-good IAM policy pair with an explanation of each change' },
       { id: 'w6-evidence-2', kind: 'evidence', text: 'A segmentation diagram showing subnets, security groups and the roles that cross them' },
@@ -343,7 +343,7 @@ export const WEEKS = [
       { id: 'w7-practice-2', kind: 'practice', text: 'Exercise 12: Keycloak events and jq', exercises: [12] },
       { id: 'w7-build-1', kind: 'build', text: 'Threat-model your own Project 1 and fix the two most serious findings' },
       { id: 'w7-learn-2', kind: 'learn', text: 'Compliance vocabulary (SOC 2, ISO 27001, PIPEDA, GDPR) as control, evidence, audit' },
-      { id: 'w7-apply-2', kind: 'apply', text: "A 30-minute teardown of one product's audit-log or alert screens (extra)", optional: true },
+      { id: 'w7-apply-2', kind: 'apply', text: "A 30-minute teardown of one product's audit-log or alert screens", optional: true, extraMinutes: 30 },
       { id: 'w7-apply-1', kind: 'apply', text: 'Exercise 14: a short tabletop for "stolen refresh token": signals, response steps, and how the admin is told', exercises: [14] },
       { id: 'w7-network-1', kind: 'network', text: 'Run the first one or two Project 1 usability sessions with IT admins (they count as conversations)' },
       { id: 'w7-evidence-1', kind: 'evidence', text: 'Project 1 threat model and the tabletop' },
@@ -368,8 +368,8 @@ export const WEEKS = [
       { id: 'w8-learn-1', kind: 'learn', text: 'LLM risks (prompt injection, sensitive data disclosure, excessive agency); agentic risks; MCP architecture and its OAuth 2.1 authorization model; delegation and token exchange; human approval patterns' },
       { id: 'w8-read-1', kind: 'read', text: 'Skim the OWASP Top 10 for LLM Applications (2026) and the Top 10 for Agentic Applications, then read three entries closely: goal hijack, tool misuse, identity and privilege abuse' },
       { id: 'w8-read-2', kind: 'read', text: 'The authorization section of the MCP specification' },
-      { id: 'w8-read-3', kind: 'read', text: 'NIST AI Risk Management Framework overview (45 minutes, extra)', optional: true },
-      { id: 'w8-read-4', kind: 'read', text: "Microsoft's Entra Agent ID documentation (1 hour, extra)", optional: true },
+      { id: 'w8-read-3', kind: 'read', text: 'NIST AI Risk Management Framework overview', optional: true, extraMinutes: 45 },
+      { id: 'w8-read-4', kind: 'read', text: "Microsoft's Entra Agent ID documentation", optional: true, extraMinutes: 60 },
       { id: 'w8-learn-2', kind: 'learn', text: 'Applying zero trust to agents (each agent a workload identity, each tool call a policy decision)' },
       { id: 'w8-practice-1', kind: 'practice', text: 'Exercise 16: prompt-injection tests against a small local app', exercises: [16] },
       { id: 'w8-practice-2', kind: 'practice', text: 'Exercise 17: agent permission model', exercises: [17] },

@@ -145,7 +145,7 @@ export function retrievalHtml() {
     const more = due.length;
     body = `
       <p class="status-ok" id="retrieval-done" tabindex="-1">Retrieval check done: ${plural(doneToday.size, 'card', 'cards')} (${counts.map(([r, n]) => `${RATING_LABELS[r]} ${n}`).join(', ')}).</p>
-      ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#cards">Study them in Flashcards</a>.</p>` : ''}`;
+      ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#learn/cards">Study them in Flashcards</a>.</p>` : ''}`;
   } else {
     body = '<p class="meta">No cards are due today.</p>';
   }

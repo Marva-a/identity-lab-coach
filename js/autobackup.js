@@ -72,6 +72,17 @@ export async function init({ json, today }) {
   notify();
 }
 
+/** Asks the browser not to clear this app's data when the device runs low on space. It may say no. */
+export async function requestPersistence() {
+  try {
+    state.persisted = (await navigator.storage?.persist?.()) ?? false;
+  } catch {
+    state.persisted = false;
+  }
+  notify();
+  return state.persisted;
+}
+
 /** Called after every save. Waits a moment, then takes a snapshot and writes the folder files. */
 export function noteChanged() {
   if (!provider) return;

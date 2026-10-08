@@ -188,7 +188,7 @@ export function weekDayResourcesHtml(contentDay) {
   if (!list.length) return '';
   return `
     <span class="day-resources">
-      <span class="meta">Resources · about ${totalMinutes(list)} min estimated (<a href="#library">open in the Library</a>)</span>
+      <span class="meta">Resources · about ${totalMinutes(list)} min estimated (<a href="#learn/library">open in the Library</a>)</span>
       <ul>
         ${list.map((r) => `<li class="${r.optional ? 'is-optional' : ''}">${esc(RESOURCE_TYPES[r.type])}: ${r.url ? linkHtml(r.url, r.title) : esc(r.title)}${r.optional ? ' <span class="flag">Optional</span>' : ''}${r.url ? '' : ` <span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`} · about ${r.minutes} min · <span class="res-status res-status--${r.status}">${esc(RESOURCE_STATUSES[r.status])}</span></li>`).join('')}
       </ul>
@@ -566,7 +566,7 @@ export const resourceActions = {
       reference: withLink.length <= 300 ? withLink : `${r.title} (${r.source})`.slice(0, 300),
     });
     nav.focus = '#card-form-heading';
-    location.hash = '#cards';
+    location.hash = '#learn/cards';
     return null;
   },
   'resource-add': () => {

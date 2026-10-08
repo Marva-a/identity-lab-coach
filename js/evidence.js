@@ -224,7 +224,7 @@ export function evidenceView() {
 
     <section class="card" aria-labelledby="evidence-heading">
       <h2 id="evidence-heading" tabindex="-1">Your artifacts</h2>
-      <p class="meta">${plural(published.length, 'published artifact', 'published artifacts')} and ${plural(all.length - published.length, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date. Everything stays in this browser.</p>
+      <p class="meta">${plural(published.length, 'published artifact', 'published artifacts')} and ${plural(all.length - published.length, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date.</p>
       ${ui.message ? `<p class="status-ok" id="evidence-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       ${coverageHtml(all)}
       <div class="filters">
@@ -255,7 +255,7 @@ export function evidenceView() {
 
       <div class="export-box" role="group" aria-labelledby="export-heading">
         <h3 id="export-heading">Markdown export</h3>
-        <p class="meta">Creates a case-study-ready .md file on your device with each published item's title, type, project, maturity, date published, skills, link and reflection. Drafts are never included. Nothing is sent anywhere. Tick "Include in the Markdown export" on items to export only those; with none ticked it exports all published evidence.</p>
+        <p class="meta">Creates a case-study-ready .md file on your device with each published item's title, type, project, maturity, date published, skills, link and reflection. Drafts are never included. Tick "Include in the Markdown export" on items to export only those; with none ticked it exports all published evidence.</p>
         <div class="button-row">
           <button type="button" data-action="evidence-export" ${published.length ? '' : 'disabled'}>${esc(exportLabel)}</button>
           ${ui.selected.size ? '<button type="button" class="button--small" data-action="evidence-clear-selection">Clear selection</button>' : ''}
