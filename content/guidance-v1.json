@@ -1,0 +1,333 @@
+{
+ "schema": "identity-lab-coach.guidance.v1",
+ "createdOn": "2026-10-08",
+ "note": "Level and how-to-use guidance for the 71 resources. Level describes how much background a resource assumes, not its importance. foundation = plain-language, no background needed; core = practical, builds on this week's foundations; deep = standards and specifications, to be used as reference.",
+ "levels": {
+  "foundation": "Start here. Plain language, no background needed.",
+  "core": "Practical. Builds on the foundations of the week.",
+  "deep": "Reference. Standards and specifications: skim, look things up, return later."
+ },
+ "suggestedDayChanges": [
+  {
+   "id": "w1-tmm",
+   "planDays": [
+    4
+   ],
+   "reason": "Your plan puts threat-model vocabulary on Day 4, after you have seen Keycloak."
+  },
+  {
+   "id": "w1-shostack",
+   "planDays": [
+    4
+   ],
+   "reason": "Same as above."
+  },
+  {
+   "id": "w1-nist-csf",
+   "planDays": [
+    6
+   ],
+   "reason": "Governance material is easier after the week's hands-on work; keep it optional."
+  },
+  {
+   "id": "w2-rfc9700",
+   "planDays": [
+    13
+   ],
+   "reason": "Read it after the Day 11 attack lab, when the attacks have names you recognize."
+  },
+  {
+   "id": "w2-rfc7636",
+   "planDays": [
+    12
+   ],
+   "reason": "Optional reference after you have used the authorization-code flow."
+  }
+ ],
+ "resources": {
+  "w1-keycloak-docker": {
+   "level": "core",
+   "howToUse": "Day 1: read it through and run the Docker check only. Day 3: follow it to create your first realm and user."
+  },
+  "w1-messer-iam": {
+   "level": "foundation",
+   "howToUse": "These videos are exam prep, so listen for the concepts (who you are, what you may do, what is recorded) and ignore the exam tips and acronyms you do not need yet."
+  },
+  "w1-tmm": {
+   "level": "foundation",
+   "howToUse": "Short and conceptual. Read it after you have seen Keycloak, so the ideas have something to attach to."
+  },
+  "w1-shostack": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w1-keycloak-admin": {
+   "level": "core",
+   "howToUse": "Reference. Do not read it end to end. Open it when Exercise 1 uses a word you do not know (realm, role, group) and read only that section."
+  },
+  "w1-tailscale-quickstart": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w1-1password-admin": {
+   "level": "foundation",
+   "howToUse": "Search for it: no verified link yet. Look for what an admin must set up first (people, groups, sign-in rules)."
+  },
+  "w1-okta-admin": {
+   "level": "foundation",
+   "howToUse": "Search for it: no verified link yet. Same question as the others: what must an admin do on day one?"
+  },
+  "w2-oauthcom": {
+   "level": "foundation",
+   "howToUse": "This is the friendliest OAuth explainer. Take the three days slowly, draw each flow as boxes and arrows, and do not move on until you can say who talks to whom."
+  },
+  "w2-rfc7636": {
+   "level": "deep",
+   "howToUse": "Reference. Read only the abstract and the introduction to understand what PKCE protects against. Optional."
+  },
+  "w2-rfc9700": {
+   "level": "deep",
+   "howToUse": "Reference. Read after the attack lab, when each attack has a name you recognize. Skim the section titles and read two attacks properly."
+  },
+  "w2-oidc": {
+   "level": "core",
+   "howToUse": "Read after OAuth Simplified. The one idea to keep: OAuth is about permission to access things; OpenID Connect adds who the user is."
+  },
+  "w2-ps-oauth": {
+   "level": "core",
+   "howToUse": "Hard at first. Do the first two labs and read the hints freely; the goal is to see an attack happen once, not to finish every lab."
+  },
+  "w3-okta-saml": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w3-rfc7644": {
+   "level": "deep",
+   "howToUse": "Reference. Read the introduction and the section on creating and deleting users; skip the rest."
+  },
+  "w3-rfc7643": {
+   "level": "deep",
+   "howToUse": "Reference. Look at the User schema only. Optional."
+  },
+  "w3-idpro": {
+   "level": "core",
+   "howToUse": "Dip in. Read the introduction and the entries that match this week's topics, not the whole body of knowledge."
+  },
+  "w3-cedar": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w3-workos-sso": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w3-tailscale-sso": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w4-passkeys": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w4-webauthn": {
+   "level": "deep",
+   "howToUse": "Reference. Read only the overview section. passkeys.dev explains the same ideas in plain language. Optional."
+  },
+  "w4-nist63b": {
+   "level": "deep",
+   "howToUse": "Reference. Read the sections on syncable authenticators and recovery named in your plan. You are looking for what the standard allows, not memorizing it."
+  },
+  "w4-wcag338": {
+   "level": "core",
+   "howToUse": "Written for people like you. Read the whole page, then apply it to a login screen you know."
+  },
+  "w4-wcag339": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w4-threatdragon": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-nist207": {
+   "level": "deep",
+   "howToUse": "Reference. Read the executive summary and the section on the core logical components; return to it after the Cloudflare and BeyondCorp pieces."
+  },
+  "w5-ts-acls": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-ts-tags": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-ts-posture": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-aws-best": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-aws-sts": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-entra-ca": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w6-sc300": {
+   "level": "core",
+   "howToUse": "Use it as a map of topics, not as reading. Tick the ones you have met."
+  },
+  "w6-access-analyzer": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-gitleaks": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w7-attack": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w7-nist61": {
+   "level": "deep",
+   "howToUse": "Reference. Read the introduction and the incident response lifecycle diagram; skip the rest."
+  },
+  "w7-owasp-top10": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w7-owasp-api": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w7-ps-ac": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w7-juice": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w8-llm": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w8-agentic": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w8-mcp-auth": {
+   "level": "deep",
+   "howToUse": "Reference. Read after the OWASP agentic list and the OAuth weeks. Focus on who is the client, who is the resource server, and who issues tokens."
+  },
+  "w8-garak": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w8-postings": {
+   "level": "foundation",
+   "howToUse": "Read three postings and list the skills they ask for. Search for them; no verified link."
+  },
+  "w1-nist-csf": {
+   "level": "deep",
+   "howToUse": "Skim only. It is a governance framework; read the overview and one Quick Start Guide and note the six function names."
+  },
+  "w4-fido-ux": {
+   "level": "foundation",
+   "howToUse": "Design guidance. Read it as a designer and note two decisions you would argue for or against."
+  },
+  "w8-nist-airmf": {
+   "level": "deep",
+   "howToUse": "Reference. Read the overview of the four functions; skim the rest."
+  },
+  "w8-entra-agent-id": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w8-cisa-sbd": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-cf-zt": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-cf-ztna": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-messer-netplus": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-cf-dns": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-cf-tls": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-beyondcorp": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-cf-mtls": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-wireguard": {
+   "level": "deep",
+   "howToUse": "Reference for the curious. Read the introduction only. Optional."
+  },
+  "w5-nist1800-35": {
+   "level": "deep",
+   "howToUse": "Reference. High-level description only. Optional."
+  },
+  "w5-cisa-ztmm": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-ms-zt": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w5-wireshark": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-cf-one": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w5-entra-gsa": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-aws-shared": {
+   "level": "foundation",
+   "howToUse": "Read or watch for the big picture. Pause to put each idea in your own words and add new terms to your glossary. You do not need to remember details."
+  },
+  "w6-aws-vpc": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-aws-sg": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  },
+  "w6-spiffe": {
+   "level": "deep",
+   "howToUse": "Reference. Read the overview and the idea of a workload identity; skip the specification. Optional."
+  },
+  "w7-aws-flowlogs": {
+   "level": "core",
+   "howToUse": "Use this hands-on or with your lab open beside it. The aim is to be able to do the thing, not to memorize the page."
+  }
+ }
+}

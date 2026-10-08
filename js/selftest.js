@@ -13,13 +13,13 @@ import { parseResourceImport } from './resource-import.js';
 import { courseProgress } from './progress.js';
 import { resolveHash, ROUTES, SECTIONS, LEGACY_HASHES } from './routes.js';
 import {
-  validateManifest, parseCardPack, planContent, summarizePlan, contentUrl, CONTENT_REQUEST_INIT,
+  validateManifest, parseCardPack, planContent, summarizePlan, contentUrl, CONTENT_REQUEST_INIT, parseGuidancePack, parseLessonPack, planSize,
 } from './content.js';
 import { stepIndex, nextStep, previousStep, STEPS } from './session-flow.js';
 import { datedFilesToRemove, snapshotsToRemove, datedName, isOurDatedFile, KEEP_FILES, KEEP_SNAPSHOTS } from './backup-files.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
-  ARTIFACT_CATEGORIES, categoryCoverage, categoryLabel,
+  ARTIFACT_CATEGORIES, categoryCoverage, categoryLabel, splitDeep, levelRank,
   SUGGESTED_SKILL_TAGS, validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
 } from './records.js';
 import {
@@ -640,6 +640,72 @@ export function runDateChecks() {
     ['w1-read-3', 'w4-read-3', 'w6-read-3', 'w6-apply-2', 'w7-apply-2', 'w8-read-3', 'w8-read-4'].every((id) => item(id).extraMinutes > 0 && item(id).optional), true);
   check('Words: planned study hours are 103 (shown on the scorecard)', WEEKS.reduce((n, w) => n + w.days.reduce((m, d) => m + d.hours, 0), 0), 103);
   check('Words: marking a week 1 note item optional by default is unchanged', item('w1-read-3').optional, true);
+
+  // Teaching layer: guidance (levels and how to use), lessons, and one order for everything.
+  const gText = (over = {}) => JSON.stringify({
+    schema: 'identity-lab-coach.guidance.v1',
+    resources: { 'r-a': { level: 'foundation', howToUse: 'Read it first.' }, 'r-b': { level: 'core', howToUse: 'Do it.' }, 'r-c': { level: 'deep', howToUse: 'Look things up.' } },
+    suggestedDayChanges: [{ id: 'r-a', planDays: [4], reason: 'later' }],
+    ...over,
+  });
+  const gOk = parseGuidancePack(gText());
+  check('Guidance: a good pack is accepted', [gOk.ok, gOk.guidance.length, gOk.dayChanges.length].join(), 'true,3,1');
+  check('Guidance: a wrong schema is refused', parseGuidancePack(gText({ schema: 'x' })).ok, false);
+  check('Guidance: an unknown level is refused', parseGuidancePack(gText({ resources: { 'r-a': { level: 'expert', howToUse: 'x' } } })).ok, false);
+  check('Guidance: a missing how-to-use line is refused', parseGuidancePack(gText({ resources: { 'r-a': { level: 'core' } } })).ok, false);
+  check('Guidance: an unknown field is refused', parseGuidancePack(gText({ resources: { 'r-a': { level: 'core', howToUse: 'x', extra: 1 } } })).ok, false);
+  check('Guidance: a day change onto a Sunday is refused', parseGuidancePack(gText({ suggestedDayChanges: [{ id: 'r-a', planDays: [7] }] })).ok, false);
+  check('Guidance: invalid JSON is refused', parseGuidancePack('{').ok, false);
+  const lesson = (over = {}) => ({
+    id: 'w1-d1', week: 1, day: 1, date: '2026-10-12', title: 'T', inOneSentence: 'S', whyItMattersToADesigner: 'W', keyIdeas: ['k'],
+    words: [{ term: 'a', meaning: 'b' }], steps: [{ text: 'do', minutes: 20, resourceId: null }, { text: 'read', minutes: 10, resourceId: 'r-a' }],
+    skipOrSkim: 'skip', checkYourself: ['q1', 'q2'], plannedMinutes: 60, ...over,
+  });
+  const lText = (lessons) => JSON.stringify({ schema: 'identity-lab-coach.lessons.v1', lessons });
+  const lOk = parseLessonPack(lText([lesson(), lesson({ id: 'w1-d2', day: 2, date: '2026-10-13' })]));
+  check('Lessons: a good pack is accepted', [lOk.ok, lOk.lessons.length].join(), 'true,2');
+  check('Lessons: a wrong schema is refused', parseLessonPack(JSON.stringify({ schema: 'x', lessons: [lesson()] })).ok, false);
+  check('Lessons: a date that does not match the day is refused', parseLessonPack(lText([lesson({ date: '2026-10-13' })])).ok, false);
+  check('Lessons: a week that does not match the day is refused', parseLessonPack(lText([lesson({ week: 2 })])).ok, false);
+  check('Lessons: a Sunday is refused', parseLessonPack(lText([lesson({ day: 7, date: '2026-10-18', week: 1 })])).ok, false);
+  check('Lessons: a step with no minutes is refused', parseLessonPack(lText([lesson({ steps: [{ text: 'x', resourceId: null }] })])).ok, false);
+  check('Lessons: a step pointing at something odd is refused', parseLessonPack(lText([lesson({ steps: [{ text: 'x', minutes: 5, resourceId: 'bad id!' }] })])).ok, false);
+  check('Lessons: two lessons on one day are refused', parseLessonPack(lText([lesson(), lesson({ id: 'other' })])).ok, false);
+  check('Lessons: a repeated id is refused', parseLessonPack(lText([lesson(), lesson({ day: 2, date: '2026-10-13' })])).ok, false);
+  check('Lessons: no questions is refused', parseLessonPack(lText([lesson({ checkYourself: [] })])).ok, false);
+  check('Lessons: an unknown field is refused', parseLessonPack(lText([lesson({ video: 'x' })])).ok, false);
+  check('Lessons: markup in text is kept as text (it is escaped when shown)', parseLessonPack(lText([lesson({ title: '<b>T</b>' })])).lessons[0].title, '<b>T</b>');
+  const cManifest = { schema: 'identity-lab-coach.content-manifest.v1', packs: [
+    { id: 'guid', title: 'G', version: 1, type: 'guidance', path: 'g.json' }, { id: 'less', title: 'L', version: 2, type: 'lessons', path: 'l.json' }] };
+  const cContent = { manifest: cManifest, packTexts: { guid: gText(), less: lText([lesson()]) } };
+  const p1 = planContent(cContent, { resources: [], cards: [], contentPacks: {}, lessons: [] });
+  check('Plan: a guidance pack adds its notes and day changes', [p1.guidance.length, p1.dayChanges.length].join(), '3,1');
+  check('Plan: a lessons pack adds its lessons', p1.lessons.length, 1);
+  check('Plan: the summary names guidance and lessons', summarizePlan(p1), 'Ready to add 0 resources and 0 cards, 3 guidance notes and 1 lesson from 2 packs');
+  check('Plan: the size counts them', planSize(p1), 4);
+  const p2 = planContent(cContent, { resources: [], cards: [], contentPacks: { guid: { version: 1 } }, lessons: [{ id: 'w1-d1', packVersion: 2 }] });
+  check('Plan: guidance already applied at this version is not applied again', p2.guidance.length, 0);
+  check('Plan: a lesson at the same pack version is not added again', p2.lessons.length, 0);
+  const p3 = planContent(cContent, { resources: [], cards: [], contentPacks: {}, lessons: [{ id: 'w1-d1', packVersion: 1 }] });
+  check('Plan: a lesson from an older pack version is replaced by the newer one', p3.lessons.length, 1);
+  check('Plan: a lesson in the pack with a new id is added', planContent({ manifest: cManifest, packTexts: { guid: gText(), less: lText([lesson({ id: 'w1-d9', day: 9, date: '2026-10-20', week: 2 })]) } },
+    { resources: [], cards: [], contentPacks: {}, lessons: [{ id: 'w1-d1', packVersion: 2 }] }).lessons.length, 1);
+  check('Plan: a broken guidance pack adds nothing and says why', planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).guidance.length
+    + (planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).problems.length > 0 ? 100 : 0), 100);
+  check('Plan: the summary is unchanged when there is no guidance or lesson', summarizePlan({ resources: [1], cards: [], packs: [{ newCount: 1 }] }), 'Ready to add 1 resource and 0 cards from 1 pack');
+  const rs = [
+    { id: 'd', level: 'deep', position: 1, status: 'not-started' }, { id: 'c', level: 'core', position: 2, status: 'not-started' },
+    { id: 'f', level: 'foundation', position: 3, status: 'not-started' }, { id: 'n', position: 4, status: 'not-started' },
+  ];
+  check('Order: foundation, then core, then deep', orderResources(rs).map((r) => r.id).join(''), 'fcnd');
+  check('Order: a resource with no level sits with core', levelRank({}), 1);
+  check('Order: in progress comes first within its level', orderResources([{ id: 'x', level: 'core', position: 1, status: 'not-started' }, { id: 'y', level: 'core', position: 2, status: 'in-progress' }]).map((r) => r.id).join(''), 'yx');
+  check('Order: a deep resource in progress still comes after core ones', orderResources([{ id: 'x', level: 'deep', position: 1, status: 'in-progress' }, { id: 'y', level: 'core', position: 2, status: 'not-started' }]).map((r) => r.id).join(''), 'yx');
+  check('Order: deep ones are split out for the Reference group', [splitDeep(rs).main.length, splitDeep(rs).deep.map((r) => r.id).join('')].join(), '3,d');
+  check('Resource: an unknown level is refused', validateResource({ id: 'a', title: 't', source: 's', type: 'article', minutes: 5, url: '', days: [1], level: 'expert' }).length > 0, true);
+  check('Resource: a known level is accepted', validateResource({ id: 'a', title: 't', source: 's', type: 'article', minutes: 5, url: '', days: [1], level: 'deep', howToUse: 'x' }).length, 0);
+  check('Routes: #lesson/3 is a page of its own', where('#lesson/3'), 'lesson/3');
+  check('Routes: a lesson address with no real day goes to Plan', where('#lesson/99'), 'plan');
 
   return results;
 }

@@ -430,3 +430,19 @@ body:not(.using-keyboard) [tabindex="-1"]:focus { outline: none; }
 .before-list { margin: 0.25rem 0 0; padding-left: 1.25rem; }
 .edit-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.5rem 0 1rem; }
 details.card > summary { font-weight: 600; cursor: pointer; }
+
+/* ─── Lessons and guidance ─────────────────────────────── */
+.lesson h3 { margin: 1.1rem 0 0.35rem; font-size: 1.05rem; }
+.lesson-summary { font-size: 1.1rem; font-weight: 600; }
+.words { margin: 0; }
+.words div { margin: 0 0 0.5rem; }
+.words dt { font-weight: 600; }
+.words dd { margin: 0; }
+.lesson-steps { padding-left: 1.25rem; }
+.lesson-steps li { margin-bottom: 0.5rem; }
+.step-minutes { display: inline-block; min-width: 3.4rem; font-weight: 600; color: var(--muted); }
+.how-to-use { margin: 0.25rem 0 0.5rem; }
+.flag--level { text-transform: none; }
+.deep-group { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.deep-group > summary { font-weight: 600; cursor: pointer; }
+.resource--highlight { outline: 3px solid var(--accent); outline-offset: 2px; }

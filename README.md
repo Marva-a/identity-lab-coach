@@ -12,7 +12,7 @@ don't share it). Use Export and Import in Settings to move data between them.
 ## How to add content
 
 Resources and flashcards come to the app as **content packs** in the `content/` folder,
-so you never paste or type them in. In the app, **Library → Check for new content** shows
+so you never paste or type them in. In the app, **Learn → Library → Check for new content** shows
 what is new ("Ready to add 71 resources and 2 cards from 4 packs") and adds it only after you
 confirm. It asks only this app's own site for the files and sends none of your data. It adds
 **new ids only**: anything you already have (links, statuses, notes, edits, ratings,
@@ -28,10 +28,23 @@ To add a pack:
      `id`, `front`, `back`, `type` (`recall` or `explain`), `weekTag` (1 to 9), `reference`
      (required) and `verified` (leave it `false`; the app ignores `true`, and the build rejects it).
 2. Add a line for it to `content/manifest.json`: `id`, `title`, `version` (start at 1, add 1 when
-   you change the pack), `type` (`resources` or `cards`) and `path` (a plain file name).
+   you change the pack), `type` (`resources`, `cards`, `guidance` or `lessons`) and `path` (a plain file name).
 3. Check it before you publish: `node scripts/validate-content.mjs`. Publishing also runs this
    check (`.github/workflows/pages.yml`), and **any wrong row stops the site from being published**.
 4. Push to `main`. Then click **Check for new content** in the app.
+
+Two more pack types teach rather than list:
+
+- **Guidance** (`type: guidance`, `"schema": "identity-lab-coach.guidance.v1"`): for each resource id, a
+  `level` (`foundation`, `core` or `deep`) and a `howToUse` line, plus optional `suggestedDayChanges`.
+  The level is a small label on each resource and the line shows under its title. Resources are ordered
+  foundation, then core, then deep, and deep ones sit under a closed "Reference" heading. If you changed
+  a resource yourself (title, source, type, minutes, link, reason or plan days) your version is kept and
+  a "Newer version available" note offers the update. A guidance pack applies once per `version`.
+- **Lessons** (`type: lessons`, `"schema": "identity-lab-coach.lessons.v1"`): one lesson per study day, with
+  its week, day and the plan's date for that day. Today shows the day's lesson, and the Week view has a
+  Lesson button on each day. Your answers to the check-yourself questions are stored apart, so a newer
+  lesson version (a higher pack `version`) replaces the text and keeps your answers.
 
 A resource or card whose id you already have is skipped, even if the pack file has changed since:
 changes to existing items are not applied, so your edits are safe. Give a changed resource a new id.
@@ -111,7 +124,9 @@ node js/selftest.js
 | `js/resource-import.js` | Checks a resource JSON file row by row before anything is added |
 | `js/people.js` | People log view and the follow-ups on Today |
 | `js/progress.js` | Course progress and the "continue where you left off" rule (no page code) |
-| `js/course.js` | Course home: overall and per-week progress |
+| `js/course.js` | The top of Plan: overall and per-week progress, and "Continue" |
+| `js/routes.js` | Where each address goes, and the redirects from the old addresses (no page code) |
+| `js/lessons.js` | The daily lesson (on Today and on its own page) and the saved answers |
 | `js/session-flow.js` | Which step of the guided daily session you are on |
 | `js/autobackup.js` | Automatic backups: protected storage, daily snapshots, backup folder |
 | `js/backup-files.js` | Writing and pruning the backup files (only our own file names are ever touched) |

@@ -5,6 +5,7 @@ import { addDays, formatShort } from './dates.js';
 import { getWeek, getDayContext, contentWeekNumber } from './plan.js';
 import { BLOCK_LABELS, ITEM_KIND_LABELS, PLAN_END, WEEKS, extraTimeLabel } from './plan-data.js';
 import { weekDayResourcesHtml } from './resources.js';
+import { lessonLinkHtml } from './lessons.js';
 
 const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence', 'design'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
@@ -93,6 +94,7 @@ export function weekView() {
       <li ${isToday ? 'aria-current="date"' : ''} class="${isToday ? 'is-today' : ''}">
         <span class="day-line"><strong>${esc(formatShort(seed.date))}</strong> · Day ${ctx.dayNumber} · ${esc(ctx.blockLabel)}${isToday ? ' · <strong>Today</strong>' : ''}</span>
         <span>${esc(ctx.focus)}</span>
+        ${lessonLinkHtml(ctx.contentDay)}
         ${weekDayResourcesHtml(ctx.contentDay)}
         <span class="meta">${minutes ? `${minutes} min logged` : 'Nothing logged'}</span>
       </li>`;

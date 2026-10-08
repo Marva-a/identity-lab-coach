@@ -35,6 +35,20 @@
       "version": 1,
       "type": "cards",
       "path": "cards-test.json"
+    },
+    {
+      "id": "guidance-v1",
+      "title": "Guidance: level and how to use each resource",
+      "version": 1,
+      "type": "guidance",
+      "path": "guidance-v1.json"
+    },
+    {
+      "id": "lessons-week-1",
+      "title": "Lessons: week 1",
+      "version": 1,
+      "type": "lessons",
+      "path": "lessons-week1.json"
     }
   ]
 }

@@ -34,6 +34,11 @@ export function resolveHash(hash) {
     const redirect = LEGACY_HASHES[first];
     return { ...resolveHash(redirect), redirect };
   }
+  // A lesson page, #lesson/3 (the roadmap day). It is a page of its own, not one of the main places.
+  if (first === 'lesson') {
+    const day = Number(second);
+    return Number.isInteger(day) && day >= 1 && day <= 60 ? { route: 'lesson', section: String(day), redirect: null } : { route: 'plan', section: null, redirect: null };
+  }
   if (!ROUTES.includes(first)) return { route: 'today', section: null, redirect: null };
   const sections = SECTIONS[first];
   if (!sections) return { route: first, section: null, redirect: null };

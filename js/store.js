@@ -28,6 +28,8 @@
 //   resources:    Resource[],    // Stage 4b: the content library
 //   contentPacks: { [packId]: { version, appliedAt } },  // which content packs have been added (see content.js)
 //   reviews:    Review[],    // Stage 7: Friday reviews
+//   lessons:     Lesson[],      // daily lessons from content packs (see content.js); never edited by you
+//   lessonAnswers: { [lessonId]: { answers: string[], updatedAt } },  // your answers to the check-yourself questions
 //   optionalOverrides: { ["item:<id>" | "resource:<id>"]: { optional: boolean, at, testMode, testPrev } },
 //                               // your own Optional/Required choices; plan updates and content packs never touch them
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
@@ -218,6 +220,8 @@ function emptyData() {
     contentPacks: {},
     reviews: [],
     optionalOverrides: {},
+    lessons: [],
+    lessonAnswers: {},
     weekChecks: {},
     settings: defaultSettings(),
   };
@@ -262,10 +266,12 @@ function normalize(raw) {
   // Fields added after the first Stage 4 release: older records load with them empty.
   out.artifacts = out.artifacts.map((a) => ({ maturity: '', project: '', category: UNCATEGORISED, ...a }));
   out.resources = out.resources.map((r) => ({
-    optional: false, verifiedNote: '', urlStatus: r?.url ? 'unchecked' : 'needs-your-search', ...r,
+    optional: false, verifiedNote: '', urlStatus: r?.url ? 'unchecked' : 'needs-your-search', level: '', howToUse: '', editedByMe: false, newerVersion: null, ...r,
   }));
   out.contentPacks = raw?.contentPacks && typeof raw.contentPacks === 'object' && !Array.isArray(raw.contentPacks) ? raw.contentPacks : {};
   out.optionalOverrides = raw?.optionalOverrides && typeof raw.optionalOverrides === 'object' && !Array.isArray(raw.optionalOverrides) ? raw.optionalOverrides : {};
+  out.lessons = Array.isArray(raw?.lessons) ? raw.lessons : [];
+  out.lessonAnswers = raw?.lessonAnswers && typeof raw.lessonAnswers === 'object' && !Array.isArray(raw.lessonAnswers) ? raw.lessonAnswers : {};
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -463,6 +469,7 @@ export function countTestData() {
     resources: data.resources.filter((r) => r.testMode || r.testRevert).length,
     weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
     optionalOverrides: Object.values(data.optionalOverrides).filter((o) => o.testMode).length,
+    lessonAnswers: Object.values(data.lessonAnswers).filter((a) => a.testMode).length,
   };
 }
 
@@ -494,6 +501,11 @@ export function deleteTestData() {
     if (!o.testMode) continue;
     if (o.testPrev) data.optionalOverrides[key] = o.testPrev;
     else delete data.optionalOverrides[key];
+  }
+  for (const [id, a] of Object.entries(data.lessonAnswers)) {
+    if (!a.testMode) continue;
+    if (a.testPrev) data.lessonAnswers[id] = a.testPrev;
+    else delete data.lessonAnswers[id];
   }
   persist();
   return counts;
@@ -969,6 +981,10 @@ function newResource(fields, testMode, position) {
     doneDate: null,
     notes: '',
     retired: false,
+    level: '',
+    howToUse: '',
+    editedByMe: false,
+    newerVersion: null,
     testMode: Boolean(testMode),
   };
 }
@@ -1023,6 +1039,10 @@ export function updateResource(id, fields, testMode) {
   const problems = validateResource(next);
   if (problems.length) return { ok: false, problems };
   captureTestRevert(resource, testMode);
+  // Changing what the pack provided (not status, notes or retiring) makes it "yours": a pack update will not overwrite it.
+  const changed = ['title', 'source', 'type', 'minutes', 'url', 'why'].some((k) => next[k] !== resource[k])
+    || JSON.stringify(next.days) !== JSON.stringify(resource.days);
+  if (changed) next.editedByMe = true;
   Object.assign(resource, next);
   // The Optional checkbox is your own choice, so it is stored as one (the pack's setting stays as it was).
   if (clean.optional !== isOptionalResource(resource)) setOptional('resource', id, clean.optional, resource.optional, testMode);
@@ -1039,6 +1059,7 @@ export function setResourceLink(id, url, testMode) {
   if (problems.length) return { ok: false, problems };
   captureTestRevert(resource, testMode);
   resource.url = clean;
+  resource.editedByMe = true;
   resource.urlStatus = 'added-by-you';
   resource.verifiedNote = '';
   resource.updatedAt = new Date().toISOString();
@@ -1128,12 +1149,101 @@ export function addPackCards(cards) {
 export function applyContentPlan(plan) {
   const resources = plan.resources.length ? importResources(plan.resources, false).added : 0;
   const cards = plan.cards.length ? addPackCards(plan.cards) : 0;
+  const guidance = applyGuidance(plan.guidance ?? [], plan.dayChanges ?? []);
+  const lessons = applyLessons(plan.lessons ?? []);
   const appliedAt = new Date().toISOString();
   for (const pack of plan.packs) {
     if (!pack.problems.length) data.contentPacks[pack.id] = { version: pack.version, appliedAt };
   }
   const saved = persist();
-  return { resources, cards, saved };
+  return { resources, cards, guidance: guidance.applied, newerVersions: guidance.newer, skipped: guidance.skipped, lessons, saved };
+}
+
+/**
+ * Adds levels, how-to-use lines and suggested day changes to resources. A resource you changed yourself
+ * keeps your version: the newer one is stored beside it as `newerVersion` and shown as a note you can accept.
+ */
+function applyGuidance(guidance, dayChanges) {
+  const result = { applied: 0, newer: 0, skipped: 0 };
+  const change = new Map(dayChanges.map((c) => [c.id, c]));
+  for (const g of guidance) {
+    const r = getResource(g.id);
+    if (!r) { result.skipped += 1; continue; }
+    const next = { level: g.level, howToUse: g.howToUse, days: change.get(g.id)?.planDays ?? r.days };
+    if (r.editedByMe) {
+      const differs = r.level !== next.level || r.howToUse !== next.howToUse || JSON.stringify(r.days) !== JSON.stringify(next.days);
+      if (differs) {
+        r.newerVersion = { ...next, reason: change.get(g.id)?.reason ?? '', packId: g.packId };
+        result.newer += 1;
+      }
+    } else {
+      Object.assign(r, next, { newerVersion: null });
+      result.applied += 1;
+    }
+  }
+  // A day change for a resource that has no guidance row still follows the same rule.
+  for (const c of dayChanges) {
+    if (guidance.some((g) => g.id === c.id)) continue;
+    const r = getResource(c.id);
+    if (!r) continue;
+    if (r.editedByMe) r.newerVersion = { level: r.level, howToUse: r.howToUse, days: c.planDays, reason: c.reason, packId: c.packId };
+    else r.days = c.planDays;
+  }
+  return result;
+}
+
+/** Adds lessons, or replaces one from an older pack version. Your answers are kept (they are stored apart). */
+function applyLessons(lessons) {
+  let count = 0;
+  for (const l of lessons) {
+    const at = data.lessons.findIndex((x) => x.id === l.id);
+    if (at === -1) data.lessons.push(l);
+    else data.lessons[at] = l;
+    count += 1;
+  }
+  return count;
+}
+
+/** The lesson for a plan day (as numbered in the roadmap), or null. */
+export function lessonForDay(day) {
+  return data.lessons.find((l) => l.day === day) ?? null;
+}
+
+export function lessonById(id) {
+  return data.lessons.find((l) => l.id === id) ?? null;
+}
+
+export function getLessonAnswers(lessonId) {
+  return data.lessonAnswers[lessonId]?.answers ?? [];
+}
+
+/** Saves one answer to a check-yourself question. An emptied answer is removed. */
+export function setLessonAnswer(lessonId, index, text, testMode = false) {
+  const lesson = lessonById(lessonId);
+  if (!lesson || index < 0 || index >= lesson.checkYourself.length) return false;
+  const entry = data.lessonAnswers[lessonId] ?? { answers: [], updatedAt: null };
+  const answers = lesson.checkYourself.map((_, i) => entry.answers[i] ?? '');
+  answers[index] = String(text ?? '').slice(0, 4000);
+  // While testing, the answers you had before are remembered so "Delete test data" can put them back.
+  const testPrev = testMode ? (entry.testMode ? entry.testPrev ?? null : data.lessonAnswers[lessonId] ?? null) : undefined;
+  if (answers.every((a) => a.trim() === '') && !testMode) delete data.lessonAnswers[lessonId];
+  else {
+    data.lessonAnswers[lessonId] = { answers, updatedAt: new Date().toISOString() };
+    if (testMode) Object.assign(data.lessonAnswers[lessonId], { testMode: true, testPrev });
+  }
+  return persist();
+}
+
+/** Takes the newer version of a resource that you had changed, or keeps yours and hides the note. */
+export function resolveNewerVersion(id, useNewer) {
+  const r = getResource(id);
+  if (!r?.newerVersion) return;
+  if (useNewer) {
+    const { level, howToUse, days } = r.newerVersion;
+    Object.assign(r, { level, howToUse, days });
+  }
+  r.newerVersion = null;
+  persist();
 }
 
 // ─── Export and import ───────────────────────────────────────────────────────
@@ -1209,6 +1319,10 @@ export function parseImport(text) {
         problems.push(`Card rating ${i + 1} is incomplete or has an invalid date or rating.`);
       }
     });
+  }
+  if (raw.lessons !== undefined && !Array.isArray(raw.lessons)) problems.push('"lessons" should be a list.');
+  if (raw.lessonAnswers !== undefined && (typeof raw.lessonAnswers !== 'object' || Array.isArray(raw.lessonAnswers) || raw.lessonAnswers === null)) {
+    problems.push('"lessonAnswers" should be an object.');
   }
   if (raw.optionalOverrides !== undefined) {
     const o = raw.optionalOverrides;

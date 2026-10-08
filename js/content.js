@@ -12,12 +12,18 @@
 //
 // The parts that do not touch the page (checking and planning) are pure functions.
 import { parseResourceImport } from './resource-import.js';
-import { RESOURCE_ID_RE, CARD_TEXT_MAX, REFERENCE_MAX } from './records.js';
+import {
+  RESOURCE_ID_RE, CARD_TEXT_MAX, REFERENCE_MAX, RESOURCE_LEVELS, HOW_TO_USE_MAX, isPlanStudyDay, isDate,
+} from './records.js';
+import { PLAN_START } from './plan-data.js';
+import { addDays } from './dates.js';
 import * as idb from './idb.js';
 
 export const MANIFEST_SCHEMA = 'identity-lab-coach.content-manifest.v1';
 export const CARD_PACK_SCHEMA = 'identity-lab-coach.cards.v1';
-export const PACK_TYPES = ['resources', 'cards'];
+export const PACK_TYPES = ['resources', 'cards', 'guidance', 'lessons'];
+export const GUIDANCE_SCHEMA = 'identity-lab-coach.guidance.v1';
+export const LESSON_SCHEMA = 'identity-lab-coach.lessons.v1';
 export const CONTENT_DIR = 'content/';
 export const MAX_CARDS_PER_PACK = 300;
 
@@ -156,7 +162,7 @@ export function parseCardPack(text, { strictVerified = false } = {}) {
  * }
  */
 export function planContent(content, data) {
-  const plan = { packs: [], resources: [], cards: [], warnings: [], problems: [] };
+  const plan = { packs: [], resources: [], cards: [], guidance: [], dayChanges: [], lessons: [], warnings: [], problems: [] };
   const manifest = validateManifest(content?.manifest);
   if (!manifest.ok) {
     plan.problems.push(...manifest.problems);
@@ -185,6 +191,33 @@ export function planContent(content, data) {
       plan.resources.push(...parsed.rows);
       for (const row of parsed.rows) haveResources.set(row.id, { id: row.id, title: row.title, url: row.url });
       plan.warnings.push(...parsed.warnings.map((w) => `${pack.title}: ${w.id}: ${w.message}`));
+    } else if (pack.type === 'guidance') {
+      const parsed = parseGuidancePack(text);
+      if (!parsed.ok) {
+        entry.problems.push(...parsed.fileProblems, ...parsed.rowProblems.map((p) => `${p.id ?? `Entry ${p.entry}`}: ${p.messages.join(' ')}`));
+        continue;
+      }
+      // A guidance pack is applied once per version; a higher version in the manifest applies again.
+      if ((data.contentPacks?.[pack.id]?.version ?? 0) >= pack.version) {
+        entry.existingCount = parsed.guidance.length;
+      } else {
+        entry.newCount = parsed.guidance.length;
+        plan.guidance.push(...parsed.guidance.map((g) => ({ ...g, packId: pack.id })));
+        plan.dayChanges.push(...parsed.dayChanges.map((c) => ({ ...c, packId: pack.id })));
+      }
+    } else if (pack.type === 'lessons') {
+      const parsed = parseLessonPack(text);
+      if (!parsed.ok) {
+        entry.problems.push(...parsed.fileProblems, ...parsed.rowProblems.map((p) => `${p.id ?? `Entry ${p.entry}`}: ${p.messages.join(' ')}`));
+        continue;
+      }
+      for (const lesson of parsed.lessons) {
+        const have = (data.lessons ?? []).find((x) => x.id === lesson.id);
+        if (!have || (have.packVersion ?? 0) < pack.version) {
+          plan.lessons.push({ ...lesson, packId: pack.id, packVersion: pack.version });
+          entry.newCount += 1;
+        } else entry.existingCount += 1;
+      }
     } else {
       const parsed = parseCardPack(text);
       if (!parsed.ok) {
@@ -209,9 +242,164 @@ export function planContent(content, data) {
 export function summarizePlan(plan) {
   const r = plan.resources.length;
   const c = plan.cards.length;
+  const g = plan.guidance?.length ?? 0;
+  const l = plan.lessons?.length ?? 0;
   const packs = plan.packs.filter((p) => p.newCount > 0).length;
   const part = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  return `Ready to add ${part(r, 'resource', 'resources')} and ${part(c, 'card', 'cards')} from ${part(packs, 'pack', 'packs')}`;
+  const more = [g ? part(g, 'guidance note', 'guidance notes') : '', l ? part(l, 'lesson', 'lessons') : ''].filter(Boolean);
+  return `Ready to add ${part(r, 'resource', 'resources')} and ${part(c, 'card', 'cards')}${more.length ? `, ${more.join(' and ')}` : ''} from ${part(packs, 'pack', 'packs')}`;
+}
+
+/** How many things a plan would add or update (zero means you are up to date). */
+export const planSize = (plan) => plan.resources.length + plan.cards.length + (plan.guidance?.length ?? 0) + (plan.lessons?.length ?? 0);
+
+
+// ─── Guidance packs (a level and a how-to-use line for each resource) ─────────
+
+/**
+ * Checks a guidance pack: { schema, resources: { id: { level, howToUse } }, suggestedDayChanges: [{ id, planDays, reason }] }.
+ * Returns { ok, fileProblems, rowProblems, guidance: [{ id, level, howToUse }], dayChanges: [{ id, planDays, reason }] }.
+ */
+export function parseGuidancePack(text) {
+  const out = { ok: false, fileProblems: [], rowProblems: [], guidance: [], dayChanges: [] };
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    out.fileProblems.push('This is not valid JSON.');
+    return out;
+  }
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    out.fileProblems.push('The file should be an object.');
+    return out;
+  }
+  if (doc.schema !== GUIDANCE_SCHEMA) out.fileProblems.push(`The schema should be "${GUIDANCE_SCHEMA}".`);
+  const res = doc.resources;
+  if (!res || typeof res !== 'object' || Array.isArray(res) || !Object.keys(res).length) {
+    out.fileProblems.push('The file needs a "resources" object with at least one resource.');
+  } else {
+    Object.entries(res).forEach(([id, g], i) => {
+      const messages = [];
+      if (!RESOURCE_ID_RE.test(id)) messages.push('the id is not valid');
+      if (!g || typeof g !== 'object' || Array.isArray(g)) messages.push('should be an object');
+      else {
+        for (const key of Object.keys(g)) if (!['level', 'howToUse'].includes(key)) messages.push(`has an unknown field "${key}"`);
+        if (!(g.level in RESOURCE_LEVELS)) messages.push('level must be foundation, core or deep');
+        if (typeof g.howToUse !== 'string' || !g.howToUse.trim() || g.howToUse.length > HOW_TO_USE_MAX) messages.push(`howToUse must be 1–${HOW_TO_USE_MAX} characters`);
+      }
+      if (messages.length) out.rowProblems.push({ entry: i + 1, id, messages });
+      else out.guidance.push({ id, level: g.level, howToUse: g.howToUse.trim() });
+    });
+  }
+  const changes = doc.suggestedDayChanges ?? [];
+  if (!Array.isArray(changes)) out.fileProblems.push('"suggestedDayChanges" should be a list.');
+  else {
+    changes.forEach((c, i) => {
+      const messages = [];
+      if (!c || typeof c !== 'object' || Array.isArray(c)) messages.push('should be an object');
+      else {
+        if (typeof c.id !== 'string' || !RESOURCE_ID_RE.test(c.id)) messages.push('the id is not valid');
+        if (!Array.isArray(c.planDays) || !c.planDays.length || c.planDays.length > 6
+          || c.planDays.some((d) => !Number.isInteger(d) || !isPlanStudyDay(d))) messages.push('planDays must be 1–6 study days (1–60, no Sundays)');
+        if (c.reason !== undefined && (typeof c.reason !== 'string' || c.reason.length > 300)) messages.push('reason must be text up to 300 characters');
+      }
+      if (messages.length) out.rowProblems.push({ entry: i + 1, id: c?.id, messages: [`day change: ${messages.join('; ')}`] });
+      else out.dayChanges.push({ id: c.id, planDays: [...new Set(c.planDays)].sort((a, b) => a - b), reason: String(c.reason ?? '').trim() });
+    });
+  }
+  out.ok = !out.fileProblems.length && !out.rowProblems.length;
+  return out;
+}
+
+// ─── Lesson packs (one lesson for each study day) ────────────────────────────
+
+export const LESSON_LIMITS = { title: 120, sentence: 400, paragraph: 600, idea: 400, term: 80, meaning: 300, step: 400, check: 300 };
+const LESSON_FIELDS = [
+  'id', 'week', 'day', 'date', 'title', 'inOneSentence', 'whyItMattersToADesigner', 'keyIdeas', 'words', 'steps',
+  'skipOrSkim', 'checkYourself', 'plannedMinutes',
+];
+
+/**
+ * Checks a lessons pack. Returns { ok, fileProblems, rowProblems, lessons: [clean lessons] }.
+ * Every lesson must sit on a real study day with the date the plan gives that day.
+ */
+export function parseLessonPack(text) {
+  const out = { ok: false, fileProblems: [], rowProblems: [], lessons: [] };
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    out.fileProblems.push('This is not valid JSON.');
+    return out;
+  }
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    out.fileProblems.push('The file should be an object.');
+    return out;
+  }
+  if (doc.schema !== LESSON_SCHEMA) out.fileProblems.push(`The schema should be "${LESSON_SCHEMA}".`);
+  if (!Array.isArray(doc.lessons) || !doc.lessons.length) {
+    out.fileProblems.push('The file needs a "lessons" list with at least one lesson.');
+    out.ok = false;
+    return out;
+  }
+  if (doc.lessons.length > 60) out.fileProblems.push('A lessons pack can hold at most 60 lessons.');
+  const seenIds = new Set();
+  const seenDays = new Set();
+  const str = (v, max) => typeof v === 'string' && v.trim() !== '' && v.length <= max;
+  doc.lessons.slice(0, 60).forEach((l, i) => {
+    const m = [];
+    const id = typeof l?.id === 'string' ? l.id : undefined;
+    if (!l || typeof l !== 'object' || Array.isArray(l)) {
+      out.rowProblems.push({ entry: i + 1, id, messages: ['should be an object'] });
+      return;
+    }
+    for (const key of Object.keys(l)) if (!LESSON_FIELDS.includes(key)) m.push(`has an unknown field "${key}"`);
+    if (typeof l.id !== 'string' || !RESOURCE_ID_RE.test(l.id)) m.push('needs an id of lowercase letters, numbers and hyphens');
+    else if (seenIds.has(l.id)) m.push('repeats an id used by another lesson');
+    if (!Number.isInteger(l.day) || !isPlanStudyDay(l.day)) m.push('day must be a study day (1–60, no Sundays)');
+    else {
+      if (seenDays.has(l.day)) m.push(`day ${l.day} already has a lesson in this file`);
+      if (l.date !== addDays(PLAN_START, l.day - 1)) m.push(`date should be ${addDays(PLAN_START, l.day - 1)} for day ${l.day}`);
+      if (!Number.isInteger(l.week) || l.week !== Math.ceil(l.day / 7)) m.push(`week should be ${Math.ceil(l.day / 7)} for day ${l.day}`);
+    }
+    if (!isDate(l.date)) m.push('date must be YYYY-MM-DD');
+    if (!str(l.title, LESSON_LIMITS.title)) m.push(`title must be 1–${LESSON_LIMITS.title} characters`);
+    if (!str(l.inOneSentence, LESSON_LIMITS.sentence)) m.push(`inOneSentence must be 1–${LESSON_LIMITS.sentence} characters`);
+    if (!str(l.whyItMattersToADesigner, LESSON_LIMITS.paragraph)) m.push(`whyItMattersToADesigner must be 1–${LESSON_LIMITS.paragraph} characters`);
+    if (!str(l.skipOrSkim, LESSON_LIMITS.paragraph)) m.push(`skipOrSkim must be 1–${LESSON_LIMITS.paragraph} characters`);
+    if (!Array.isArray(l.keyIdeas) || !l.keyIdeas.length || l.keyIdeas.length > 8 || l.keyIdeas.some((k) => !str(k, LESSON_LIMITS.idea))) {
+      m.push(`keyIdeas must be 1–8 lines of up to ${LESSON_LIMITS.idea} characters`);
+    }
+    if (!Array.isArray(l.words) || l.words.length > 12
+      || l.words.some((w) => !w || !str(w.term, LESSON_LIMITS.term) || !str(w.meaning, LESSON_LIMITS.meaning) || Object.keys(w).some((k) => !['term', 'meaning'].includes(k)))) {
+      m.push('words must be up to 12 entries, each with a term and a meaning');
+    }
+    if (!Array.isArray(l.steps) || !l.steps.length || l.steps.length > 12
+      || l.steps.some((s) => !s || !str(s.text, LESSON_LIMITS.step) || !Number.isInteger(s.minutes) || s.minutes < 1 || s.minutes > 240
+        || !(s.resourceId === null || (typeof s.resourceId === 'string' && RESOURCE_ID_RE.test(s.resourceId)))
+        || Object.keys(s).some((k) => !['text', 'minutes', 'resourceId'].includes(k)))) {
+      m.push('steps must be 1–12 entries, each with text, minutes (1–240) and a resourceId (or null)');
+    }
+    if (!Array.isArray(l.checkYourself) || !l.checkYourself.length || l.checkYourself.length > 4 || l.checkYourself.some((q) => !str(q, LESSON_LIMITS.check))) {
+      m.push(`checkYourself must be 1–4 questions of up to ${LESSON_LIMITS.check} characters`);
+    }
+    if (!Number.isInteger(l.plannedMinutes) || l.plannedMinutes < 15 || l.plannedMinutes > 600) m.push('plannedMinutes must be a whole number from 15 to 600');
+    if (m.length) {
+      out.rowProblems.push({ entry: i + 1, id, messages: m });
+      return;
+    }
+    seenIds.add(l.id);
+    seenDays.add(l.day);
+    out.lessons.push({
+      id: l.id, week: l.week, day: l.day, date: l.date, title: l.title.trim(), inOneSentence: l.inOneSentence.trim(),
+      whyItMattersToADesigner: l.whyItMattersToADesigner.trim(), keyIdeas: l.keyIdeas.map((k) => k.trim()),
+      words: l.words.map((w) => ({ term: w.term.trim(), meaning: w.meaning.trim() })),
+      steps: l.steps.map((s) => ({ text: s.text.trim(), minutes: s.minutes, resourceId: s.resourceId })),
+      skipOrSkim: l.skipOrSkim.trim(), checkYourself: l.checkYourself.map((q) => q.trim()), plannedMinutes: l.plannedMinutes,
+    });
+  });
+  out.ok = !out.fileProblems.length && !out.rowProblems.length;
+  return out;
 }
 
 // ─── Fetching (browser only) ─────────────────────────────────────────────────

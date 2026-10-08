@@ -6,11 +6,13 @@
 // - the pack file exists, and every file in content/ is listed (no forgotten packs)
 // - resource packs: every row is valid in the "identity-lab-coach.resources.v1" format
 // - card packs: every card is valid, has a reference, and is never marked verified
+// - guidance packs: every level and how-to-use line is valid and points at a resource that exists
+// - lessons packs: every lesson is on a real study day with the right date, and every step points at a resource that exists
 // - no id is used twice across packs, and no card id clashes with the built-in flashcards
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { validateManifest, parseCardPack } from '../js/content.js';
+import { validateManifest, parseCardPack, parseGuidancePack, parseLessonPack } from '../js/content.js';
 import { parseResourceImport } from '../js/resource-import.js';
 import { SEED_CARDS } from '../js/cards-data.js';
 
@@ -41,6 +43,10 @@ const resourceIds = new Map();
 const cardIds = new Map();
 let resourceCount = 0;
 let cardCount = 0;
+let guidanceCount = 0;
+let lessonCount = 0;
+const guidancePacks = [];
+const lessonPacks = [];
 
 for (const pack of checked.packs) {
   let text;
@@ -60,6 +66,18 @@ for (const pack of checked.packs) {
     }
     resourceCount += parsed.rows.length;
     for (const w of parsed.warnings) console.log(`note (${pack.id}): ${w.id}: ${w.message}`);
+  } else if (pack.type === 'guidance') {
+    const parsed = parseGuidancePack(text);
+    for (const p of parsed.fileProblems) fail(`${pack.id}: ${p}`);
+    for (const p of parsed.rowProblems) fail(`${pack.id}: ${p.id ?? `entry ${p.entry}`}: ${p.messages.join(' ')}`);
+    guidanceCount += parsed.guidance.length;
+    guidancePacks.push({ pack, parsed });
+  } else if (pack.type === 'lessons') {
+    const parsed = parseLessonPack(text);
+    for (const p of parsed.fileProblems) fail(`${pack.id}: ${p}`);
+    for (const p of parsed.rowProblems) fail(`${pack.id}: ${p.id ?? `entry ${p.entry}`}: ${p.messages.join(' ')}`);
+    lessonCount += parsed.lessons.length;
+    lessonPacks.push({ pack, parsed });
   } else {
     const parsed = parseCardPack(text, { strictVerified: true });
     for (const p of parsed.fileProblems) fail(`${pack.id}: ${p}`);
@@ -73,9 +91,25 @@ for (const pack of checked.packs) {
   }
 }
 
+// Guidance and lessons may only point at resources that exist in a resource pack.
+const lessonIds = new Set();
+for (const { pack, parsed } of guidancePacks) {
+  for (const g of parsed.guidance) if (!resourceIds.has(g.id)) fail(`${pack.id}: guidance for "${g.id}", which is not in any resource pack.`);
+  for (const c of parsed.dayChanges) if (!resourceIds.has(c.id)) fail(`${pack.id}: day change for "${c.id}", which is not in any resource pack.`);
+  const covered = new Set(parsed.guidance.map((g) => g.id));
+  for (const id of resourceIds.keys()) if (!covered.has(id)) console.log(`note (${pack.id}): resource "${id}" has no guidance.`);
+}
+for (const { pack, parsed } of lessonPacks) {
+  for (const l of parsed.lessons) {
+    if (lessonIds.has(l.id)) fail(`${pack.id}: lesson id "${l.id}" is used twice.`);
+    lessonIds.add(l.id);
+    for (const s of l.steps) if (s.resourceId && !resourceIds.has(s.resourceId)) fail(`${pack.id}: ${l.id}: a step points at "${s.resourceId}", which is not in any resource pack.`);
+  }
+}
+
 if (failures.length) {
   console.error(`\nContent check FAILED (${failures.length} problem${failures.length === 1 ? '' : 's'}):`);
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log(`Content check passed: ${checked.packs.length} packs, ${resourceCount} resources, ${cardCount} cards.`);
+console.log(`Content check passed: ${checked.packs.length} packs, ${resourceCount} resources, ${cardCount} cards, ${guidanceCount} guidance notes, ${lessonCount} lessons.`);

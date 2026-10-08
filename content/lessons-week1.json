@@ -1,0 +1,353 @@
+{
+ "schema": "identity-lab-coach.lessons.v1",
+ "createdOn": "2026-10-08",
+ "note": "Week 1 lessons. Written to give each day plain-language context before the resources. resourceId links to a resource id in the resource packs.",
+ "lessons": [
+  {
+   "id": "w1-d1",
+   "week": 1,
+   "day": 1,
+   "date": "2026-10-12",
+   "title": "Get your lab ready",
+   "inOneSentence": "Set up Docker so you can run a real identity system on your own laptop.",
+   "whyItMattersToADesigner": "Identity products are configured by admins, not only designed. Running a real admin console shows you what those admins face.",
+   "keyIdeas": [
+    "Docker runs software in an isolated box called a container, so you can start it, break it and delete it cleanly.",
+    "Keycloak is an open-source identity provider: the system that signs people in and says who they are.",
+    "Nothing this week needs real coding. You will mostly copy commands and click through an admin console."
+   ],
+   "words": [
+    {
+     "term": "container",
+     "meaning": "A running, isolated copy of a program."
+    },
+    {
+     "term": "image",
+     "meaning": "The packaged recipe a container is started from."
+    },
+    {
+     "term": "identity provider (IdP)",
+     "meaning": "The system that checks who you are and tells other apps."
+    },
+    {
+     "term": "glossary",
+     "meaning": "Your own list of new words, in your own sentences."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Check Docker works: run the version command, then the hello-world test.",
+     "minutes": 20,
+     "resourceId": null
+    },
+    {
+     "text": "Read the Keycloak getting-started page through once. Do not run it yet.",
+     "minutes": 15,
+     "resourceId": "w1-keycloak-docker"
+    },
+    {
+     "text": "Start your glossary with 10 words you already half-know (login, password, session...) and write each in one sentence.",
+     "minutes": 15,
+     "resourceId": null
+    },
+    {
+     "text": "Spare time: note anything that failed, so you can fix it before Day 3.",
+     "minutes": 10,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "Do not install anything beyond Docker today.",
+   "checkYourself": [
+    "What is the difference between an image and a container?",
+    "What does an identity provider do?"
+   ],
+   "plannedMinutes": 60
+  },
+  {
+   "id": "w1-d2",
+   "week": 1,
+   "day": 2,
+   "date": "2026-10-13",
+   "title": "Authentication, authorization and accounting",
+   "inOneSentence": "Authentication proves who you are, authorization decides what you may do, and accounting records what you did.",
+   "whyItMattersToADesigner": "Almost every identity screen (login, permissions, audit log) belongs to one of these three. Mixing them up produces confusing products and unsafe defaults.",
+   "keyIdeas": [
+    "Authentication (authN): proving you are who you claim to be, with something you know, have or are.",
+    "Authorization (authZ): after you are known, deciding what you are allowed to do. You can be signed in and still be denied.",
+    "Accounting: keeping a record of what happened, for investigation and audit.",
+    "After you sign in, a session or token stands in for you for a while, so you do not sign in on every click."
+   ],
+   "words": [
+    {
+     "term": "credential",
+     "meaning": "What proves your identity, such as a password or passkey."
+    },
+    {
+     "term": "session",
+     "meaning": "The period during which the system treats you as signed in."
+    },
+    {
+     "term": "token",
+     "meaning": "A small piece of data that represents a session or a permission."
+    },
+    {
+     "term": "factor",
+     "meaning": "One way of proving identity: something you know, have or are."
+    },
+    {
+     "term": "role",
+     "meaning": "A named bundle of permissions."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Watch the Messer videos on identity and access. Take notes under three headings: authentication, authorization, accounting.",
+     "minutes": 75,
+     "resourceId": "w1-messer-iam"
+    },
+    {
+     "text": "Write one sentence for each of the three in your own words, with one example from a product you use.",
+     "minutes": 15,
+     "resourceId": null
+    },
+    {
+     "text": "Add the new words to your glossary.",
+     "minutes": 10,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "These videos are exam prep. Ignore exam tips and acronym lists you do not need yet.",
+   "checkYourself": [
+    "A user signs in but sees 'access denied' on one page. Which of the three is that?",
+    "Give one example of accounting in a product you use."
+   ],
+   "plannedMinutes": 100
+  },
+  {
+   "id": "w1-d3",
+   "week": 1,
+   "day": 3,
+   "date": "2026-10-14",
+   "title": "Your first identity system",
+   "inOneSentence": "Run Keycloak and create a small company: a realm, a few users, groups and roles.",
+   "whyItMattersToADesigner": "This is the kind of console real IT admins work in every day. You will design for them, so you should see what it feels like.",
+   "keyIdeas": [
+    "A realm is an isolated space for one organization's users and settings.",
+    "A group is who you are with (a team). A role is what you may do. Giving roles to groups scales better than giving them to people one by one.",
+    "Each thing you create shows what an admin must understand: the console's words are the admin's vocabulary."
+   ],
+   "words": [
+    {
+     "term": "realm",
+     "meaning": "An isolated space for one organization's users and settings."
+    },
+    {
+     "term": "group",
+     "meaning": "A set of users, usually a team."
+    },
+    {
+     "term": "client",
+     "meaning": "An application that uses Keycloak to sign people in."
+    },
+    {
+     "term": "admin console",
+     "meaning": "The screen where an admin manages users and settings."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Start Keycloak with Docker and sign in to the admin console.",
+     "minutes": 25,
+     "resourceId": "w1-keycloak-docker"
+    },
+    {
+     "text": "Do Exercise 1: create a realm, five users, two groups and two roles, then give a role to a group.",
+     "minutes": 60,
+     "resourceId": null
+    },
+    {
+     "text": "Only when you meet an unfamiliar word, look it up in the administration guide.",
+     "minutes": 15,
+     "resourceId": "w1-keycloak-admin"
+    },
+    {
+     "text": "Write down three things that surprised you as a designer. They feed Saturday's write-up.",
+     "minutes": 10,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "Do not read the administration guide from the top.",
+   "checkYourself": [
+    "Why give a role to a group rather than to each user?",
+    "What is the difference between a realm and a user?"
+   ],
+   "plannedMinutes": 110
+  },
+  {
+   "id": "w1-d4",
+   "week": 1,
+   "day": 4,
+   "date": "2026-10-15",
+   "title": "The life of an account, and thinking like an attacker",
+   "inOneSentence": "Accounts are created, changed and removed over time, and threat modelling is asking what could go wrong with them.",
+   "whyItMattersToADesigner": "Many identity failures are lifecycle failures: someone leaves and keeps access. Designing the leaver path well is a real product opportunity.",
+   "keyIdeas": [
+    "Joiner, mover, leaver: people start, change roles and leave. Each change should change their access.",
+    "Orphaned accounts and privilege creep (collecting access over time) are the usual problems.",
+    "Threat modelling asks four questions: what are we working on, what can go wrong, what will we do about it, did we do a good job?"
+   ],
+   "words": [
+    {
+     "term": "joiner / mover / leaver",
+     "meaning": "The three lifecycle events for a person at an organization."
+    },
+    {
+     "term": "orphaned account",
+     "meaning": "An account that stays active after its owner has gone."
+    },
+    {
+     "term": "privilege creep",
+     "meaning": "Slowly collecting more access than you need."
+    },
+    {
+     "term": "threat",
+     "meaning": "Something that could go wrong, caused on purpose or not."
+    },
+    {
+     "term": "mitigation",
+     "meaning": "What you do to reduce a threat."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Read the Threat Modeling Manifesto.",
+     "minutes": 20,
+     "resourceId": "w1-tmm"
+    },
+    {
+     "text": "Read the beginner's guide to threat modelling.",
+     "minutes": 30,
+     "resourceId": "w1-shostack"
+    },
+    {
+     "text": "Apply the four questions to your Day 3 lab. Write three things that could go wrong when someone leaves.",
+     "minutes": 40,
+     "resourceId": null
+    },
+    {
+     "text": "Add the new words to your glossary.",
+     "minutes": 10,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "The Manifesto is short and abstract; it will make more sense after the lab.",
+   "checkYourself": [
+    "What is an orphaned account and why does it matter?",
+    "Which of the four questions did you find hardest to answer for your lab?"
+   ],
+   "plannedMinutes": 100
+  },
+  {
+   "id": "w1-d5",
+   "week": 1,
+   "day": 5,
+   "date": "2026-10-16",
+   "title": "Build day: practice data for Project 1",
+   "inOneSentence": "Create realistic fake people and apps so you have something to review later.",
+   "whyItMattersToADesigner": "You cannot design an access review without messy data. Seed data is how you test whether the tool finds the problems you planted.",
+   "keyIdeas": [
+    "Seed data is fake data made on purpose: here about 50 users and 8 apps (as groups).",
+    "Planted stale accounts are test cases with known answers: you decide which ones are stale, so you can check the tool finds them.",
+    "Never use real people's data."
+   ],
+   "words": [
+    {
+     "term": "seed script",
+     "meaning": "A small program that creates test data."
+    },
+    {
+     "term": "stale account",
+     "meaning": "An account that is no longer used or no longer needed."
+    },
+    {
+     "term": "answer key",
+     "meaning": "A file listing which accounts you planted."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Write or generate a seed script for 50 users and 8 groups in Keycloak.",
+     "minutes": 70,
+     "resourceId": null
+    },
+    {
+     "text": "Plant several stale accounts and record them in a separate answer-key file.",
+     "minutes": 20,
+     "resourceId": null
+    },
+    {
+     "text": "Read the code and write a comment on what each part does. If an AI tool wrote it, say so in the README.",
+     "minutes": 30,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "Do not build any screens today.",
+   "checkYourself": [
+    "Could you explain every part of the script to an interviewer?",
+    "Why keep an answer key?"
+   ],
+   "plannedMinutes": 120
+  },
+  {
+   "id": "w1-d6",
+   "week": 1,
+   "day": 6,
+   "date": "2026-10-17",
+   "title": "Write it up",
+   "inOneSentence": "Turn the week into one published piece: a README and a one-page diagram of who holds which credential.",
+   "whyItMattersToADesigner": "Evidence is what makes the learning visible. A clear diagram is also a design deliverable.",
+   "keyIdeas": [
+    "A credential diagram answers: who or what holds which secret, and where does it travel?",
+    "Looking at how real admin guides start shows what vendors think an admin must do first."
+   ],
+   "words": [
+    {
+     "term": "README",
+     "meaning": "The first file anyone reads in a project."
+    },
+    {
+     "term": "credential",
+     "meaning": "What proves identity, such as a password, key or token."
+    }
+   ],
+   "steps": [
+    {
+     "text": "Read two admin getting-started guides and list what an admin must do on day one. Do the third only if you have time.",
+     "minutes": 60,
+     "resourceId": "w1-tailscale-quickstart"
+    },
+    {
+     "text": "Draw the one-page 'who holds which credential' diagram for your lab.",
+     "minutes": 30,
+     "resourceId": null
+    },
+    {
+     "text": "Write the identity-lab README and publish it. Log it in the Evidence tab with its category.",
+     "minutes": 30,
+     "resourceId": null
+    },
+    {
+     "text": "Optional design exercise: sketch a one-page mental model of an enterprise identity system.",
+     "minutes": 120,
+     "resourceId": null
+    }
+   ],
+   "skipOrSkim": "The 1Password and Okta guides have no verified link: search for them, or skip one.",
+   "checkYourself": [
+    "What does an admin need to do on day one in each product?",
+    "Which credential in your lab is the riskiest, and why?"
+   ],
+   "plannedMinutes": 120
+  }
+ ]
+}

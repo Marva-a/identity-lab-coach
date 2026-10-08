@@ -311,6 +311,8 @@ export function validateResource(r) {
     }
   }
   if (r.optional !== undefined && typeof r.optional !== 'boolean') problems.push('"optional" must be true or false.');
+  if (r.level !== undefined && r.level !== '' && !(r.level in RESOURCE_LEVELS)) problems.push('The level must be foundation, core or deep.');
+  if (r.howToUse !== undefined && text(r.howToUse).length > HOW_TO_USE_MAX) problems.push(`Keep the how-to-use line under ${HOW_TO_USE_MAX} characters.`);
   if (r.urlStatus !== undefined && !RESOURCE_URL_STATUSES.includes(r.urlStatus)) {
     problems.push(`urlStatus must be one of: ${RESOURCE_URL_STATUSES.join(', ')}.`);
   }
@@ -329,7 +331,18 @@ export function validateResource(r) {
  */
 export function orderResources(list) {
   const rank = (r) => (r.status === 'done' ? 3 : r.status === 'in-progress' ? 0 : r.optional ? 2 : 1);
-  return [...list].sort((a, b) => rank(a) - rank(b) || (a.position ?? 0) - (b.position ?? 0));
+  return [...list].sort((a, b) => levelRank(a) - levelRank(b) || rank(a) - rank(b) || (a.position ?? 0) - (b.position ?? 0));
+}
+
+// ─── Levels (from a guidance pack) ───────────────────────────────────────────
+// foundation = plain language, no background needed; core = practical; deep = standards and specs, for reference.
+export const RESOURCE_LEVELS = { foundation: 'Foundation', core: 'Core', deep: 'Deep' };
+export const HOW_TO_USE_MAX = 500;
+/** foundation first, then core, then deep. A resource with no level sits with core. */
+export const levelRank = (r) => ({ foundation: 0, core: 1, deep: 2 }[r.level] ?? 1);
+/** Deep resources are shown apart, under a collapsed "Reference" heading. */
+export function splitDeep(list) {
+  return { main: list.filter((r) => r.level !== 'deep'), deep: list.filter((r) => r.level === 'deep') };
 }
 
 export const totalMinutes = (list) => list.reduce((sum, r) => sum + r.minutes, 0);

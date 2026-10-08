@@ -29,6 +29,7 @@ import {
 
 import { planTopHtml, courseActions } from './course.js';
 import { resolveHash } from './routes.js';
+import { todayLessonHtml, lessonPageView, flushLessonAnswers, handleLessonInput, handleLessonClick } from './lessons.js';
 import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
 import * as AB from './autobackup.js';
 
@@ -535,6 +536,7 @@ function todayView() {
   return [
     headerHtml(ctx),
     backupNoticeHtml(),
+    todayLessonHtml(ctx),
     studyish ? flowStartCardHtml(ctx) : '',
     todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
@@ -788,6 +790,7 @@ function describeTestData(n) {
     n.resources && plural(n.resources, 'resource changed or added', 'resources changed or added'),
     n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
     n.optionalOverrides && plural(n.optionalOverrides, 'Optional/Required choice', 'Optional/Required choices'),
+    n.lessonAnswers && plural(n.lessonAnswers, 'lesson answer', 'lesson answers'),
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : 'none';
 }
@@ -813,16 +816,18 @@ function loadProblemView(problem) {
 
 function render({ focus } = {}) {
   flushResourceNotes(); // notes typed a moment ago are saved before the page redraws
+  flushLessonAnswers();
   const activeId = document.activeElement?.id;
   applyTheme();
   renderBanners();
   document.querySelectorAll('[data-route]').forEach((a) => {
-    if (a.dataset.route === route) a.setAttribute('aria-current', 'page');
+    if (a.dataset.route === route || (route === 'lesson' && a.dataset.route === 'plan')) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
   renderedDate = today();
   const views = {
     today: todayView, plan: planView, learn: learnView, proof: proofView, progress: scorecardView, settings: settingsView,
+    lesson: () => lessonPageView(section),
   };
   const problem = store.getLoadProblem();
   mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
@@ -1157,6 +1162,7 @@ mainEl.addEventListener('click', (e) => {
   // A follow-up link on Today opens that person's page (the link itself navigates).
   const personLink = e.target.closest('[data-person-link]');
   if (personLink) selectPersonOnNavigate(personLink.dataset.personLink);
+  handleLessonClick(e);
   const el = e.target.closest('[data-action]');
   if (!el) return;
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
@@ -1216,6 +1222,7 @@ mainEl.addEventListener('input', (e) => {
   handleEvidenceInput(e.target);
   handlePeopleInput(e.target);
   handleResourceInput(e.target);
+  handleLessonInput(e.target);
 });
 
 // Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
@@ -1224,7 +1231,10 @@ mainEl.addEventListener('toggle', (e) => {
   else handleResourceToggle(e);
 }, true);
 // Leaving a notes box saves it straight away.
-mainEl.addEventListener('focusout', (e) => { if (e.target.dataset?.resNotes) flushResourceNotes(); });
+mainEl.addEventListener('focusout', (e) => {
+  if (e.target.dataset?.resNotes) flushResourceNotes();
+  if (e.target.dataset?.lessonAnswer) flushLessonAnswers();
+});
 
 mainEl.addEventListener('change', async (e) => {
   const t = e.target;
@@ -1303,10 +1313,10 @@ window.addEventListener('hashchange', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { flushResourceNotes(); AB.backupNow().catch(() => {}); }
+  if (document.hidden) { flushResourceNotes(); flushLessonAnswers(); AB.backupNow().catch(() => {}); }
   else tick();
 });
-window.addEventListener('pagehide', () => { flushResourceNotes(); AB.backupNow().catch(() => {}); });
+window.addEventListener('pagehide', () => { flushResourceNotes(); flushLessonAnswers(); AB.backupNow().catch(() => {}); });
 
 store.load();
 setContentRefresh((focus) => { if (route === 'learn' && section === 'library') render({ focus }); });

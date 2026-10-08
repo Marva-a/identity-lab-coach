@@ -11,11 +11,11 @@ import { planDayFor } from './plan.js';
 import { WEEKS } from './plan-data.js';
 import {
   RESOURCE_TYPES, RESOURCE_STATUSES, RESOURCE_LIMITS, orderResources, totalMinutes, remainingMinutes,
-  optionalMinutes, parseDays, validateResource, findSameLink,
+  optionalMinutes, parseDays, validateResource, findSameLink, RESOURCE_LEVELS, splitDeep, levelRank,
 } from './records.js';
 import { parseResourceImport, MAX_ROWS, RESOURCE_SCHEMA } from './resource-import.js';
 import { startCardFromResource } from './flashcards.js';
-import { checkForContent, planContent, summarizePlan } from './content.js';
+import { checkForContent, planContent, summarizePlan, planSize } from './content.js';
 
 // Transient UI state (not saved).
 const ui = {
@@ -24,6 +24,8 @@ const ui = {
   errors: [],
   doneFor: null, // resource id waiting for the "also log a session?" choice
   openNotes: new Set(), // resources whose notes are open
+  openDeep: new Set(), // "Reference" groups that are open
+  highlight: null, // a resource a lesson step pointed at
   linkDrafts: {}, // id → link typed but not saved yet
   linkErrors: {}, // id → problem with the link just typed
   filter: { status: 'all', type: 'all', week: 'all', retired: false, link: 'all' },
@@ -119,21 +121,55 @@ function linkStateHtml(r) {
   return '';
 }
 
+/** A small label saying how much background a resource assumes. */
+function levelFlagHtml(r) {
+  return r.level in RESOURCE_LEVELS ? `<span class="flag flag--level">${esc(RESOURCE_LEVELS[r.level])}</span>` : '';
+}
+
+/** Shown when a pack has a newer level, how-to-use line or day for a resource you changed yourself. */
+function newerVersionHtml(r) {
+  const n = r.newerVersion;
+  if (!n) return '';
+  const days = JSON.stringify(n.days) !== JSON.stringify(r.days);
+  return `
+    <div class="note" role="group" aria-label="Newer version available">
+      <p><strong>Newer version available.</strong> You changed this resource, so your version is kept.
+        The update suggests ${n.level in RESOURCE_LEVELS ? `level ${esc(RESOURCE_LEVELS[n.level])}` : 'no level'}${days ? `, plan ${n.days.length === 1 ? 'day' : 'days'} ${esc(n.days.join(', '))}` : ''}${n.reason ? ` (${esc(n.reason)})` : ''}.</p>
+      <div class="button-row">
+        <button type="button" class="button--small" data-action="resource-newer-use" data-id="${esc(r.id)}">Use the newer version</button>
+        <button type="button" class="button--small" data-action="resource-newer-keep" data-id="${esc(r.id)}">Keep mine</button>
+      </div>
+    </div>`;
+}
+
+/** The deep resources of a list, tucked under one closed heading. `key` remembers whether you opened it. */
+function deepGroupHtml(deep, key, itemHtml) {
+  if (!deep.length) return '';
+  return `
+    <details class="deep-group" data-deep-group="${esc(key)}" ${ui.openDeep.has(key) ? 'open' : ''}>
+      <summary>Reference: skim, look things up, come back later (${deep.length})</summary>
+      ${itemHtml(deep)}
+    </details>`;
+}
+
 function resourceItemHtml(r, { library = false } = {}) {
   if (library && ui.editing === r.id) return `<li class="resource">${resourceFormHtml(r)}</li>`;
   const done = r.status === 'done';
   const hasNotes = Boolean((r.notes ?? '').trim());
   const title = r.url ? linkHtml(r.url, r.title) : esc(r.title);
   return `
-    <li class="resource ${done ? 'resource--done' : ''} ${r.optional ? 'resource--optional' : ''} ${r.retired ? 'resource--retired' : ''}">
+    <li id="res-${esc(r.id)}" tabindex="-1" class="resource ${ui.highlight === r.id ? 'resource--highlight' : ''} ${done ? 'resource--done' : ''} ${r.optional ? 'resource--optional' : ''} ${r.retired ? 'resource--retired' : ''}">
       <p class="resource__title">${title}
+        ${levelFlagHtml(r)}
         ${r.optional ? '<span class="flag">Optional</span>' : ''}
         ${r.changedByMe ? '<span class="flag">Changed by me</span>' : ''}
         ${r.url ? '' : `<span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`}
         ${r.retired ? '<span class="flag">Retired</span>' : ''}
         ${r.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
       <p class="meta">${esc(RESOURCE_TYPES[r.type])} · ${esc(r.source)} · about ${r.minutes} min (estimate)${done && r.doneDate ? ` · Done ${esc(formatShort(r.doneDate))}` : ''}</p>
+      ${r.howToUse ? `<p class="how-to-use">${esc(r.howToUse)}</p>` : ''}
       ${r.why ? `<p class="meta">Why: ${esc(r.why)}</p>` : ''}
+      ${newerVersionHtml(r)}
       ${library ? `<p class="meta">Plan ${r.days.length === 1 ? 'day' : 'days'}: ${esc(r.days.map(dayLabel).join(', '))}</p>` : ''}
       ${linkStateHtml(r)}
       <div class="resource__status field">
@@ -171,12 +207,14 @@ export function todayResourcesHtml(ctx) {
   const list = orderResources(store.resourcesForDay(ctx.contentDay));
   if (!list.length) return '';
   const optional = optionalMinutes(list);
+  const { main, deep } = splitDeep(list);
   return `
     <section class="card" aria-labelledby="next-heading">
       <h2 id="next-heading" tabindex="-1">Do this next</h2>
-      <p class="meta">In order: in progress first, then the rest, with optional ones after the others. Estimated total ${totalMinutes(list)} min${optional ? ` (${optional} min of it optional)` : ''}; ${remainingMinutes(list)} min of the required part still to do, against ${ctx.hours * 60} min planned today. These are estimates: your hours only change when you log a session.</p>
+      <p class="meta">In order: foundation first, then core. Deep reference items are tucked below. Estimated total ${totalMinutes(list)} min${optional ? ` (${optional} min of it optional)` : ''}; ${remainingMinutes(list)} min of the required part still to do, against ${ctx.hours * 60} min planned today. These are estimates: your hours only change when you log a session.</p>
       ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
-      <ol class="resources">${list.map((r) => resourceItemHtml(r)).join('')}</ol>
+      <ol class="resources">${main.map((r) => resourceItemHtml(r)).join('')}</ol>
+      ${deepGroupHtml(deep, `today-${ctx.contentDay}`, (items) => `<ol class="resources">${items.map((r) => resourceItemHtml(r)).join('')}</ol>`)}
     </section>`;
 }
 
@@ -184,14 +222,15 @@ export function todayResourcesHtml(ctx) {
 
 /** A compact list under a day in the Week view (no controls; Today and the Library have those). */
 export function weekDayResourcesHtml(contentDay) {
-  const list = store.resourcesForDay(contentDay);
+  const list = orderResources(store.resourcesForDay(contentDay));
   if (!list.length) return '';
+  const { main, deep } = splitDeep(list);
+  const rows = (items) => `<ul>${items.map((r) => `<li class="${r.optional ? 'is-optional' : ''}">${levelFlagHtml(r)} ${esc(RESOURCE_TYPES[r.type])}: ${r.url ? linkHtml(r.url, r.title) : esc(r.title)}${r.optional ? ' <span class="flag">Optional</span>' : ''}${r.url ? '' : ` <span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`} · about ${r.minutes} min · <span class="res-status res-status--${r.status}">${esc(RESOURCE_STATUSES[r.status])}</span></li>`).join('')}</ul>`;
   return `
     <span class="day-resources">
       <span class="meta">Resources · about ${totalMinutes(list)} min estimated (<a href="#learn/library">open in the Library</a>)</span>
-      <ul>
-        ${list.map((r) => `<li class="${r.optional ? 'is-optional' : ''}">${esc(RESOURCE_TYPES[r.type])}: ${r.url ? linkHtml(r.url, r.title) : esc(r.title)}${r.optional ? ' <span class="flag">Optional</span>' : ''}${r.url ? '' : ` <span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`} · about ${r.minutes} min · <span class="res-status res-status--${r.status}">${esc(RESOURCE_STATUSES[r.status])}</span></li>`).join('')}
-      </ul>
+      ${main.length ? rows(main) : ''}
+      ${deepGroupHtml(deep, `week-${contentDay}`, rows)}
     </span>`;
 }
 
@@ -284,7 +323,7 @@ function contentHtml() {
       </div>`;
   } else if (c.plan) {
     const plan = c.plan;
-    const total = plan.resources.length + plan.cards.length;
+    const total = planSize(plan);
     const existing = plan.packs.reduce((n, p) => n + p.existingCount, 0);
     const where = c.source === 'site'
       ? 'Checked this app’s own site just now.'
@@ -293,7 +332,7 @@ function contentHtml() {
       <div id="content-status" tabindex="-1" role="region" aria-label="Content check result" class="${total ? 'note note--gate' : ''}">
         <p class="meta">${where}</p>
         ${total
-    ? `<p><strong>${esc(summarizePlan(plan))}.</strong> Cards arrive unverified, with their reference. Nothing you already have will be changed.</p>`
+    ? `<p><strong>${esc(summarizePlan(plan))}.</strong> Cards arrive unverified, with their reference. Anything you changed yourself is kept.</p>`
     : `<p class="status-ok"><strong>You are up to date.</strong> Nothing new in ${plural(plan.packs.length, 'pack', 'packs')}${existing ? ` (${plural(existing, 'item', 'items')} already in your library)` : ''}.</p>`}
         ${packListHtml(plan)}
         ${plan.warnings.length ? `<details><summary>Worth a look (does not stop anything)</summary><ul>${plan.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}
@@ -406,13 +445,14 @@ export function libraryView() {
     .filter((r) => f.type === 'all' || r.type === f.type)
     .filter((r) => f.week === 'all' || r.days.some((d) => Math.ceil(d / 7) === Number(f.week)))
     .filter((r) => f.link === 'all' || !r.url)
-    .sort((a, b) => firstDay(a) - firstDay(b) || (a.position ?? 0) - (b.position ?? 0));
+    .sort((a, b) => firstDay(a) - firstDay(b) || levelRank(a) - levelRank(b) || (a.position ?? 0) - (b.position ?? 0));
+  const { main: shownMain, deep: shownDeep } = splitDeep(shown);
   const active = all.filter((r) => !r.retired);
   const needLink = active.filter((r) => !r.url).length;
 
   return `
     <h1 id="day-heading" tabindex="-1">Library</h1>
-    <p class="meta">Resources you chose for each plan day. Links open in a new tab and are never embedded. The app stores only titles, links, estimates and your own notes, not other people's content. Everything stays in this browser.</p>
+    <p class="meta">Resources you chose for each plan day. Links open in a new tab and are never embedded. The app stores only titles, links, estimates and your own notes, not other people's content.</p>
 
     ${contentHtml()}
 
@@ -459,7 +499,8 @@ export function libraryView() {
         </label>`}
       ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" data-action="resource-add">Add a resource</button></div>'}
       ${all.length ? `<p class="meta" aria-live="polite">${plural(shown.length, 'resource', 'resources')} shown.</p>` : ''}
-      <ol class="resources">${shown.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>
+      <ol class="resources">${shownMain.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>
+      ${deepGroupHtml(shownDeep, 'library', (items) => `<ol class="resources">${items.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>`)}
     </section>`;
 }
 
@@ -508,7 +549,7 @@ async function runContentCheck() {
   } else {
     const plan = planContent(result.content, store.getData());
     ui.content = { ...blankContent(), content: result.content, source: result.source, failure: result.failure, plan };
-    const total = plan.resources.length + plan.cards.length;
+    const total = planSize(plan);
     announce(total ? `${summarizePlan(plan)}. Choose Add them to confirm.` : 'You are up to date. Nothing new.');
   }
   refreshScreen('#content-status');
@@ -529,8 +570,8 @@ export const resourceActions = {
     const done = store.applyContentPlan(plan);
     ui.content = {
       ...blankContent(),
-      message: done.resources + done.cards
-        ? `Added ${plural(done.resources, 'resource', 'resources')} and ${plural(done.cards, 'card', 'cards')}. Cards are unverified until you verify them.${done.saved ? '' : ' Warning: this browser blocked saving.'}`
+      message: done.resources + done.cards + done.guidance + done.lessons + done.newerVersions
+        ? `Added ${plural(done.resources, 'resource', 'resources')}, ${plural(done.cards, 'card', 'cards')}, ${plural(done.guidance, 'guidance note', 'guidance notes')} and ${plural(done.lessons, 'lesson', 'lessons')}. Cards are unverified until you verify them.${done.newerVersions ? ` ${plural(done.newerVersions, 'resource you changed has', 'resources you changed have')} a newer version waiting; yours is kept until you choose.` : ''}${done.saved ? '' : ' Warning: this browser blocked saving.'}`
         : 'Nothing new to add: it is already all here.',
     };
     announce(ui.content.message);
@@ -598,6 +639,16 @@ export const resourceActions = {
     ui.message = `${raw.title} is now ${next ? 'optional' : 'required'}${store.isChangedByMe('resource', raw.id, raw.optional) ? ' (your choice; content updates will not change it)' : " (the content pack's own setting)"}.`;
     announce(ui.message);
     return `[data-action="resource-toggle-optional"][data-id="${raw.id}"]`;
+  },
+  'resource-newer-use': (el) => {
+    store.resolveNewerVersion(el.dataset.id, true);
+    announce('Using the newer version.');
+    return `#res-${el.dataset.id}`;
+  },
+  'resource-newer-keep': (el) => {
+    store.resolveNewerVersion(el.dataset.id, false);
+    announce('Keeping your version.');
+    return `#res-${el.dataset.id}`;
   },
   'resource-restore': (el) => {
     const r = store.getResource(el.dataset.id);
@@ -723,10 +774,25 @@ export function handleResourceInput(target) {
 /** Remembers which notes sections are open, so a redraw does not close them. */
 export function handleResourceToggle(event) {
   const details = event.target;
+  const deepKey = details?.dataset?.deepGroup;
+  if (deepKey) {
+    if (details.open) ui.openDeep.add(deepKey);
+    else ui.openDeep.delete(deepKey);
+    return;
+  }
   const id = details?.dataset?.resDetails;
   if (!id) return;
   if (details.open) ui.openNotes.add(id);
   else ui.openNotes.delete(id);
+}
+
+/** Lets a lesson step open the Library at its resource. It shows the resource whatever the filters say. */
+export function showResourceInLibrary(id) {
+  ui.filter = { status: 'all', type: 'all', week: 'all', retired: true, link: 'all' };
+  const r = store.getResource(id);
+  if (r?.level === 'deep') ui.openDeep.add('library');
+  ui.highlight = id;
+  nav.focus = `#res-${id}`;
 }
 
 export function resetResourceView() {
