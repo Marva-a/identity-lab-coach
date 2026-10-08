@@ -15,6 +15,7 @@ import {
 } from './records.js';
 import { parseResourceImport, MAX_ROWS, RESOURCE_SCHEMA } from './resource-import.js';
 import { startCardFromResource } from './flashcards.js';
+import { checkForContent, planContent, summarizePlan } from './content.js';
 
 // Transient UI state (not saved).
 const ui = {
@@ -29,7 +30,18 @@ const ui = {
   report: null, // result of checking an import file
   reportFile: '',
   message: null,
+  content: blankContent(), // the "Check for new content" state
 };
+
+function blankContent() {
+  return { busy: false, content: null, source: null, failure: null, plan: null, message: null };
+}
+
+// Checking for content finishes later, so the screen is asked to redraw when it does.
+let refreshScreen = () => {};
+export function setContentRefresh(fn) {
+  refreshScreen = fn;
+}
 
 /** Text marking a resource with no link; "needs your search" is spelled out in words, not just colour. */
 const linkNeededLabel = (r) => (r.urlStatus === 'needs-your-search' ? 'Link needed: needs your search' : 'Link needed');
@@ -239,6 +251,69 @@ function resourceFormHtml(resource) {
     </form>`;
 }
 
+// ─── Content packs ───────────────────────────────────────────────────────────
+
+function packListHtml(plan) {
+  return `
+    <ul class="pack-list">
+      ${plan.packs.map((p) => `
+        <li>
+          <strong>${esc(p.title)}</strong> · version ${p.version} ·
+          ${p.problems.length
+    ? `<span class="flag flag--need">Problem</span> ${esc(p.problems.join(' '))} Nothing from this pack was added.`
+    : `${p.newCount} new${p.existingCount ? `, ${p.existingCount} already in your library` : ''}`}
+        </li>`).join('')}
+    </ul>`;
+}
+
+function contentHtml() {
+  const c = ui.content;
+  let body;
+  if (c.busy) {
+    body = '<p id="content-status" tabindex="-1" role="status">Checking this app’s own site…</p>';
+  } else if (c.message) {
+    body = `<p class="status-ok" id="content-status" tabindex="-1" role="status">${esc(c.message)}</p>`;
+  } else if (!c.plan && c.failure) {
+    body = `
+      <div class="error-summary" id="content-status" tabindex="-1" role="alert">
+        <h3>Could not check for new content</h3>
+        <p>${esc(c.failure)}</p>
+        <p>Nothing was changed. There is no earlier copy saved on this device to use instead, so try again when you are online.</p>
+      </div>`;
+  } else if (c.plan) {
+    const plan = c.plan;
+    const total = plan.resources.length + plan.cards.length;
+    const existing = plan.packs.reduce((n, p) => n + p.existingCount, 0);
+    const where = c.source === 'site'
+      ? 'Checked this app’s own site just now.'
+      : `${c.failure ? `Could not reach this app’s site (${esc(c.failure)}). ` : 'You are offline. '}Using the copy last fetched on ${esc(formatShort(c.content.fetchedAt.slice(0, 10)))}. Nothing has changed.`;
+    body = `
+      <div id="content-status" tabindex="-1" role="region" aria-label="Content check result" class="${total ? 'note note--gate' : ''}">
+        <p class="meta">${where}</p>
+        ${total
+    ? `<p><strong>${esc(summarizePlan(plan))}.</strong> Cards arrive unverified, with their reference. Nothing you already have will be changed.</p>`
+    : `<p class="status-ok"><strong>You are up to date.</strong> Nothing new in ${plural(plan.packs.length, 'pack', 'packs')}${existing ? ` (${plural(existing, 'item', 'items')} already in your library)` : ''}.</p>`}
+        ${packListHtml(plan)}
+        ${plan.warnings.length ? `<details><summary>Worth a look (does not stop anything)</summary><ul>${plan.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}
+        <div class="button-row">
+          ${total ? '<button type="button" class="button--primary" data-action="content-add">Add them</button>' : ''}
+          <button type="button" data-action="content-cancel">${total ? 'Cancel' : 'Close'}</button>
+        </div>
+      </div>`;
+  } else {
+    body = '';
+  }
+  return `
+    <section class="card" aria-labelledby="content-heading">
+      <h2 id="content-heading" tabindex="-1">Content packs</h2>
+      <p class="meta">Resources and flashcards that come with the app. Checking asks only this app’s own site for its content files; none of your data is sent. Nothing is added until you confirm, and anything you already have is never changed: your links, statuses, notes, edits, ratings and retirements all stay.</p>
+      <div class="button-row">
+        <button type="button" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
+      </div>
+      ${body}
+    </section>`;
+}
+
 const GUIDE_EXAMPLE = `{
   "schema": "${RESOURCE_SCHEMA}",
   "resources": [
@@ -337,6 +412,8 @@ export function libraryView() {
     <h1 id="day-heading" tabindex="-1">Library</h1>
     <p class="meta">Resources you chose for each plan day. Links open in a new tab and are never embedded. The app stores only titles, links, estimates and your own notes, not other people's content. Everything stays in this browser.</p>
 
+    ${contentHtml()}
+
     ${importHtml()}
 
     <section class="card" aria-labelledby="resources-heading">
@@ -421,7 +498,47 @@ function finishDone(id, withSession) {
   return `#rs-${id}`;
 }
 
+async function runContentCheck() {
+  const result = await checkForContent();
+  if (!result.content) {
+    ui.content = { ...blankContent(), failure: result.failure };
+    announce('Could not check for new content. Nothing was changed.');
+  } else {
+    const plan = planContent(result.content, store.getData());
+    ui.content = { ...blankContent(), content: result.content, source: result.source, failure: result.failure, plan };
+    const total = plan.resources.length + plan.cards.length;
+    announce(total ? `${summarizePlan(plan)}. Choose Add them to confirm.` : 'You are up to date. Nothing new.');
+  }
+  refreshScreen('#content-status');
+}
+
 export const resourceActions = {
+  'content-check': () => {
+    if (ui.content.busy) return null;
+    ui.content = { ...blankContent(), busy: true };
+    runContentCheck();
+    return '#content-status';
+  },
+  'content-add': () => {
+    const c = ui.content;
+    if (!c.content) return null;
+    // Plan again from the same files against what you have right now, so a double click or an edit in between is safe.
+    const plan = planContent(c.content, store.getData());
+    const done = store.applyContentPlan(plan);
+    ui.content = {
+      ...blankContent(),
+      message: done.resources + done.cards
+        ? `Added ${plural(done.resources, 'resource', 'resources')} and ${plural(done.cards, 'card', 'cards')}. Cards are unverified until you verify them.${done.saved ? '' : ' Warning: this browser blocked saving.'}`
+        : 'Nothing new to add: it is already all here.',
+    };
+    announce(ui.content.message);
+    return '#content-status';
+  },
+  'content-cancel': () => {
+    ui.content = blankContent();
+    announce('Closed. Nothing was changed.');
+    return '[data-action="content-check"]';
+  },
   'resource-done-log': (el) => finishDone(el.dataset.id, true),
   'resource-done-only': (el) => finishDone(el.dataset.id, false),
   'resource-done-cancel': (el) => {
@@ -603,4 +720,5 @@ export function handleResourceToggle(event) {
 
 export function resetResourceView() {
   ui.editing = null; ui.form = null; ui.errors = []; ui.doneFor = null; ui.message = null; ui.linkErrors = {};
+  if (!ui.content.busy) ui.content = blankContent();
 }

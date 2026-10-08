@@ -39,9 +39,9 @@ function currentSchedule() {
 
 function verificationBadge(card) {
   if (card.verified) return '<span class="tag tag--verified">Verified by you</span>';
-  return card.source === 'seed'
-    ? '<span class="tag tag--unverified">Unverified: written by Claude</span>'
-    : '<span class="tag tag--unverified">Unverified</span>';
+  if (card.source === 'seed') return '<span class="tag tag--unverified">Unverified: written by Claude</span>';
+  if (card.source === 'pack') return '<span class="tag tag--unverified">Unverified: from a content pack</span>';
+  return '<span class="tag tag--unverified">Unverified</span>';
 }
 
 function boxLabel(state) {

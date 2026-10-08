@@ -9,6 +9,43 @@ tracking, no dependencies. Your data stays in your browser.
 Each browser keeps its own data (the live link, your phone and `localhost`
 don't share it). Use Export and Import in Settings to move data between them.
 
+## How to add content
+
+Resources and flashcards come to the app as **content packs** in the `content/` folder,
+so you never paste or type them in. In the app, **Library → Check for new content** shows
+what is new ("Ready to add 71 resources and 2 cards from 4 packs") and adds it only after you
+confirm. It asks only this app's own site for the files and sends none of your data. It adds
+**new ids only**: anything you already have (links, statuses, notes, edits, ratings,
+retirements) is never changed, and checking twice adds nothing the second time. Cards from a
+pack always arrive unverified, with their reference.
+
+To add a pack:
+
+1. Put the file in `content/`.
+   - **Resources:** the existing format, `"schema": "identity-lab-coach.resources.v1"`
+     (see the import guide in the Library). Give every resource a new, stable `id`.
+   - **Flashcards:** `"schema": "identity-lab-coach.cards.v1"` with a `cards` list. Each card has
+     `id`, `front`, `back`, `type` (`recall` or `explain`), `weekTag` (1 to 9), `reference`
+     (required) and `verified` (leave it `false`; the app ignores `true`, and the build rejects it).
+2. Add a line for it to `content/manifest.json`: `id`, `title`, `version` (start at 1, add 1 when
+   you change the pack), `type` (`resources` or `cards`) and `path` (a plain file name).
+3. Check it before you publish: `node scripts/validate-content.mjs`. Publishing also runs this
+   check (`.github/workflows/pages.yml`), and **any wrong row stops the site from being published**.
+4. Push to `main`. Then click **Check for new content** in the app.
+
+A resource or card whose id you already have is skipped, even if the pack file has changed since:
+changes to existing items are not applied, so your edits are safe. Give a changed resource a new id.
+`content/cards-test.json` is a 2-card test pack; remove its line from the manifest when you no
+longer want it (and retire the two cards in the app).
+
+## Install it like an app
+
+Open the site in your browser and choose **Install** (Chrome, Edge, Brave and Arc) or
+**Share → Add to Home Screen** (iPhone). It keeps a copy of itself so it opens offline.
+**Each place you open it has its own saved data**: the phone app starts empty and does not
+share anything with your computer, and on an iPhone the home-screen app is separate from
+Safari too. Use Export and Import in Settings to move data between them.
+
 ## Less manual work
 
 - **Guided daily session** (Today → "Start today's session"): warm-up flashcards,
@@ -75,6 +112,11 @@ node js/selftest.js
 | `js/autobackup.js` | Automatic backups: protected storage, daily snapshots, backup folder |
 | `js/backup-files.js` | Writing and pruning the backup files (only our own file names are ever touched) |
 | `js/idb.js` | A tiny wrapper around the browser's IndexedDB, used for backups |
+| `js/content.js` | Content packs: the manifest, card packs, what would be added, and the safe fetch |
+| `content/` | The content packs and `manifest.json` (see "How to add content") |
+| `scripts/validate-content.mjs` | Build check for the content packs; stops publishing on any wrong row |
+| `scripts/make-icons.py` | Draws the app icons |
+| `sw.js`, `manifest.webmanifest`, `icons/` | The installable app and its offline copy |
 | `js/ui.js` | Small shared helpers |
 | `js/main.js` | The Today and Settings views, routing and events |
 | `js/selftest.js` | Date and scheduling checks (in Settings, or `node js/selftest.js`) |

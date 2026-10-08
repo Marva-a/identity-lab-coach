@@ -1,0 +1,40 @@
+{
+  "schema": "identity-lab-coach.content-manifest.v1",
+  "packs": [
+    {
+      "id": "resources-weeks-1-8",
+      "title": "Resources: weeks 1–8",
+      "version": 1,
+      "type": "resources",
+      "path": "resources-weeks-1-8.json"
+    },
+    {
+      "id": "resources-additions",
+      "title": "Resources: additions to weeks 1–8",
+      "version": 1,
+      "type": "resources",
+      "path": "resources-additions.json"
+    },
+    {
+      "id": "resources-zero-trust",
+      "title": "Resources: zero trust and cloud foundations",
+      "version": 1,
+      "type": "resources",
+      "path": "resources-zero-trust.json"
+    },
+    {
+      "id": "cards-core",
+      "title": "Flashcards: core (empty for now)",
+      "version": 1,
+      "type": "cards",
+      "path": "cards-core.json"
+    },
+    {
+      "id": "cards-test",
+      "title": "Test flashcards (2): to try this feature, then retire them",
+      "version": 1,
+      "type": "cards",
+      "path": "cards-test.json"
+    }
+  ]
+}

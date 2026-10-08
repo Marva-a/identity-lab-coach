@@ -26,6 +26,7 @@
 //   people:       Person[],      // Stage 4: people log
 //   interactions: Interaction[], // Stage 4: conversations and referral asks
 //   resources:    Resource[],    // Stage 4b: the content library
+//   contentPacks: { [packId]: { version, appliedAt } },  // which content packs have been added (see content.js)
 //   reviews:    Review[],    // Stage 7: Friday reviews
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
 //   settings:   Settings,
@@ -170,7 +171,7 @@ import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 import {
   SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
-  validateResource, validateResourceUrl, RESOURCE_STATUSES, SUGGESTED_SKILL_TAGS,
+  validateResource, validateResourceUrl, RESOURCE_STATUSES, SUGGESTED_SKILL_TAGS, CARD_TEXT_MAX, REFERENCE_MAX,
 } from './records.js';
 import { migrate, needsMigration } from './migrate.js';
 import { PLAN_VERSION, renameChecks } from './plan-data.js';
@@ -210,6 +211,7 @@ function emptyData() {
     people: [],
     interactions: [],
     resources: [],
+    contentPacks: {},
     reviews: [],
     weekChecks: {},
     settings: defaultSettings(),
@@ -257,6 +259,7 @@ function normalize(raw) {
   out.resources = out.resources.map((r) => ({
     optional: false, verifiedNote: '', urlStatus: r?.url ? 'unchecked' : 'needs-your-search', ...r,
   }));
+  out.contentPacks = raw?.contentPacks && typeof raw.contentPacks === 'object' && !Array.isArray(raw.contentPacks) ? raw.contentPacks : {};
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -754,8 +757,7 @@ export function pendingFollowUps(onOrBefore) {
 // ─── Cards ───────────────────────────────────────────────────────────────────
 
 export const CARD_TYPES = ['recall', 'explain'];
-export const CARD_TEXT_MAX = 2000;
-export const REFERENCE_MAX = 300;
+export { CARD_TEXT_MAX, REFERENCE_MAX };
 export const RESPONSE_MAX = 4000;
 const RATINGS = ['again', 'hard', 'good', 'easy'];
 
@@ -1012,6 +1014,58 @@ export function resourcesForDay(day, { includeRetired = false } = {}) {
   return data.resources
     .filter((r) => r.days.includes(day) && (includeRetired || !r.retired))
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+// ─── Content packs (resources and cards that ship with the app) ──────────────
+
+/**
+ * Adds new cards from content packs (ids you do not already have). They are always unverified,
+ * and are never touched again once added, so whatever you do to them stays.
+ */
+export function addPackCards(cards) {
+  const have = new Set(data.cards.flatMap((c) => [c.seedId, c.id].filter(Boolean)));
+  const now = new Date().toISOString();
+  const added = [];
+  for (const card of cards) {
+    if (have.has(card.id)) continue;
+    const record = {
+      id: newId(),
+      createdAt: now,
+      updatedAt: now,
+      type: card.type,
+      front: card.front,
+      back: card.back,
+      week: card.week,
+      topic: '',
+      reference: card.reference,
+      source: 'pack',
+      seedId: card.id,
+      packId: card.packId ?? null,
+      verified: false, // always: only you can verify a card
+      verifiedAt: null,
+      retired: false,
+    };
+    if (validateCard(record).length) continue; // cannot happen after the pack was checked; never save a bad card
+    have.add(card.id);
+    added.push(record);
+  }
+  data.cards.push(...added);
+  return added.length;
+}
+
+/**
+ * Adds what a confirmed plan (from planContent) contains. New ids only, never flagged as test data,
+ * and never removed by "Delete test data". Returns how many of each were added.
+ */
+export function applyContentPlan(plan) {
+  const resources = plan.resources.length ? importResources(plan.resources, false).added : 0;
+  const cards = plan.cards.length ? addPackCards(plan.cards) : 0;
+  const appliedAt = new Date().toISOString();
+  for (const pack of plan.packs) {
+    if (!pack.problems.length) data.contentPacks[pack.id] = { version: pack.version, appliedAt };
+  }
+  const saved = persist();
+  return { resources, cards, saved };
 }
 
 // ─── Export and import ───────────────────────────────────────────────────────

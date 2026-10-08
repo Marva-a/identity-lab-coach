@@ -1,0 +1,12 @@
+{
+  "name": "identity-lab-coach",
+  "private": true,
+  "type": "module",
+  "description": "A private, local-first study coach. No dependencies: the app is plain HTML, CSS and JavaScript.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "validate": "node scripts/validate-content.mjs",
+    "test": "node js/selftest.js",
+    "check": "node scripts/validate-content.mjs && node js/selftest.js"
+  }
+}

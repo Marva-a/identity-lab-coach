@@ -11,6 +11,9 @@ import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
 import { courseProgress } from './progress.js';
+import {
+  validateManifest, parseCardPack, planContent, summarizePlan, contentUrl, CONTENT_REQUEST_INIT,
+} from './content.js';
 import { stepIndex, nextStep, previousStep, STEPS } from './session-flow.js';
 import { datedFilesToRemove, snapshotsToRemove, datedName, isOurDatedFile, KEEP_FILES, KEEP_SNAPSHOTS } from './backup-files.js';
 import {
@@ -459,6 +462,67 @@ export function runDateChecks() {
   check('Backups: only exact dated names count as ours', `${isOurDatedFile('identity-lab-coach-2026-10-05.json')} ${isOurDatedFile('identity-lab-coach-latest.json')}`, 'true false');
   check('Snapshots: the newest 14 days are kept', `${KEEP_SNAPSHOTS} ${snapshotsToRemove(many.map((n) => n.slice(18, 28))).length}`, '14 6');
   check('Snapshots: nothing is removed under the limit', snapshotsToRemove(['2026-10-01', '2026-10-02']).length, 0);
+
+  // Content packs.
+  const mpack = (over = {}) => ({ id: 'res-one', title: 'Resources one', version: 1, type: 'resources', path: 'res-one.json', ...over });
+  const mani = (packs) => ({ schema: 'identity-lab-coach.content-manifest.v1', packs });
+  check('Manifest: a good manifest passes', validateManifest(mani([mpack(), mpack({ id: 'cards-one', type: 'cards', path: 'cards-one.json' })])).ok, true);
+  check('Manifest: a wrong schema is refused', validateManifest({ ...mani([mpack()]), schema: 'x' }).ok, false);
+  check('Manifest: a path with a folder is refused', validateManifest(mani([mpack({ path: 'sub/res.json' })])).ok, false);
+  check('Manifest: a path that climbs out of the folder is refused', validateManifest(mani([mpack({ path: '../app.json' })])).ok, false);
+  check('Manifest: a link to another site is refused', validateManifest(mani([mpack({ path: 'https://evil.example/x.json' })])).ok, false);
+  check('Manifest: an unknown pack type is refused', validateManifest(mani([mpack({ type: 'videos' })])).ok, false);
+  check('Manifest: version must be a whole number from 1', validateManifest(mani([mpack({ version: 0 })])).ok, false);
+  check('Manifest: a repeated pack id is refused', validateManifest(mani([mpack(), mpack({ path: 'other.json' })])).ok, false);
+  const cardRow = (over = {}) => ({ id: 'c-1', front: 'Q?', back: 'A.', type: 'recall', weekTag: 5, reference: 'RFC 1', verified: false, ...over });
+  const cardFile = (cards) => JSON.stringify({ schema: 'identity-lab-coach.cards.v1', cards });
+  check('Card pack: a good card passes', parseCardPack(cardFile([cardRow()])).ok, true);
+  check('Card pack: an empty pack is fine', parseCardPack(cardFile([])).ok, true);
+  check('Card pack: a card with no reference is refused', parseCardPack(cardFile([cardRow({ reference: '' })])).ok, false);
+  check('Card pack: weekTag must be 1 to 9', parseCardPack(cardFile([cardRow({ weekTag: 10 })])).ok, false);
+  check('Card pack: type must be recall or explain', parseCardPack(cardFile([cardRow({ type: 'quiz' })])).ok, false);
+  check('Card pack: a repeated id is refused', parseCardPack(cardFile([cardRow(), cardRow()])).ok, false);
+  check('Card pack: in the app a "verified: true" is ignored, the card is unverified', parseCardPack(cardFile([cardRow({ verified: true })])).cards[0].verified, false);
+  check('Card pack: the build check refuses "verified: true"', parseCardPack(cardFile([cardRow({ verified: true })]), { strictVerified: true }).ok, false);
+  check('Card pack: the card is named by its id and carries its week', `${parseCardPack(cardFile([cardRow()])).cards[0].id} ${parseCardPack(cardFile([cardRow()])).cards[0].week}`, 'c-1 5');
+
+  const resRow = (id, over = {}) => ({ id, title: `T ${id}`, source: 'S', type: 'article', estimatedMinutes: 20, url: `https://oauth.net/${id}`, planDays: [8], ...over });
+  const resFile = (rows) => JSON.stringify({ schema: 'identity-lab-coach.resources.v1', resources: rows });
+  const packs = {
+    content: {
+      manifest: mani([mpack(), mpack({ id: 'cards-one', type: 'cards', path: 'cards-one.json', title: 'Cards one' })]),
+      packTexts: { 'res-one': resFile([resRow('a'), resRow('b'), resRow('c')]), 'cards-one': cardFile([cardRow({ id: 'k1' }), cardRow({ id: 'k2', verified: true })]) },
+    },
+  };
+  const nothing = { resources: [], cards: [] };
+  const firstPlan = planContent(packs.content, nothing);
+  check('Content: with nothing yet, everything in the packs is new', `${firstPlan.resources.length} ${firstPlan.cards.length}`, '3 2');
+  check('Content: the summary says what is ready', summarizePlan(firstPlan), 'Ready to add 3 resources and 2 cards from 2 packs');
+  check('Content: pack cards are always unverified, even if the file says true', firstPlan.cards.every((c) => c.verified === false), true);
+  const haveSome = { resources: [{ id: 'a', title: 'MY EDITED TITLE', url: '', status: 'done', notes: 'mine' }], cards: [{ id: 'uuid-1', seedId: 'k1' }] };
+  const secondPlan = planContent(packs.content, haveSome);
+  check('Content: only new ids are planned (a, and card k1, are already yours)', `${secondPlan.resources.map((r) => r.id)} ${secondPlan.cards.map((c) => c.id)}`, 'b,c k2');
+  check('Content: what you already have is never in the plan (so it can never be changed)', secondPlan.resources.some((r) => r.id === 'a'), false);
+  const everything2 = { resources: ['a', 'b', 'c'].map((id) => ({ id, title: 'x', url: '' })), cards: [{ seedId: 'k1' }, { seedId: 'k2' }] };
+  const again = planContent(packs.content, everything2);
+  check('Content: checking again after adding everything plans nothing (safe to click twice)', `${again.resources.length} ${again.cards.length}`, '0 0');
+  check('Content: a retired resource stays retired (its id still counts as yours)', planContent(packs.content, { resources: [{ id: 'a', retired: true, title: 'x', url: '' }], cards: [] }).resources.some((r) => r.id === 'a'), false);
+  check('Content: with nothing new it says so', summarizePlan(again), 'Ready to add 0 resources and 0 cards from 0 packs');
+  const brokenRes = { content: { ...packs.content, packTexts: { ...packs.content.packTexts, 'res-one': resFile([resRow('a', { planDays: [14] })]) } } };
+  const partial = planContent(brokenRes.content, nothing);
+  check('Content: a pack with a wrong row adds nothing from that pack', partial.resources.length, 0);
+  check('Content: the other pack still works and the problem is reported', `${partial.cards.length} ${partial.problems.length > 0}`, '2 true');
+  check('Content: two packs with the same id add it once', planContent({ manifest: mani([mpack(), mpack({ id: 'res-two', path: 'res-two.json' })]), packTexts: { 'res-one': resFile([resRow('a')]), 'res-two': resFile([resRow('a')]) } }, nothing).resources.length, 1);
+  check('Content: nothing is planned from a manifest that is wrong', planContent({ manifest: { schema: 'x' }, packTexts: {} }, nothing).resources.length, 0);
+  const root = new URL('https://marva-a.github.io/identity-lab-coach/content/');
+  check('Network: the manifest is requested from the content folder', contentUrl('manifest.json', root).href, 'https://marva-a.github.io/identity-lab-coach/content/manifest.json');
+  const refuses = (name) => { try { contentUrl(name, root); return false; } catch { return true; } };
+  check('Network: another site is refused', refuses('https://evil.example/x.json'), true);
+  check('Network: a protocol-relative address is refused', refuses('//evil.example/x.json'), true);
+  check('Network: climbing out of the folder is refused', refuses('../js/store.js'), true);
+  check('Network: every request is a plain GET with no cookies, no referrer, no body and no redirects',
+    CONTENT_REQUEST_INIT.method === 'GET' && CONTENT_REQUEST_INIT.credentials === 'omit' && CONTENT_REQUEST_INIT.referrerPolicy === 'no-referrer'
+      && CONTENT_REQUEST_INIT.redirect === 'error' && CONTENT_REQUEST_INIT.mode === 'same-origin' && !('body' in CONTENT_REQUEST_INIT), true);
 
   return results;
 }

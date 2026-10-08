@@ -20,7 +20,7 @@ import {
 } from './evidence.js';
 import {
   libraryView, resourceActions, todayResourcesHtml, submitResourceForm, submitLinkForm, readResourceFile, handleResourceChange,
-  handleResourceInput, handleResourceToggle, resetResourceView, flushResourceNotes,
+  handleResourceInput, handleResourceToggle, resetResourceView, flushResourceNotes, setContentRefresh,
 } from './resources.js';
 import {
   peopleView, peopleActions, todayFollowUpsHtml, submitPersonForm, submitInteractionForm, handlePeopleInput,
@@ -1240,6 +1240,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { flushResourceNotes(); AB.backupNow().catch(() => {}); });
 
 store.load();
+setContentRefresh((focus) => { if (route === 'library') render({ focus }); });
 flow = loadFlow(today());
 if (!store.getLoadProblem()) {
   store.onSave(AB.noteChanged);
@@ -1254,3 +1255,29 @@ if (activeTimer?.finished && flow && flow.date === today() && flow.step === 'foc
 route = routeFromHash();
 render();
 setInterval(tick, 1000);
+
+// Offline use and installing: register the service worker, then ask it to keep a copy of what this page loaded.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      // On a first visit the worker is only in charge of this page a moment later; wait for that,
+      // otherwise the requests below would not pass through it and nothing would be kept.
+      if (!navigator.serviceWorker.controller) {
+        await new Promise((resolve) => {
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+          setTimeout(resolve, 4000);
+        });
+      }
+      const base = location.href.split('#')[0];
+      const urls = new Set([
+        base, new URL('manifest.webmanifest', base).href, new URL('icons/icon-192.png', base).href,
+        ...performance.getEntriesByType('resource').map((e) => e.name),
+      ]);
+      await Promise.all([...urls].filter((u) => new URL(u).origin === location.origin).map((u) => fetch(u).catch(() => {})));
+    } catch {
+      // No service worker (for example a private window): the app still works online.
+    }
+  });
+}

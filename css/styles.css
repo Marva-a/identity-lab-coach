@@ -353,6 +353,8 @@ thead th { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
 pre.code { overflow-x: auto; background: var(--surface-2); border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; line-height: 1.45; }
 code { background: var(--surface-2); border-radius: 4px; padding: 0 0.25rem; font-size: 0.9em; }
 
+.pack-list { margin: 0.5rem 0; padding-left: 1.1rem; }
+.pack-list li { margin: 0.25rem 0; }
 .card--notice { border-left: 6px solid var(--accent); }
 .flow-steps { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; margin: 0 0 0.75rem; }
 .flow-steps li { padding: 0.25rem 0.75rem; border: 1px solid var(--control-border, var(--border)); border-radius: 999px; color: var(--muted); }

@@ -1,0 +1,86 @@
+{
+ "schema": "identity-lab-coach.resources.v1",
+ "createdOn": "2026-10-07",
+ "notes": [
+  "Additions to resources_weeks1-8.json. Ids are new, so importing adds only these five.",
+  "estimatedMinutes are my estimates.",
+  "planDays use the plan's Day numbers (Day 1 = Mon 2026-10-12)."
+ ],
+ "resources": [
+  {
+   "id": "w1-nist-csf",
+   "title": "NIST Cybersecurity Framework (CSF 2.0)",
+   "source": "NIST",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://www.nist.gov/cyberframework",
+   "planDays": [
+    2
+   ],
+   "why": "Skim CSF 2.0's structure and one Quick Start Guide. It teaches the risk language buyers use. To make room, cut the Professor Messer videos to about 2 hours.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: the page links to the CSF 2.0 document and Quick Start Guides"
+  },
+  {
+   "id": "w4-fido-ux",
+   "title": "Passkey Central: Design Guidelines (FIDO Alliance)",
+   "source": "FIDO Alliance / Passkey Central",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://www.passkeycentral.org/design-guidelines",
+   "planDays": [
+    22
+   ],
+   "why": "Research-backed passkey sign-in design patterns. Directly usable for your week 4 recovery and sign-in scoring. The old fidoalliance.org address redirects here.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: redirected from fidoalliance.org/design-guidelines"
+  },
+  {
+   "id": "w8-nist-airmf",
+   "title": "NIST AI Risk Management Framework",
+   "source": "NIST",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+   "planDays": [
+    50
+   ],
+   "why": "Skim for the risk-management vocabulary. The page also lists the Generative AI profile (NIST-AI-600-1, July 2024); I did not open that document.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: page lists the GenAI profile"
+  },
+  {
+   "id": "w8-entra-agent-id",
+   "title": "Microsoft Entra Agent ID documentation",
+   "source": "Microsoft Learn",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://learn.microsoft.com/en-us/entra/agent-id/",
+   "planDays": [
+    53
+   ],
+   "why": "A vendor view of agent identities, governance and Zero Trust for AI agents; use it as input for Exercise 17 (agent permission model). Compare it with your own model and note the differences.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-cisa-sbd",
+   "title": "Secure by Design, Secure by Default",
+   "source": "CISA",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.cisa.gov/securebydesign",
+   "planDays": [
+    55
+   ],
+   "why": "Why the product maker should carry the security burden, not the customer. Useful framing for your case study.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  }
+ ]
+}

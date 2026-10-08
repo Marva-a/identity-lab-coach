@@ -29,6 +29,9 @@ export const PROJECTS = {
   other: 'Other',
 };
 export const TAGS_MAX = 3;
+/** Flashcard text limits (shared by the app and the content-pack checker). */
+export const CARD_TEXT_MAX = 2000;
+export const REFERENCE_MAX = 300;
 /** Skill tags offered as suggestions in the Evidence form (you can still type any tag). */
 export const SUGGESTED_SKILL_TAGS = ['network-security', 'cloud-security', 'zero-trust', 'segmentation', 'workload-identity'];
 export const TAG_MAX_LENGTH = 40;

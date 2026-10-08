@@ -1,0 +1,297 @@
+{
+ "schema": "identity-lab-coach.resources.v1",
+ "createdOn": "2026-10-08",
+ "notes": [
+  "Additions for the Identity + Zero Trust positioning (network and cloud security foundation, Weeks 5–7). Ids are new, so importing adds only these.",
+  "estimatedMinutes are my estimates.",
+  "planDays use the plan's Day numbers (Day 1 = Mon 2026-10-12)."
+ ],
+ "resources": [
+  {
+   "id": "w5-cf-zt",
+   "title": "Zero Trust Security: What's a Zero Trust Network?",
+   "source": "Cloudflare Learning Center",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/",
+   "planDays": [
+    29
+   ],
+   "why": "Plain-language framing of Zero Trust: verify every user and device, including those already on the internal network. Vendor explainer, so read it alongside NIST SP 800-207.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-cf-ztna",
+   "title": "What is ZTNA?",
+   "source": "Cloudflare Learning Center",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.cloudflare.com/learning/access-management/what-is-ztna/",
+   "planDays": [
+    29
+   ],
+   "why": "Zero Trust Network Access: per-application access decided by policy. Compare it with the VPN model.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-messer-netplus",
+   "title": "Professor Messer Network+ (N10-009): selected network security videos",
+   "source": "Professor Messer",
+   "type": "video",
+   "estimatedMinutes": 90,
+   "url": "https://www.professormesser.com/network-plus/n10-009/n10-009-video/n10-009-training-course/",
+   "planDays": [
+    29
+   ],
+   "why": "Watch only: Section 4.1 Network Security Concepts (including Segmentation Enforcement), 4.3 Security Rules (firewall rules), 1.8 Zero Trust and 3.5 VPNs. TLS is not listed by name on the index page, so use the Cloudflare TLS explainer for it.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08: section names confirmed on the index page; video lengths not checked"
+  },
+  {
+   "id": "w5-cf-dns",
+   "title": "What is DNS?",
+   "source": "Cloudflare Learning Center",
+   "type": "article",
+   "estimatedMinutes": 20,
+   "url": "https://www.cloudflare.com/learning/dns/what-is-dns/",
+   "planDays": [
+    29
+   ],
+   "why": "Primer for Exercise 21. Skip it if you already explain DNS resolution comfortably.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-cf-tls",
+   "title": "What is Transport Layer Security (TLS)?",
+   "source": "Cloudflare Learning Center",
+   "type": "article",
+   "estimatedMinutes": 25,
+   "url": "https://www.cloudflare.com/learning/ssl/transport-layer-security-tls/",
+   "planDays": [
+    29
+   ],
+   "why": "Primer for Exercise 21 and for mutual TLS. Skip it if you already know the handshake.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-beyondcorp",
+   "title": "BeyondCorp: A New Approach to Enterprise Security",
+   "source": "Rory Ward and Betsy Beyer, Google (2014)",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://research.google/pubs/beyondcorp-a-new-approach-to-enterprise-security/",
+   "planDays": [
+    30
+   ],
+   "why": "The origin story of identity-based access without a privileged internal network. Read the introduction and the access-model sections; note it is a 2014 paper.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08: page shows authors and 2014 year"
+  },
+  {
+   "id": "w5-cf-mtls",
+   "title": "What is mutual TLS (mTLS)?",
+   "source": "Cloudflare Learning Center",
+   "type": "article",
+   "estimatedMinutes": 25,
+   "url": "https://www.cloudflare.com/learning/ssl/what-is-mutual-tls/",
+   "planDays": [
+    30
+   ],
+   "why": "How both sides of a connection prove their identity with certificates. Links network security to workload identity.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-wireguard",
+   "title": "WireGuard",
+   "source": "WireGuard project",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.wireguard.com/",
+   "planDays": [
+    30
+   ],
+   "why": "Concept level only: what a modern VPN tunnel is, and why Tailscale builds on it. Skip the cryptography details.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-nist1800-35",
+   "title": "Implementing a Zero Trust Architecture (NIST SP 1800-35), high-level document",
+   "source": "NIST NCCoE",
+   "type": "spec",
+   "estimatedMinutes": 60,
+   "url": "https://csrc.nist.gov/pubs/sp/1800/35/final",
+   "planDays": [
+    30
+   ],
+   "why": "Practical examples of zero trust architectures built with real products. Final, June 2025. Skim the high-level document only.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08: listed as final, 10 June 2025"
+  },
+  {
+   "id": "w5-cisa-ztmm",
+   "title": "Zero Trust Maturity Model",
+   "source": "CISA",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.cisa.gov/zero-trust-maturity-model",
+   "planDays": [
+    30
+   ],
+   "why": "Pillars and maturity stages for planning zero trust. The page I opened described a 2021 draft and said an update was in progress, so check whether a newer version has been published before you cite it.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08: page described a September–October 2021 draft"
+  },
+  {
+   "id": "w5-ms-zt",
+   "title": "Zero Trust as a security foundation",
+   "source": "Microsoft Learn",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://learn.microsoft.com/en-us/security/zero-trust/zero-trust-overview",
+   "planDays": [
+    30
+   ],
+   "why": "Microsoft's view of the core Zero Trust principles; useful for comparing vendor vocabulary.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-wireshark",
+   "title": "Wireshark User's Guide",
+   "source": "Wireshark",
+   "type": "spec",
+   "estimatedMinutes": 60,
+   "url": "https://www.wireshark.org/docs/wsug_html_chunked/",
+   "planDays": [
+    31
+   ],
+   "why": "For Exercise 21: read the live-capture and display-filter chapters only, then capture a DNS lookup and a TLS handshake. Capture only traffic on your own machine and network.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-cf-one",
+   "title": "Cloudflare One documentation (overview)",
+   "source": "Cloudflare",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://developers.cloudflare.com/cloudflare-one/",
+   "planDays": [
+    32
+   ],
+   "why": "A zero trust product teardown target: setup journey, policy model and admin concepts.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w5-entra-gsa",
+   "title": "What is Global Secure Access?",
+   "source": "Microsoft Learn",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://learn.microsoft.com/en-us/entra/global-secure-access/overview-what-is-global-secure-access",
+   "planDays": [
+    32
+   ],
+   "why": "Identity-aware network access from Microsoft (Private Access as ZTNA, Internet Access as a secure web gateway). It requires Entra ID P1 or P2, so notice how identity and network policy meet.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w6-aws-shared",
+   "title": "Shared Responsibility Model",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://aws.amazon.com/compliance/shared-responsibility-model/",
+   "planDays": [
+    36
+   ],
+   "why": "Who secures what in the cloud. Short; the model every cloud security conversation assumes.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w6-aws-vpc",
+   "title": "What is Amazon VPC?",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html",
+   "planDays": [
+    36
+   ],
+   "why": "Subnets, routing and isolation in a virtual network. Read the concepts, not every feature.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w6-aws-sg",
+   "title": "Control traffic to your AWS resources using security groups",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html",
+   "planDays": [
+    36,
+    38
+   ],
+   "why": "Security groups as virtual firewalls: rules by source, destination, port and protocol. For Exercise 22.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w6-spiffe",
+   "title": "SPIFFE Overview",
+   "source": "SPIFFE project",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://spiffe.io/docs/latest/spiffe-about/overview/",
+   "planDays": [
+    37
+   ],
+   "why": "Verifiable identities for software workloads, so services authenticate each other without shared secrets. Bridges network security, workload identity and your week 8 agent work.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08"
+  },
+  {
+   "id": "w7-aws-flowlogs",
+   "title": "Logging IP traffic using VPC Flow Logs",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html",
+   "planDays": [
+    46
+   ],
+   "why": "Network evidence: what flow logs record and where they go. Use it to find the denied connection from Exercise 22. Flow logs have ingestion charges, so keep them short and delete them.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-08: page notes data ingestion and archival charges"
+  }
+ ]
+}

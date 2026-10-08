@@ -1,0 +1,723 @@
+{
+ "schema": "identity-lab-coach.resources.v1",
+ "createdOn": "2026-10-07",
+ "notes": [
+  "estimatedMinutes are my estimates, not publisher durations.",
+  "planDays use the plan's Day numbers (Day 1 = Mon 2026-10-12).",
+  "urlStatus 'verified' means the page was fetched on 2026-10-07 and its title matched; it does not mean I read it in full.",
+  "urlStatus 'needs-your-search' entries have url null on purpose."
+ ],
+ "resources": [
+  {
+   "id": "w1-keycloak-docker",
+   "title": "Keycloak: getting started with Docker",
+   "source": "Keycloak",
+   "type": "lab",
+   "estimatedMinutes": 45,
+   "url": "https://www.keycloak.org/getting-started/getting-started-docker",
+   "planDays": [
+    1,
+    3
+   ],
+   "why": "Day 1 Docker check, then the first realm, user and client for Exercise 1.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w1-messer-iam",
+   "title": "Professor Messer SY0-701 course index: section 4.6 Identity and Access Management",
+   "source": "Professor Messer",
+   "type": "video",
+   "estimatedMinutes": 75,
+   "url": "https://www.professormesser.com/security-plus/sy0-701/sy0-701-video/sy0-701-comptia-security-plus-course/",
+   "planDays": [
+    2
+   ],
+   "why": "Vocabulary baseline. Watch only the 4.6 videos (Identity and Access Management, Access Controls, Multifactor Authentication, Password Security). Cap: 3 hours for the week.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: section 4.6 lists those four videos; durations not checked"
+  },
+  {
+   "id": "w1-tmm",
+   "title": "Threat Modeling Manifesto",
+   "source": "Threat Modeling Manifesto authors",
+   "type": "article",
+   "estimatedMinutes": 20,
+   "url": "https://www.threatmodelingmanifesto.org/",
+   "planDays": [
+    2
+   ],
+   "why": "Values and principles for threat modelling; short.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w1-shostack",
+   "title": "The Ultimate Beginner's Guide to Threat Modeling",
+   "source": "Shostack + Associates",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://shostack.org/resources/threat-modeling",
+   "planDays": [
+    2
+   ],
+   "why": "States the four questions you will reuse on every project.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w1-keycloak-admin",
+   "title": "Keycloak Server Administration Guide: users, roles and groups",
+   "source": "Keycloak",
+   "type": "spec",
+   "estimatedMinutes": 120,
+   "url": "https://www.keycloak.org/docs/latest/server_admin/index.html",
+   "planDays": [
+    3,
+    4,
+    24
+   ],
+   "why": "Reference for Exercises 1 and 3. Week 1: users, roles and groups chapters. Week 4 (Day 24): authentication chapter on WebAuthn, passkeys and OTP.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: chapter list confirmed; page is long"
+  },
+  {
+   "id": "w1-tailscale-quickstart",
+   "title": "Tailscale quickstart",
+   "source": "Tailscale",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://tailscale.com/kb/1017/install",
+   "planDays": [
+    6
+   ],
+   "why": "Apply task: list what an admin must do on day one.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w1-1password-admin",
+   "title": "1Password Business: admin getting-started guide",
+   "source": "1Password",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": null,
+   "planDays": [
+    6
+   ],
+   "why": "Apply task: list what an admin must do on day one. The link I tried returned an access error.",
+   "optional": false,
+   "urlStatus": "needs-your-search",
+   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+  },
+  {
+   "id": "w1-okta-admin",
+   "title": "Okta: admin getting-started documentation",
+   "source": "Okta",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": null,
+   "planDays": [
+    6
+   ],
+   "why": "Apply task: list what an admin must do on day one. The link I tried returned not found.",
+   "optional": false,
+   "urlStatus": "needs-your-search",
+   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+  },
+  {
+   "id": "w2-oauthcom",
+   "title": "OAuth 2.0 Simplified",
+   "source": "Aaron Parecki, oauth.com",
+   "type": "article",
+   "estimatedMinutes": 180,
+   "url": "https://www.oauth.com/",
+   "planDays": [
+    8,
+    9,
+    10
+   ],
+   "why": "Your main OAuth source. My plan budgets 5–6 hours for it across Weeks 1–2; this entry covers the Week 2 share, so choose the chapters on grant types, PKCE, tokens and security.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w2-rfc7636",
+   "title": "RFC 7636: Proof Key for Code Exchange (PKCE)",
+   "source": "IETF",
+   "type": "spec",
+   "estimatedMinutes": 30,
+   "url": "https://www.rfc-editor.org/rfc/rfc7636",
+   "planDays": [
+    8,
+    10
+   ],
+   "why": "Read the abstract and the flow; use it while doing Exercise 4.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: Proposed Standard, September 2015"
+  },
+  {
+   "id": "w2-rfc9700",
+   "title": "RFC 9700: Best Current Practice for OAuth 2.0 Security",
+   "source": "IETF",
+   "type": "spec",
+   "estimatedMinutes": 60,
+   "url": "https://www.rfc-editor.org/rfc/rfc9700",
+   "planDays": [
+    9
+   ],
+   "why": "Summary sections only. Published 30 January 2025 (BCP 240).",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w2-oidc",
+   "title": "How OpenID Connect Works",
+   "source": "OpenID Foundation",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://openid.net/developers/how-connect-works/",
+   "planDays": [
+    9
+   ],
+   "why": "Overview of OIDC on top of OAuth, including the core flow and a comparison with SAML.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w2-ps-oauth",
+   "title": "OAuth 2.0 authentication vulnerabilities",
+   "source": "PortSwigger Web Security Academy",
+   "type": "lab",
+   "estimatedMinutes": 120,
+   "url": "https://portswigger.net/web-security/oauth",
+   "planDays": [
+    11
+   ],
+   "why": "Read the page, then do three of its labs.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w3-okta-saml",
+   "title": "Understanding SAML",
+   "source": "Okta Developer",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://developer.okta.com/docs/concepts/saml/",
+   "planDays": [
+    15
+   ],
+   "why": "Roles and sign-in flows, including SP- and IdP-initiated.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w3-rfc7644",
+   "title": "RFC 7644: SCIM Protocol",
+   "source": "IETF",
+   "type": "spec",
+   "estimatedMinutes": 45,
+   "url": "https://www.rfc-editor.org/rfc/rfc7644",
+   "planDays": [
+    15
+   ],
+   "why": "Overview sections only. Note: the page says later RFCs update it (9865 and 9967).",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: Proposed Standard, September 2015"
+  },
+  {
+   "id": "w3-rfc7643",
+   "title": "RFC 7643: SCIM Core Schema",
+   "source": "IETF",
+   "type": "spec",
+   "estimatedMinutes": 30,
+   "url": "https://www.rfc-editor.org/rfc/rfc7643",
+   "planDays": [
+    19
+   ],
+   "why": "Reference for the User resource while building the minimal SCIM endpoint.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: Proposed Standard, September 2015"
+  },
+  {
+   "id": "w3-idpro",
+   "title": "IDPro Body of Knowledge",
+   "source": "IDPro",
+   "type": "article",
+   "estimatedMinutes": 90,
+   "url": "https://idpro.org/body-of-knowledge/",
+   "planDays": [
+    16
+   ],
+   "why": "Pick two chapters. The page doesn't state whether chapters are free, so check before you start; my plan lists it as free to read (verify).",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w3-cedar",
+   "title": "Cedar policy language reference guide",
+   "source": "Cedar project",
+   "type": "spec",
+   "estimatedMinutes": 60,
+   "url": "https://docs.cedarpolicy.com/",
+   "planDays": [
+    18
+   ],
+   "why": "Exercise 7 (light). I did not confirm a Cedar playground; the docs link to a tutorial at cedarpolicy.com/en/tutorial, which I did not open. The playground link in the plan returned not found.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: the old playground URL returned 404"
+  },
+  {
+   "id": "w3-workos-sso",
+   "title": "WorkOS: Single Sign-On",
+   "source": "WorkOS",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://workos.com/docs/sso",
+   "planDays": [
+    20
+   ],
+   "why": "Apply task: compare SSO and SCIM setup docs across WorkOS, Okta and Tailscale.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w3-tailscale-sso",
+   "title": "Supported SSO identity providers",
+   "source": "Tailscale",
+   "type": "article",
+   "estimatedMinutes": 20,
+   "url": "https://tailscale.com/kb/1013/sso-providers",
+   "planDays": [
+    20
+   ],
+   "why": "Third product in the SSO comparison.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w4-passkeys",
+   "title": "passkeys.dev",
+   "source": "passkeys.dev",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://passkeys.dev/",
+   "planDays": [
+    22
+   ],
+   "why": "Developer-focused passkey explainer and resources.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w4-webauthn",
+   "title": "Web Authentication Level 3",
+   "source": "W3C",
+   "type": "spec",
+   "estimatedMinutes": 30,
+   "url": "https://www.w3.org/TR/webauthn-3/",
+   "planDays": [
+    22
+   ],
+   "why": "Reference only; read the introduction.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: shown as a W3C Recommendation dated 25 August 2026"
+  },
+  {
+   "id": "w4-nist63b",
+   "title": "NIST SP 800-63B (Digital Identity Guidelines: Authentication and Authenticator Management)",
+   "source": "NIST",
+   "type": "spec",
+   "estimatedMinutes": 90,
+   "url": "https://pages.nist.gov/800-63-4/sp800-63b.html",
+   "planDays": [
+    23
+   ],
+   "why": "Read recovery (section 4.2, including recovery codes) and Appendix B on syncable authenticators.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07: I saw the headings but not the whole page; the page doesn't say draft or final, so check the status line yourself (my plan says final, July 2025)"
+  },
+  {
+   "id": "w4-wcag338",
+   "title": "Understanding SC 3.3.8: Accessible Authentication (Minimum)",
+   "source": "W3C WAI",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://www.w3.org/WAI/WCAG22/Understanding/accessible-authentication-minimum.html",
+   "planDays": [
+    23
+   ],
+   "why": "Your accessibility differentiator.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w4-wcag339",
+   "title": "Understanding SC 3.3.9: Accessible Authentication (Enhanced)",
+   "source": "W3C WAI",
+   "type": "article",
+   "estimatedMinutes": 15,
+   "url": "https://www.w3.org/WAI/WCAG22/Understanding/accessible-authentication-enhanced.html",
+   "planDays": [
+    23
+   ],
+   "why": "Level AAA companion to 3.3.8.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w4-threatdragon",
+   "title": "OWASP Threat Dragon",
+   "source": "OWASP",
+   "type": "lab",
+   "estimatedMinutes": 60,
+   "url": "https://owasp.org/www-project-threat-dragon/",
+   "planDays": [
+    25
+   ],
+   "why": "Diagram tool for Exercise 11 (STRIDE model of recovery).",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w5-nist207",
+   "title": "NIST SP 800-207: Zero Trust Architecture",
+   "source": "NIST",
+   "type": "spec",
+   "estimatedMinutes": 120,
+   "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+   "planDays": [
+    30
+   ],
+   "why": "Final, August 2020. Read the summary and the core tenets.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w5-ts-acls",
+   "title": "Manage permissions using ACLs",
+   "source": "Tailscale",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://tailscale.com/kb/1018/acls",
+   "planDays": [
+    30
+   ],
+   "why": "The page says grants are now the recommended approach, so read this for the concepts and then look up the grants syntax in Tailscale's docs.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w5-ts-tags",
+   "title": "Group devices with tags",
+   "source": "Tailscale",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://tailscale.com/kb/1068/acl-tags",
+   "planDays": [
+    31
+   ],
+   "why": "Tag-based access rules for the exercise.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w5-ts-posture",
+   "title": "Device posture management",
+   "source": "Tailscale",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://tailscale.com/kb/1288/device-posture",
+   "planDays": [
+    32
+   ],
+   "why": "Posture rules based on OS and client version.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-aws-best",
+   "title": "Security best practices in IAM",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html",
+   "planDays": [
+    36
+   ],
+   "why": "Temporary credentials, MFA, least privilege, access reviews.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-aws-sts",
+   "title": "Temporary security credentials in IAM",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html",
+   "planDays": [
+    36
+   ],
+   "why": "STS and short-lived credentials.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-entra-ca",
+   "title": "What is Conditional Access?",
+   "source": "Microsoft Learn",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview",
+   "planDays": [
+    37
+   ],
+   "why": "Entra conditional access overview.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-sc300",
+   "title": "Study guide for Exam SC-300",
+   "source": "Microsoft Learn",
+   "type": "article",
+   "estimatedMinutes": 20,
+   "url": "https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/sc-300",
+   "planDays": [
+    37
+   ],
+   "why": "Use it to pick three modules (conditional access, app registrations, identity governance). I have not picked the module pages; do that from this guide.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-access-analyzer",
+   "title": "Using IAM Access Analyzer",
+   "source": "AWS",
+   "type": "article",
+   "estimatedMinutes": 30,
+   "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html",
+   "planDays": [
+    38
+   ],
+   "why": "For Exercise 9.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w6-gitleaks",
+   "title": "gitleaks",
+   "source": "gitleaks project (GitHub)",
+   "type": "lab",
+   "estimatedMinutes": 30,
+   "url": "https://github.com/gitleaks/gitleaks",
+   "planDays": [
+    39
+   ],
+   "why": "For Exercise 15.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-attack",
+   "title": "ATT&CK Credential Access (TA0006)",
+   "source": "MITRE",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://attack.mitre.org/tactics/TA0006/",
+   "planDays": [
+    43
+   ],
+   "why": "Learn technique names, not detail.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-nist61",
+   "title": "NIST SP 800-61 Rev. 3: Incident Response Recommendations",
+   "source": "NIST",
+   "type": "spec",
+   "estimatedMinutes": 45,
+   "url": "https://csrc.nist.gov/pubs/sp/800/61/r3/final",
+   "planDays": [
+    43
+   ],
+   "why": "Final, April 2025; it supersedes Rev. 2. Read the overview, not the whole document.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-owasp-top10",
+   "title": "OWASP Top 10",
+   "source": "OWASP",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://owasp.org/Top10/",
+   "planDays": [
+    44
+   ],
+   "why": "The page redirects to the 2025 edition.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-owasp-api",
+   "title": "OWASP API Security Top 10 (2023)",
+   "source": "OWASP",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://owasp.org/API-Security/editions/2023/en/0x00-header/",
+   "planDays": [
+    44
+   ],
+   "why": "2023 edition.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-ps-ac",
+   "title": "Access control vulnerabilities and privilege escalation",
+   "source": "PortSwigger Web Security Academy",
+   "type": "lab",
+   "estimatedMinutes": 120,
+   "url": "https://portswigger.net/web-security/access-control",
+   "planDays": [
+    45
+   ],
+   "why": "Read, then do four labs for Exercise 8.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w7-juice",
+   "title": "OWASP Juice Shop",
+   "source": "OWASP",
+   "type": "lab",
+   "estimatedMinutes": 60,
+   "url": "https://owasp.org/www-project-juice-shop/",
+   "planDays": [
+    45
+   ],
+   "why": "Optional extra practice target.",
+   "optional": true,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-llm",
+   "title": "OWASP GenAI LLM Top 10 2026",
+   "source": "OWASP GenAI Security Project",
+   "type": "article",
+   "estimatedMinutes": 60,
+   "url": "https://genai.owasp.org/home/resources/owasp-genai-llm-top-10-2026/",
+   "planDays": [
+    50
+   ],
+   "why": "Page confirmed as the 2026 edition; it links to a full-guide download. I could not see the entry names on the page, so read the guide.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-agentic",
+   "title": "OWASP Top 10 for Agentic Applications for 2026",
+   "source": "OWASP GenAI Security Project",
+   "type": "article",
+   "estimatedMinutes": 90,
+   "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+   "planDays": [
+    50
+   ],
+   "why": "Read three entries closely: goal hijack, tool misuse, identity and privilege abuse. I could not see the entry names or IDs on the page, so match the plan's names to the guide yourself.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-mcp-auth",
+   "title": "MCP specification (revision 2026-07-28): Authorization",
+   "source": "Model Context Protocol",
+   "type": "spec",
+   "estimatedMinutes": 90,
+   "url": "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization",
+   "planDays": [
+    51
+   ],
+   "why": "Confirmed that this revision exists and covers the OAuth 2.1 based flow, resource indicators and scope step-up.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-garak",
+   "title": "garak: the LLM vulnerability scanner",
+   "source": "NVIDIA (GitHub)",
+   "type": "lab",
+   "estimatedMinutes": 45,
+   "url": "https://github.com/NVIDIA/garak",
+   "planDays": [
+    52
+   ],
+   "why": "Tool for Exercise 16.",
+   "optional": false,
+   "urlStatus": "verified",
+   "verifiedNote": "Fetched and confirmed on 2026-10-07"
+  },
+  {
+   "id": "w8-postings",
+   "title": "Okta agentic-security and SailPoint non-human-identity job postings",
+   "source": "Employers",
+   "type": "article",
+   "estimatedMinutes": 45,
+   "url": null,
+   "planDays": [
+    53
+   ],
+   "why": "Postings change; find the live ones yourself.",
+   "optional": false,
+   "urlStatus": "needs-your-search",
+   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+  }
+ ]
+}
