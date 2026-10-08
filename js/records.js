@@ -2,7 +2,27 @@
 // Pure functions only (no page or storage code) so the migration and the date
 // checks can run in Node.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
+
+// Evidence categories (schema 5). Existing entries become 'uncategorised' until you choose one.
+export const ARTIFACT_CATEGORIES = {
+  research: 'Research',
+  systems: 'Systems',
+  interaction: 'Interaction',
+  security: 'Security',
+  product: 'Product',
+};
+export const UNCATEGORISED = 'uncategorised';
+export const categoryLabel = (c) => ARTIFACT_CATEGORIES[c] ?? 'Uncategorised';
+
+/** Entries per category (published and draft), always listing all five, plus the uncategorised ones. */
+export function categoryCoverage(artifacts) {
+  const rows = Object.entries(ARTIFACT_CATEGORIES).map(([id, label]) => ({
+    id, label, count: artifacts.filter((a) => a.category === id).length,
+  }));
+  const uncategorised = artifacts.filter((a) => !(a.category in ARTIFACT_CATEGORIES)).length;
+  return { rows, uncategorised, total: artifacts.length };
+}
 
 // ─── Evidence (artifacts) ────────────────────────────────────────────────────
 export const ARTIFACT_TYPES = {
@@ -92,8 +112,11 @@ export function normalizeTags(list) {
  * in the app asks for it; importing does not, so older files and converted
  * quick entries (which have none) still load.
  */
-export function validateArtifact(a, { requireMaturity = false } = {}) {
+export function validateArtifact(a, { requireMaturity = false, requireCategory = false } = {}) {
   const problems = [];
+  const category = a.category || UNCATEGORISED; // an empty choice counts as not chosen
+  if (category !== UNCATEGORISED && !(category in ARTIFACT_CATEGORIES)) problems.push('Choose a valid category.');
+  if (requireCategory && !(category in ARTIFACT_CATEGORIES)) problems.push('Choose a category (Research, Systems, Interaction, Security or Product).');
   if (!String(a.title ?? '').trim()) problems.push('Add a title.');
   if (String(a.title ?? '').length > LIMITS.title) problems.push(`Keep the title under ${LIMITS.title} characters.`);
   if (!(a.type in ARTIFACT_TYPES)) problems.push('Choose a type.');

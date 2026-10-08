@@ -3,10 +3,10 @@ import * as store from './store.js';
 import { esc, announce, today, testMode, plural } from './ui.js';
 import { addDays, formatShort } from './dates.js';
 import { getWeek, getDayContext, contentWeekNumber } from './plan.js';
-import { BLOCK_LABELS, ITEM_KIND_LABELS, PLAN_END, WEEKS } from './plan-data.js';
+import { BLOCK_LABELS, ITEM_KIND_LABELS, PLAN_END, WEEKS, extraTimeLabel } from './plan-data.js';
 import { weekDayResourcesHtml } from './resources.js';
 
-const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence'];
+const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence', 'design'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
 
 const ui = { week: null, pendingWeek: null }; // week shown (null = the current week); pendingWeek is set by another screen
@@ -23,17 +23,27 @@ function formatHours(h) {
   return `${Number.isInteger(h) ? h : h.toFixed(1)} h`;
 }
 
+/** Flags shown next to a plan item: Optional, Flagship, extra time, Conditional, and "Changed by me". */
+export function itemFlagsHtml(item) {
+  const flags = [];
+  if (store.isOptionalItem(item)) flags.push('<span class="flag">Optional</span>');
+  if (item.flagship) flags.push('<span class="flag">Flagship</span>');
+  if (item.extraMinutes) flags.push(`<span class="flag">${esc(extraTimeLabel(item))}</span>`);
+  if (item.conditional) flags.push(`<span class="flag">Conditional: ${esc(item.conditional)}</span>`);
+  if (store.isChangedByMe('item', item.id, item.optional)) flags.push('<span class="flag">Changed by me</span>');
+  return flags.join(' ');
+}
+
 function itemRowHtml(item) {
   const checked = store.isChecked(item.id);
-  const flags = [];
-  if (item.optional) flags.push('<span class="flag">Optional</span>');
-  if (item.conditional) flags.push(`<span class="flag">Conditional: ${esc(item.conditional)}</span>`);
+  const optional = store.isOptionalItem(item);
   return `
-    <li class="${item.optional ? 'is-optional' : ''}">
+    <li class="${optional ? 'is-optional' : ''}">
       <label class="check" for="chk-${esc(item.id)}">
         <input type="checkbox" id="chk-${esc(item.id)}" data-week-item="${esc(item.id)}" ${checked ? 'checked' : ''}>
-        <span><span class="item-text">${esc(item.text)}</span>${flags.join('')}</span>
+        <span><span class="item-text">${esc(item.text)}</span>${itemFlagsHtml(item)}</span>
       </label>
+      <button type="button" class="button--small" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="${optional ? 'Mark as required' : 'Mark as optional'}: ${esc(item.text)}">${optional ? 'Mark as required' : 'Mark as optional'}</button>
     </li>`;
 }
 
@@ -84,7 +94,7 @@ export function weekView() {
   }).join('');
 
   // Checklist grouped by kind. Optional and conditional items are not counted in progress.
-  const required = content.items.filter((i) => !i.optional && !i.conditional);
+  const required = content.items.filter((i) => !store.isOptionalItem(i) && !i.conditional);
   const done = required.filter((i) => store.isChecked(i.id)).length;
   const groups = KIND_ORDER
     .map((kind) => [kind, content.items.filter((i) => i.kind === kind)])
@@ -146,6 +156,14 @@ export const weekActions = {
   'week-current': () => {
     ui.week = null;
     return '#day-heading';
+  },
+  'item-toggle-optional': (el) => {
+    const item = WEEKS.flatMap((w) => w.items).find((i) => i.id === el.dataset.id);
+    if (!item) return null;
+    const next = !store.isOptionalItem(item);
+    store.setOptional('item', item.id, next, item.optional, testMode());
+    announce(`Marked as ${next ? 'optional' : 'required'}${store.isChangedByMe('item', item.id, item.optional) ? ', your choice' : ", the plan's own setting"}.`);
+    return `[data-action="item-toggle-optional"][data-id="${el.dataset.id}"]`;
   },
 };
 

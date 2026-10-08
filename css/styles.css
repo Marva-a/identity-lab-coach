@@ -402,3 +402,4 @@ code { background: var(--surface-2); border-radius: 4px; padding: 0 0.25rem; fon
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+.coverage { list-style: none; padding: 0; margin: 0.25rem 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }

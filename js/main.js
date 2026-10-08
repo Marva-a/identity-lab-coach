@@ -10,7 +10,7 @@ import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.
 import {
   retrievalHtml, retrievalRemaining, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
-import { weekView, weekActions, handleWeekChange, resetWeekView } from './week.js';
+import { weekView, weekActions, handleWeekChange, resetWeekView, itemFlagsHtml } from './week.js';
 import {
   scorecardView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
 } from './scorecard.js';
@@ -98,13 +98,10 @@ function renderBanners() {
 // ─── Today view ──────────────────────────────────────────────────────────────
 
 function itemHtml(item, showKind = true) {
-  const flags = [];
-  if (item.optional) flags.push('<span class="flag">Optional</span>');
-  if (item.conditional) flags.push(`<span class="flag">Conditional: ${esc(item.conditional)}</span>`);
   return `
-    <li class="${item.optional ? 'is-optional' : ''}">
+    <li class="${store.isOptionalItem(item) ? 'is-optional' : ''}">
       ${showKind ? `<span class="item-kind">${esc(ITEM_KIND_LABELS[item.kind])}</span>` : ''}
-      <span class="item-text">${esc(item.text)}</span>${flags.join('')}
+      <span class="item-text">${esc(item.text)}</span>${itemFlagsHtml(item)}
     </li>`;
 }
 
@@ -692,6 +689,7 @@ function settingsView() {
     <section class="card" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p>Your data is saved in this browser only. Nothing is sent anywhere. Clearing site data, or opening the app in another browser or at a different address, starts empty, so export now and then.</p>
+      <p><strong>Do not put passwords, keys or confidential employer details in notes, evidence or people.</strong> Browser storage is not a password vault and is not encrypted.</p>
       <p class="meta">Currently saved: ${esc(summaryText(store.summarize(store.getData())))}. Last export: ${s.lastExportedAt ? esc(when(s.lastExportedAt)) : 'never'}.</p>
       ${ui.dataMessage ? `<p class="status-ok" id="data-message" tabindex="-1">${esc(ui.dataMessage)}</p>` : ''}
       <div class="button-row">
@@ -739,6 +737,7 @@ function describeTestData(n) {
     n.interactions && plural(n.interactions, 'interaction', 'interactions'),
     n.resources && plural(n.resources, 'resource changed or added', 'resources changed or added'),
     n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
+    n.optionalOverrides && plural(n.optionalOverrides, 'Optional/Required choice', 'Optional/Required choices'),
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : 'none';
 }

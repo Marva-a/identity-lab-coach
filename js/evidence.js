@@ -8,6 +8,7 @@ import {
 import { formatShort, vancouverDate } from './dates.js';
 import {
   ARTIFACT_TYPES, ARTIFACT_STATUSES, MATURITIES, PROJECTS, TAGS_MAX, LIMITS, normalizeTags, validateArtifact,
+  ARTIFACT_CATEGORIES, UNCATEGORISED, categoryLabel, categoryCoverage,
 } from './records.js';
 import { evidenceToMarkdown } from './evidence-md.js';
 
@@ -31,7 +32,7 @@ function blankForm() {
   const date = today();
   return {
     title: '', type: 'write-up', status: 'draft', createdDate: date, publishedDate: date,
-    url: '', maturity: '', project: '', tags: ['', '', ''], reflection: '',
+    url: '', category: '', maturity: '', project: '', tags: ['', '', ''], reflection: '',
   };
 }
 
@@ -43,6 +44,7 @@ function formFrom(artifact) {
     createdDate: artifact.createdDate,
     publishedDate: artifact.publishedDate ?? '',
     url: artifact.url ?? '',
+    category: artifact.category ?? UNCATEGORISED,
     maturity: artifact.maturity ?? '',
     project: artifact.project ?? '',
     tags: [...(artifact.tags ?? []), '', '', ''].slice(0, TAGS_MAX),
@@ -71,6 +73,13 @@ function formHtml(artifact) {
       <div class="field">
         <label for="ev-type">Type</label>
         <select id="ev-type" name="type">${options(ARTIFACT_TYPES, f.type)}</select>
+      </div>
+      <div class="field">
+        <label for="ev-category">Category${isNew ? '' : ' (you can leave it as Uncategorised)'}</label>
+        <select id="ev-category" name="category" aria-describedby="ev-category-hint">${f.category === UNCATEGORISED
+          ? `<option value="${UNCATEGORISED}" selected>Uncategorised</option>${options(ARTIFACT_CATEGORIES, '')}`
+          : options(ARTIFACT_CATEGORIES, f.category, 'Choose…')}</select>
+        <span class="hint" id="ev-category-hint">What kind of work it shows: Research, Systems, Interaction, Security or Product. It never changes the scorecard counts.</span>
       </div>
       <div class="field">
         <label for="ev-project">Project (optional)</label>
@@ -167,7 +176,7 @@ function rowHtml(a) {
         <span class="tag ${published ? 'tag--verified' : ''}">${esc(ARTIFACT_STATUSES[a.status])}</span> ·
         Created ${esc(formatShort(a.createdDate))}${published ? ` · Published ${esc(formatShort(a.publishedDate))}` : ''}
         ${a.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
-      <p class="meta">Project: ${a.project ? `<strong>${esc(PROJECTS[a.project])}</strong>` : 'not set'} · Maturity: ${maturity}</p>
+      <p class="meta">Category: <strong>${esc(categoryLabel(a.category))}</strong> · Project: ${a.project ? `<strong>${esc(PROJECTS[a.project])}</strong>` : 'not set'} · Maturity: ${maturity}</p>
       ${a.tags?.length
         ? `<ul class="tags" aria-label="What this proves">${a.tags.map((t) => `<li class="tag">${esc(t)}</li>`).join('')}</ul>`
         : `<p class="meta">${a.migrated ? 'Converted from a quick entry: edit it to add what it proves.' : 'No skill tags yet.'}</p>`}
@@ -217,6 +226,7 @@ export function evidenceView() {
       <h2 id="evidence-heading" tabindex="-1">Your artifacts</h2>
       <p class="meta">${plural(published.length, 'published artifact', 'published artifacts')} and ${plural(all.length - published.length, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date. Everything stays in this browser.</p>
       ${ui.message ? `<p class="status-ok" id="evidence-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
+      ${coverageHtml(all)}
       <div class="filters">
         <div class="field">
           <label for="ev-filter-status">Status</label>
@@ -259,6 +269,20 @@ export function evidenceView() {
     </section>`;
 }
 
+/** Entries per category. A category with none is called out in words, not only by styling. */
+function coverageHtml(all) {
+  const { rows, uncategorised } = categoryCoverage(all);
+  return `
+      <div class="export-box" role="group" aria-labelledby="coverage-heading">
+        <h3 id="coverage-heading">Category coverage</h3>
+        <ul class="coverage">${rows.map((r) => `
+          <li>${esc(r.label)}: <strong>${r.count}</strong>${r.count === 0 ? ' <span class="flag flag--need">None yet</span>' : ''}</li>`).join('')}
+          ${uncategorised ? `<li>Uncategorised: <strong>${uncategorised}</strong> <span class="meta">(edit an entry to choose its category)</span></li>` : ''}
+        </ul>
+        <p class="meta">Counts every entry, drafts and published.</p>
+      </div>`;
+}
+
 function readForm(form) {
   const val = (name) => form.querySelector(`[name="${name}"]`)?.value ?? '';
   return {
@@ -269,6 +293,7 @@ function readForm(form) {
     createdDate: val('createdDate'),
     publishedDate: val('publishedDate'),
     url: val('url'),
+    category: val('category'),
     maturity: val('maturity'),
     project: val('project'),
     tags: [...form.querySelectorAll('input[name="tag"]')].map((i) => i.value),

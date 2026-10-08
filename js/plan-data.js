@@ -18,8 +18,9 @@
  * and existing ids never change (new items get new ids), so a ticked item stays ticked.
  * If an id ever has to change, list it in PLAN_ID_RENAMES and saved ticks move with it.
  *   2: revised roadmap (zero trust and cloud security foundations; extras as Optional items)
+ *   3: one Design item per week (kind 'design', after Evidence); extra time on top of the 12 h
  */
-export const PLAN_VERSION = 2;
+export const PLAN_VERSION = 3;
 /** { oldId: newId } for any item whose id changed in a later version. Empty so far. */
 export const PLAN_ID_RENAMES = {};
 /** Every item id that existed in each earlier plan version. A check proves none were removed. */
@@ -42,7 +43,41 @@ export const PLAN_ID_HISTORY = {
     'w8-practice-1', 'w8-practice-2', 'w8-build-1', 'w8-apply-1', 'w8-network-1',
     'w8-evidence-1',
   ],
+  2: [
+    'w1-learn-1', 'w1-read-1', 'w1-read-2', 'w1-read-3', 'w1-practice-1',
+    'w1-build-1', 'w1-apply-1', 'w1-network-1', 'w1-network-2', 'w1-network-3',
+    'w1-evidence-1', 'w2-learn-1', 'w2-read-1', 'w2-read-2', 'w2-read-3',
+    'w2-practice-1', 'w2-practice-2', 'w2-practice-3', 'w2-build-1', 'w2-apply-1',
+    'w2-network-1', 'w2-evidence-1', 'w3-learn-1', 'w3-read-1', 'w3-read-2',
+    'w3-read-3', 'w3-practice-1', 'w3-practice-2', 'w3-build-1', 'w3-apply-1',
+    'w3-network-1', 'w3-network-2', 'w3-evidence-1', 'w3-evidence-2', 'w4-learn-1',
+    'w4-read-1', 'w4-read-2', 'w4-read-3', 'w4-practice-1', 'w4-practice-2',
+    'w4-build-1', 'w4-apply-1', 'w4-network-1', 'w4-evidence-1', 'w5-learn-1',
+    'w5-read-1', 'w5-read-2', 'w5-read-3', 'w5-practice-1', 'w5-practice-2',
+    'w5-build-1', 'w5-apply-1', 'w5-network-1', 'w5-evidence-1', 'w5-evidence-2',
+    'w6-learn-1', 'w6-learn-2', 'w6-read-1', 'w6-read-2', 'w6-read-3',
+    'w6-practice-1', 'w6-practice-2', 'w6-practice-3', 'w6-practice-4', 'w6-build-1',
+    'w6-apply-1', 'w6-apply-2', 'w6-network-1', 'w6-evidence-1', 'w6-evidence-2',
+    'w7-learn-1', 'w7-read-1', 'w7-practice-1', 'w7-practice-2', 'w7-build-1',
+    'w7-learn-2', 'w7-apply-2', 'w7-apply-1', 'w7-network-1', 'w7-evidence-1',
+    'w8-learn-1', 'w8-read-1', 'w8-read-2', 'w8-read-3', 'w8-read-4',
+    'w8-learn-2', 'w8-practice-1', 'w8-practice-2', 'w8-build-1', 'w8-apply-1',
+    'w8-network-1', 'w8-evidence-1',
+  ],
 };
+
+/** Whether a plan item is Optional, given your own choices (`data.optionalOverrides`). Your choice wins over the plan's. */
+export function itemIsOptional(item, overrides) {
+  const o = overrides?.[`item:${item.id}`];
+  return typeof o?.optional === 'boolean' ? o.optional : Boolean(item.optional);
+}
+
+/** Text for the extra time on a Design item, for example "about 3 h, on top of the 12". */
+export function extraTimeLabel(item) {
+  if (!item.extraMinutes) return '';
+  const h = item.extraMinutes / 60;
+  return `about ${Number.isInteger(h) ? h : h.toFixed(1)} h, on top of the 12`;
+}
 
 /**
  * Moves saved ticks to renamed item ids. Nothing is ever removed, and a tick already on the
@@ -85,7 +120,7 @@ export const BLOCK_ITEM_KINDS = {
   learn: ['learn', 'read'],
   practice: ['practice'],
   build: ['build'],
-  publish: ['apply', 'evidence'],
+  publish: ['apply', 'evidence', 'design'],
   capstone: [],
 };
 
@@ -97,13 +132,15 @@ export const ITEM_KIND_LABELS = {
   apply: 'Apply',
   network: 'Network (evenings, outside the 12 h)',
   evidence: 'Evidence',
+  design: 'Design (extra time, outside the 12 h)',
 };
 
 /**
  * PlanWeek: one study week.
  * - number, title, start (Monday)
  * - budget: planned hours per block; the total is the week's budget
- * - items: the checklist (WeekItem: id, kind, text, exercises?, optional?, conditional?)
+ * - items: the checklist (WeekItem: id, kind, text, exercises?, optional?, conditional?, flagship?, extraMinutes?)
+ *   `extraMinutes` is time on top of the week's budget (Design items); it is never added to the budget
  * - days: PlanDay seeds, in order (Sundays are not listed; they are rest days)
  * - notes: plan notes shown with the week
  *
@@ -129,6 +166,7 @@ export const WEEKS = [
       { id: 'w1-network-2', kind: 'network', text: 'Follow 15 practitioners (for example Aaron Parecki, Justin Richer, Pamela Dingle, Dick Hardt, Adam Shostack, Clint Gibler)' },
       { id: 'w1-network-3', kind: 'network', text: 'Operation Defend the North on Oct 15', conditional: 'if you attend' },
       { id: 'w1-evidence-1', kind: 'evidence', text: 'identity-lab README and a one-page "who holds which credential" diagram' },
+      { id: 'w1-design-1', kind: 'design', text: 'Enterprise identity mental model', extraMinutes: 120, optional: true },
     ],
     days: [
       { day: 1, date: '2026-10-12', block: 'learn', focus: 'Docker check; start an identity glossary', hours: 1, holiday: 'Thanksgiving: 1 hour' },
@@ -157,6 +195,7 @@ export const WEEKS = [
       { id: 'w2-apply-1', kind: 'apply', text: 'Audit consent screens in three real products: scope wording, comprehension, revocation' },
       { id: 'w2-network-1', kind: 'network', text: 'Two short conversations: "How do you explain OAuth to a non-engineer?"' },
       { id: 'w2-evidence-1', kind: 'evidence', text: 'Annotated PKCE sequence diagram with attacker moves; consent-screen audit' },
+      { id: 'w2-design-1', kind: 'design', text: 'Consent screen and scopes', extraMinutes: 120, optional: true },
     ],
     days: [
       { day: 8, date: '2026-10-19', block: 'learn', focus: 'Grant types; auth code and PKCE', hours: 2 },
@@ -186,6 +225,7 @@ export const WEEKS = [
       { id: 'w3-network-2', kind: 'network', text: 'Start recruiting 3–5 IT admins for Project 1 usability sessions in weeks 7–8 (Slack, LinkedIn, client and mentoring networks)' },
       { id: 'w3-evidence-1', kind: 'evidence', text: 'SSO and SCIM admin journey map with failure points' },
       { id: 'w3-evidence-2', kind: 'evidence', text: 'Persona-conflict table (employee, IT admin, security admin, CISO, compliance: what each needs from the same sign-in)' },
+      { id: 'w3-design-1', kind: 'design', text: 'Admin provisioning flow', extraMinutes: 180, optional: true },
     ],
     days: [
       { day: 15, date: '2026-10-26', block: 'learn', focus: 'SAML flows; SCIM concepts', hours: 2 },
@@ -213,6 +253,7 @@ export const WEEKS = [
       { id: 'w4-apply-1', kind: 'apply', text: 'Score three real recovery flows on both security and accessibility' },
       { id: 'w4-network-1', kind: 'network', text: 'Publish the recovery threat model and send it to two practitioners for feedback' },
       { id: 'w4-evidence-1', kind: 'evidence', text: 'Recovery threat model v1 (the seed of Project 3)' },
+      { id: 'w4-design-1', kind: 'design', text: 'Redesign account recovery', extraMinutes: 180, flagship: true },
     ],
     days: [
       { day: 22, date: '2026-11-02', block: 'learn', focus: 'Factors, passkeys, phishing resistance', hours: 2 },
@@ -241,6 +282,7 @@ export const WEEKS = [
       { id: 'w5-network-1', kind: 'network', text: 'Ask two networking or zero-trust practitioners which policy mistakes they see most' },
       { id: 'w5-evidence-1', kind: 'evidence', text: 'Policy design document plus the five observations' },
       { id: 'w5-evidence-2', kind: 'evidence', text: 'A one-page trust-boundary diagram showing where identity, device and network checks happen' },
+      { id: 'w5-design-1', kind: 'design', text: 'Device posture failure experience', extraMinutes: 120, optional: true },
     ],
     days: [
       { day: 29, date: '2026-11-09', block: 'learn', focus: 'TLS, DNS, VPN vs ZTNA', hours: 2 },
@@ -275,6 +317,7 @@ export const WEEKS = [
       { id: 'w6-network-1', kind: 'network', text: 'One ISACA Vancouver or OWASP Vancouver event' },
       { id: 'w6-evidence-1', kind: 'evidence', text: 'A bad-to-good IAM policy pair with an explanation of each change' },
       { id: 'w6-evidence-2', kind: 'evidence', text: 'A segmentation diagram showing subnets, security groups and the roles that cross them' },
+      { id: 'w6-design-1', kind: 'design', text: 'Permission management for a non-security admin', extraMinutes: 180, flagship: true },
     ],
     days: [
       { day: 36, date: '2026-11-16', block: 'learn', focus: 'AWS IAM fundamentals; STS', hours: 2 },
@@ -304,6 +347,7 @@ export const WEEKS = [
       { id: 'w7-apply-1', kind: 'apply', text: 'Exercise 14: a short tabletop for "stolen refresh token": signals, response steps, and how the admin is told', exercises: [14] },
       { id: 'w7-network-1', kind: 'network', text: 'Run the first one or two Project 1 usability sessions with IT admins (they count as conversations)' },
       { id: 'w7-evidence-1', kind: 'evidence', text: 'Project 1 threat model and the tabletop' },
+      { id: 'w7-design-1', kind: 'design', text: 'Account-takeover investigation console', extraMinutes: 120, optional: true },
     ],
     days: [
       { day: 43, date: '2026-11-23', block: 'learn', focus: 'Identity events; ATT&CK credential access', hours: 2 },
@@ -333,6 +377,7 @@ export const WEEKS = [
       { id: 'w8-apply-1', kind: 'apply', text: "Read Okta's agentic-security and SailPoint's non-human-identity postings line by line; mark what you can and cannot yet explain" },
       { id: 'w8-network-1', kind: 'network', text: 'Post a short analysis in the OWASP GenAI community or on LinkedIn: one agentic risk and the identity controls that reduce it' },
       { id: 'w8-evidence-1', kind: 'evidence', text: 'Agent permission model and the injection test log' },
+      { id: 'w8-design-1', kind: 'design', text: 'Agent authorization case-study outline', extraMinutes: 180, flagship: true },
     ],
     days: [
       { day: 50, date: '2026-11-30', block: 'learn', focus: 'OWASP LLM and Agentic lists', hours: 2 },

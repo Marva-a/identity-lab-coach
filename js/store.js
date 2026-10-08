@@ -11,10 +11,10 @@
 // a server, a sync step or an append-only audit log will need. Add an
 // `ownerId` field at that point; no record needs one while the data is local.
 //
-// ─── Data model (schemaVersion 4) ─────────────────────────────────────────────
+// ─── Data model (schemaVersion 5) ─────────────────────────────────────────────
 //
 // AppData {
-//   schemaVersion: 4,
+//   schemaVersion: 5,
 //   planVersion: number,        // version of the plan text this data was last matched to (see plan-data.js)
 //   app: 'identity-lab-coach',
 //   sessions:    Session[],     // Stage 1
@@ -28,6 +28,8 @@
 //   resources:    Resource[],    // Stage 4b: the content library
 //   contentPacks: { [packId]: { version, appliedAt } },  // which content packs have been added (see content.js)
 //   reviews:    Review[],    // Stage 7: Friday reviews
+//   optionalOverrides: { ["item:<id>" | "resource:<id>"]: { optional: boolean, at, testMode, testPrev } },
+//                               // your own Optional/Required choices; plan updates and content packs never touch them
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
 //   settings:   Settings,
 // }
@@ -84,6 +86,8 @@
 //   createdDate: 'YYYY-MM-DD'
 //   publishedDate: 'YYYY-MM-DD' | null   only when published
 //   url: string             optional, http(s) only
+//   category: 'research' | 'systems' | 'interaction' | 'security' | 'product' | 'uncategorised'
+//                           schema 5; entries that existed before it are 'uncategorised' until you choose
 //   maturity: '' | 'implemented' | 'simulated' | 'conceptual' | 'future'
 //                           empty until you choose; required before it is published
 //                           (converted quick entries stay empty until you edit them)
@@ -170,11 +174,11 @@
 import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 import {
-  SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
+  SCHEMA_VERSION, UNCATEGORISED, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
   validateResource, validateResourceUrl, RESOURCE_STATUSES, SUGGESTED_SKILL_TAGS, CARD_TEXT_MAX, REFERENCE_MAX,
 } from './records.js';
 import { migrate, needsMigration } from './migrate.js';
-import { PLAN_VERSION, renameChecks } from './plan-data.js';
+import { PLAN_VERSION, renameChecks, itemIsOptional } from './plan-data.js';
 
 export { SCHEMA_VERSION };
 export const STORAGE_KEY = 'identity-lab-coach:data';
@@ -213,6 +217,7 @@ function emptyData() {
     resources: [],
     contentPacks: {},
     reviews: [],
+    optionalOverrides: {},
     weekChecks: {},
     settings: defaultSettings(),
   };
@@ -255,11 +260,12 @@ function normalize(raw) {
   for (const c of COLLECTIONS) out[c] = Array.isArray(raw?.[c]) ? raw[c] : [];
   out.cardSeedVersion = Number.isInteger(raw?.cardSeedVersion) ? raw.cardSeedVersion : 0;
   // Fields added after the first Stage 4 release: older records load with them empty.
-  out.artifacts = out.artifacts.map((a) => ({ maturity: '', project: '', ...a }));
+  out.artifacts = out.artifacts.map((a) => ({ maturity: '', project: '', category: UNCATEGORISED, ...a }));
   out.resources = out.resources.map((r) => ({
     optional: false, verifiedNote: '', urlStatus: r?.url ? 'unchecked' : 'needs-your-search', ...r,
   }));
   out.contentPacks = raw?.contentPacks && typeof raw.contentPacks === 'object' && !Array.isArray(raw.contentPacks) ? raw.contentPacks : {};
+  out.optionalOverrides = raw?.optionalOverrides && typeof raw.optionalOverrides === 'object' && !Array.isArray(raw.optionalOverrides) ? raw.optionalOverrides : {};
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -456,6 +462,7 @@ export function countTestData() {
     interactions: data.interactions.filter((i) => i.testMode).length,
     resources: data.resources.filter((r) => r.testMode || r.testRevert).length,
     weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
+    optionalOverrides: Object.values(data.optionalOverrides).filter((o) => o.testMode).length,
   };
 }
 
@@ -482,8 +489,62 @@ export function deleteTestData() {
   data.people = data.people.filter((p) => !((p.testMode || p.migrated) && !stillUsed.has(p.id)));
   for (const p of data.people) if (p.testMode) p.testMode = false;
   data.weekChecks = Object.fromEntries(Object.entries(data.weekChecks).filter(([, c]) => !c.testMode));
+  // A choice made while testing goes back to what it was before (your earlier choice, or the plan's setting).
+  for (const [key, o] of Object.entries(data.optionalOverrides)) {
+    if (!o.testMode) continue;
+    if (o.testPrev) data.optionalOverrides[key] = o.testPrev;
+    else delete data.optionalOverrides[key];
+  }
   persist();
   return counts;
+}
+
+// ─── Your Optional / Required choices ────────────────────────────────────────
+// Stored apart from the plan and the content packs, so updating either never overwrites them.
+// A choice that matches the plan's own setting is not stored (that is "back to the plan's setting").
+
+const overrideKey = (kind, id) => `${kind}:${id}`;
+
+/** Your choice for a plan item or resource: { optional, at } or null when you have not changed it. */
+export function getOptionalOverride(kind, id) {
+  return data.optionalOverrides[overrideKey(kind, id)] ?? null;
+}
+
+/** Whether a plan item is Optional now: your choice if you made one, otherwise the plan's. */
+export function isOptionalItem(item) {
+  return itemIsOptional(item, data.optionalOverrides);
+}
+
+/** Whether a resource is Optional now. The record's own flag is the content pack's (or your form's) setting. */
+export function isOptionalResource(resource) {
+  return getOptionalOverride('resource', resource.id)?.optional ?? Boolean(resource.optional);
+}
+
+/** True when your choice differs from the plan's or pack's own setting (the "Changed by me" marker). */
+export function isChangedByMe(kind, id, planDefault) {
+  const o = getOptionalOverride(kind, id);
+  return o !== null && o.optional !== Boolean(planDefault);
+}
+
+/**
+ * Marks a plan item or resource Optional or Required. `planDefault` is what the plan or pack says.
+ * Choosing the plan's own setting clears your choice (while testing it is kept until the test data
+ * is deleted, so that deleting it can put your earlier choice back).
+ */
+export function setOptional(kind, id, optional, planDefault, testMode) {
+  const key = overrideKey(kind, id);
+  const prev = data.optionalOverrides[key] ?? null;
+  if (testMode) {
+    data.optionalOverrides[key] = {
+      optional: Boolean(optional), at: new Date().toISOString(), testMode: true,
+      testPrev: prev && !prev.testMode ? prev : prev?.testPrev ?? null,
+    };
+  } else if (Boolean(optional) === Boolean(planDefault)) {
+    delete data.optionalOverrides[key];
+  } else {
+    data.optionalOverrides[key] = { optional: Boolean(optional), at: new Date().toISOString(), testMode: false };
+  }
+  return persist();
 }
 
 // ─── Week checklist (Stage 3) ────────────────────────────────────────────────
@@ -551,6 +612,7 @@ function cleanArtifactFields(f) {
     createdDate: f.createdDate,
     publishedDate: status === 'published' ? f.publishedDate : null,
     url: String(f.url ?? '').trim(),
+    category: f.category || UNCATEGORISED,
     maturity: f.maturity ?? '',
     project: f.project ?? '',
     tags: normalizeTags(f.tags),
@@ -572,7 +634,7 @@ export function addArtifact(fields, testMode) {
     migrated: false,
     testMode: Boolean(testMode),
   };
-  const problems = validateArtifact(artifact, { requireMaturity: true });
+  const problems = validateArtifact(artifact, { requireMaturity: true, requireCategory: true });
   if (problems.length) return { ok: false, problems };
   data.artifacts.push(artifact);
   const saved = persist();
@@ -953,7 +1015,7 @@ export function updateResource(id, fields, testMode) {
   const resource = getResource(id);
   if (!resource) return { ok: false, problems: ['That resource no longer exists.'] };
   const clean = cleanResourceFields(fields);
-  const next = { ...resource, ...clean, updatedAt: new Date().toISOString() };
+  const next = { ...resource, ...clean, optional: resource.optional, updatedAt: new Date().toISOString() };
   if (clean.url !== resource.url) {
     next.urlStatus = linkStatusFor(clean.url);
     next.verifiedNote = '';
@@ -962,7 +1024,9 @@ export function updateResource(id, fields, testMode) {
   if (problems.length) return { ok: false, problems };
   captureTestRevert(resource, testMode);
   Object.assign(resource, next);
-  persist();
+  // The Optional checkbox is your own choice, so it is stored as one (the pack's setting stays as it was).
+  if (clean.optional !== isOptionalResource(resource)) setOptional('resource', id, clean.optional, resource.optional, testMode);
+  else persist();
   return { ok: true, resource };
 }
 
@@ -1011,9 +1075,13 @@ export function setResourceNotes(id, text, testMode) {
 
 /** Resources for a plan day (as numbered in the roadmap), in plan order. Retired ones are left out. */
 export function resourcesForDay(day, { includeRetired = false } = {}) {
-  return data.resources
-    .filter((r) => r.days.includes(day) && (includeRetired || !r.retired))
+  return effectiveResources(data.resources.filter((r) => r.days.includes(day) && (includeRetired || !r.retired)))
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+/** Copies of resources whose `optional` is what you see now (your choice if you made one). Read-only use. */
+export function effectiveResources(list = data.resources) {
+  return list.map((r) => ({ ...r, optional: isOptionalResource(r), changedByMe: isChangedByMe('resource', r.id, r.optional) }));
 }
 
 // ─── Content packs (resources and cards that ship with the app) ──────────────
@@ -1141,6 +1209,13 @@ export function parseImport(text) {
         problems.push(`Card rating ${i + 1} is incomplete or has an invalid date or rating.`);
       }
     });
+  }
+  if (raw.optionalOverrides !== undefined) {
+    const o = raw.optionalOverrides;
+    if (typeof o !== 'object' || Array.isArray(o) || o === null
+      || Object.entries(o).some(([k, v]) => !/^(item|resource):.+/.test(k) || typeof v?.optional !== 'boolean')) {
+      problems.push('"optionalOverrides" should be an object of Optional/Required choices.');
+    }
   }
   if (raw.weekChecks !== undefined && (typeof raw.weekChecks !== 'object' || Array.isArray(raw.weekChecks) || raw.weekChecks === null)) {
     problems.push('"weekChecks" should be an object.');

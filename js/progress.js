@@ -1,12 +1,12 @@
 // Course progress: what the course home shows. Pure functions only (no page or
 // storage code). Every number comes from what you logged; nothing is typed in.
 import { addDays } from './dates.js';
-import { WEEKS } from './plan-data.js';
+import { WEEKS, itemIsOptional } from './plan-data.js';
 import { getWeek, contentWeekNumber } from './plan.js';
 import { expectedHours } from './pace.js';
 
 const sum = (list, pick) => list.reduce((n, x) => n + pick(x), 0);
-const isRequired = (item) => !item.optional && !item.conditional;
+const isRequired = (item, overrides) => !itemIsOptional(item, overrides) && !item.conditional;
 
 /**
  * Progress for each of the 9 weeks and overall.
@@ -20,8 +20,8 @@ export function courseProgress(data, { today }) {
   const weeks = WEEKS.map((w) => {
     const content = getWeek(contentWeekNumber(w.number, settings));
     const end = addDays(w.start, 6);
-    const required = content.items.filter(isRequired);
-    const extra = content.items.filter((i) => !isRequired(i));
+    const required = content.items.filter((i) => isRequired(i, data.optionalOverrides));
+    const extra = content.items.filter((i) => !isRequired(i, data.optionalOverrides));
     const ticked = (i) => Boolean(data.weekChecks?.[i.id]);
     const dayNumbers = new Set(content.days.map((d) => d.day));
     const resources = (data.resources ?? []).filter((r) => !r.retired && r.days.some((d) => dayNumbers.has(d)));
@@ -63,7 +63,7 @@ export function courseProgress(data, { today }) {
 export function nextUp(data, weeks, settings, today) {
   const firstOpen = (w) => {
     const content = getWeek(contentWeekNumber(w.number, settings));
-    return content.items.find((i) => isRequired(i) && !data.weekChecks?.[i.id]);
+    return content.items.find((i) => isRequired(i, data.optionalOverrides) && !data.weekChecks?.[i.id]);
   };
   const order = [
     ...weeks.filter((w) => w.state === 'current'),

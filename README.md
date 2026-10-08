@@ -61,6 +61,10 @@ Safari too. Use Export and Import in Settings to move data between them.
   browser restart it may need one click to be allowed again. Nothing is ever sent anywhere.
   Safari and Firefox cannot write to a folder, so they keep the daily snapshots only.
 
+## Do not store secrets here
+
+Do not put passwords, keys or confidential employer details in notes, evidence or people. Browser storage is not a password vault and is not encrypted.
+
 ## Time zone note
 
 British Columbia stopped changing clocks in 2026 and stays on UTC−7. The app

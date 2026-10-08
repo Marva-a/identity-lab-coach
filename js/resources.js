@@ -128,6 +128,7 @@ function resourceItemHtml(r, { library = false } = {}) {
     <li class="resource ${done ? 'resource--done' : ''} ${r.optional ? 'resource--optional' : ''} ${r.retired ? 'resource--retired' : ''}">
       <p class="resource__title">${title}
         ${r.optional ? '<span class="flag">Optional</span>' : ''}
+        ${r.changedByMe ? '<span class="flag">Changed by me</span>' : ''}
         ${r.url ? '' : `<span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`}
         ${r.retired ? '<span class="flag">Retired</span>' : ''}
         ${r.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
@@ -154,6 +155,7 @@ function resourceItemHtml(r, { library = false } = {}) {
       ${library ? `
         <div class="button-row">
           <button type="button" class="button--small" data-action="resource-edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.title)}">Edit</button>
+          <button type="button" class="button--small" data-action="resource-toggle-optional" data-id="${esc(r.id)}" aria-label="${r.optional ? 'Mark as required' : 'Mark as optional'}: ${esc(r.title)}">${r.optional ? 'Mark as required' : 'Mark as optional'}</button>
           ${r.retired
             ? `<button type="button" class="button--small" data-action="resource-restore" data-id="${esc(r.id)}" aria-label="Restore ${esc(r.title)}">Restore</button>`
             : `<button type="button" class="button--small button--danger" data-action="resource-retire" data-id="${esc(r.id)}" aria-label="Retire ${esc(r.title)}">Retire</button>`}
@@ -200,7 +202,7 @@ function resourceFormHtml(resource) {
   const f = ui.form ?? (resource
     ? {
       title: resource.title, source: resource.source, type: resource.type, minutes: String(resource.minutes), url: resource.url,
-      why: resource.why, days: resource.days.join(', '), optional: resource.optional,
+      why: resource.why, days: resource.days.join(', '), optional: store.isOptionalResource(resource),
     }
     : { title: '', source: '', type: 'article', minutes: '', url: '', why: '', days: '', optional: false });
   return `
@@ -395,7 +397,7 @@ function importHtml() {
 }
 
 export function libraryView() {
-  const all = store.getData().resources;
+  const all = store.effectiveResources();
   const f = ui.filter;
   const firstDay = (r) => Math.min(...r.days);
   const shown = all
@@ -587,6 +589,15 @@ export const resourceActions = {
     ui.message = `Retired: ${r.title}. It is hidden from Today and Week; "Show retired resources" brings it back into view.`;
     announce(ui.message);
     return '#resources-message';
+  },
+  'resource-toggle-optional': (el) => {
+    const raw = store.getResource(el.dataset.id);
+    if (!raw) return null;
+    const next = !store.isOptionalResource(raw);
+    store.setOptional('resource', raw.id, next, raw.optional, testMode());
+    ui.message = `${raw.title} is now ${next ? 'optional' : 'required'}${store.isChangedByMe('resource', raw.id, raw.optional) ? ' (your choice; content updates will not change it)' : " (the content pack's own setting)"}.`;
+    announce(ui.message);
+    return `[data-action="resource-toggle-optional"][data-id="${raw.id}"]`;
   },
   'resource-restore': (el) => {
     const r = store.getResource(el.dataset.id);

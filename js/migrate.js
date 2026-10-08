@@ -18,7 +18,7 @@
 //   already in the new format comes back unchanged.
 // Pure functions only (no storage), so the date checks can test it in Node.
 import {
-  SCHEMA_VERSION, UNASSIGNED_ID, UNASSIGNED_NAME, countsFromDoc, isDate,
+  SCHEMA_VERSION, UNASSIGNED_ID, UNASSIGNED_NAME, countsFromDoc, isDate, ARTIFACT_CATEGORIES, UNCATEGORISED,
 } from './records.js';
 import { scorecard, PERIOD_2 } from './pace.js';
 import { PLAN_END } from './plan-data.js';
@@ -73,7 +73,7 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
       problems.push(`Scorecard entry ${i + 1} is incomplete or has an invalid date or kind.`);
     }
   });
-  if (fromVersion < SCHEMA_VERSION) {
+  if (fromVersion < 4) {
     for (const c of ['artifacts', 'people']) {
       if (Array.isArray(doc[c]) && doc[c].length) problems.push(`This older file has unexpected ${c}, so it cannot be converted safely.`);
     }
@@ -81,6 +81,7 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
   if (problems.length) return { ok: false, problems };
 
   const dates = [today, PLAN_END, PERIOD_2.end];
+  const artifactsBefore = JSON.stringify(Array.isArray(doc.artifacts) ? doc.artifacts : []);
   const countsBefore = countsFromDoc(doc);
   const rowsBefore = rowsFor(doc, dates);
 
@@ -157,10 +158,24 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
     }
   }
   doc.tallies = keep;
+  // Schema 5: every Evidence entry gets a category. Existing entries become 'uncategorised'.
+  let categorised = 0;
+  for (const a of doc.artifacts) {
+    if (!(a.category in ARTIFACT_CATEGORIES) && a.category !== UNCATEGORISED) {
+      a.category = UNCATEGORISED;
+      categorised++;
+    }
+  }
   doc.schemaVersion = SCHEMA_VERSION;
 
   // The check: every scorecard number must be exactly what it was.
   const diffs = compareCounts(countsBefore, countsFromDoc(doc));
+  // Entries that existed before must be unchanged apart from the new category (nothing lost or edited).
+  const strip = (list) => JSON.stringify(list.map((a) => { const { category, ...rest } = a; return rest; }));
+  const before = JSON.parse(artifactsBefore);
+  if (strip(before) !== strip(doc.artifacts.filter((a) => before.some((b) => b.id === a.id)))) {
+    diffs.push('an existing Evidence entry would have changed.');
+  }
   const rowsAfter = rowsFor(doc, dates);
   rowsAfter.forEach((row, i) => {
     if (row !== rowsBefore[i]) diffs.push(`scorecard for ${dates[i]} changed.`);
@@ -177,6 +192,7 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
   }
 
   const total = converted.artifact + converted.conversation + converted.referral;
+  converted.categorised = categorised;
   const parts = [];
   if (converted.artifact) parts.push(`${converted.artifact} artifact${converted.artifact === 1 ? '' : 's'} → Evidence log (published)`);
   const talks = converted.conversation + converted.referral;
@@ -185,7 +201,9 @@ export function migrate(raw, { now = new Date(), today = vancouverDate(now) } = 
   }
   const notice = total
     ? `Your quick scorecard entries were converted into full records: ${parts.join('; ')}. Applications stay as quick entries. The scorecard shows the same numbers as before, and a backup of your old data is kept in Settings.`
-    : null;
+    : categorised
+      ? `Evidence entries now have a category. Your ${categorised} existing ${categorised === 1 ? 'entry is' : 'entries are'} set to Uncategorised; nothing else changed. A backup of your old data is kept in Settings.`
+      : null;
   if (notice) doc.settings = { ...(doc.settings ?? {}), migrationNotice: notice };
 
   return { ok: true, doc, changed: true, converted: { ...converted, total }, notice, fromVersion };

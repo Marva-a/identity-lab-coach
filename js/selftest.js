@@ -3,7 +3,7 @@
 import { vancouverDate, addDays, weekday, TIME_ZONE } from './dates.js';
 import { getDayContext, dayNumberFor } from './plan.js';
 import {
-  WEEKS, PLAN_START, PLAN_VERSION, PLAN_ID_HISTORY, renameChecks, SCORECARD_TARGETS,
+  WEEKS, PLAN_START, PLAN_VERSION, PLAN_ID_HISTORY, renameChecks, SCORECARD_TARGETS, itemIsOptional, extraTimeLabel,
 } from './plan-data.js';
 import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
 import { SEED_CARDS } from './cards-data.js';
@@ -18,6 +18,7 @@ import { stepIndex, nextStep, previousStep, STEPS } from './session-flow.js';
 import { datedFilesToRemove, snapshotsToRemove, datedName, isOurDatedFile, KEEP_FILES, KEEP_SNAPSHOTS } from './backup-files.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
+  ARTIFACT_CATEGORIES, categoryCoverage, categoryLabel,
   SUGGESTED_SKILL_TAGS, validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
 } from './records.js';
 import {
@@ -238,7 +239,7 @@ export function runDateChecks() {
   check('Migration: a Stage 3 file needs it', needsMigration(stage3), true);
   check('Migration: succeeds', m1.ok, true);
   check('Migration: does not change its input', JSON.stringify(stage3), before);
-  check('Migration: schema version becomes 4', m1.doc.schemaVersion, 4);
+  check('Migration: schema version becomes 5', m1.doc.schemaVersion, 5);
   const cb = countsFromDoc(stage3);
   const ca = countsFromDoc(m1.doc);
   for (const k of ['artifact', 'conversation', 'referral', 'application']) {
@@ -261,7 +262,7 @@ export function runDateChecks() {
   check('Migration: a failed check is detected',
     compareCounts(cb, { ...ca, conversation: ca.conversation.slice(1) }).length > 0, true);
   check('Migration: an invalid entry stops it', migrate({ schemaVersion: 3, tallies: [{ id: 'z', kind: 'artifact', date: 'nope' }] }).ok, false);
-  check('Migration: a file with no entries still just upgrades', migrate({ schemaVersion: 2, sessions: [] }).doc.schemaVersion, 4);
+  check('Migration: a file with no entries still just upgrades', migrate({ schemaVersion: 2, sessions: [] }).doc.schemaVersion, 5);
 
   // Evidence: maturity, project and the Markdown export (they must never change the counts).
   const richPub = { ...pub, title: 'T', type: 'threat-model', tags: ['PKCE'], maturity: 'implemented', project: 'project-1' };
@@ -386,7 +387,7 @@ export function runDateChecks() {
   // Plan text version 2 (revised roadmap): nothing you ticked or logged can be lost.
   const itemIds = new Set(WEEKS.flatMap((w) => w.items.map((i) => i.id)));
   const item = (id) => WEEKS.flatMap((w) => w.items).find((i) => i.id === id);
-  check('Plan: the plan text is version 2', PLAN_VERSION, 2);
+  check('Plan: the plan text is version 3', PLAN_VERSION, 3);
   check('Plan: every item id from version 1 still exists (so every saved tick still matches)',
     PLAN_ID_HISTORY[1].filter((id) => !itemIds.has(id)).length, 0);
   check('Plan: item ids are unique', itemIds.size, WEEKS.reduce((n, w) => n + w.items.length, 0));
@@ -523,6 +524,83 @@ export function runDateChecks() {
   check('Network: every request is a plain GET with no cookies, no referrer, no body and no redirects',
     CONTENT_REQUEST_INIT.method === 'GET' && CONTENT_REQUEST_INIT.credentials === 'omit' && CONTENT_REQUEST_INIT.referrerPolicy === 'no-referrer'
       && CONTENT_REQUEST_INIT.redirect === 'error' && CONTENT_REQUEST_INIT.mode === 'same-origin' && !('body' in CONTENT_REQUEST_INIT), true);
+
+  // Plan version 3: one Design item per week, extra time on top of the 12 hours.
+  const design = WEEKS.flatMap((w) => w.items.filter((i) => i.kind === 'design').map((i) => ({ week: w.number, ...i })));
+  const v2Ids = PLAN_ID_HISTORY[2] ?? [];
+  check('Plan v3: every item id from version 2 still exists', v2Ids.filter((id) => !itemIds.has(id)).length, 0);
+  check('Plan v3: version 2 had 92 items', v2Ids.length, 92);
+  check('Plan v3: eight new items, one Design item in each of weeks 1–8', design.map((d) => d.week).join(','), '1,2,3,4,5,6,7,8');
+  check('Plan v3: the 100 items are the 92 old ones plus the 8 new ones', itemIds.size, 100);
+  check('Plan v3: the new ids are the only additions', [...itemIds].filter((id) => !v2Ids.includes(id)).sort().join(','), design.map((d) => d.id).sort().join(','));
+  check('Plan v3: each Design item comes after its week\'s Evidence items', WEEKS.slice(0, 8).every((w) => w.items.map((i) => i.kind).lastIndexOf('design') === w.items.length - 1
+    && w.items.map((i) => i.kind).lastIndexOf('evidence') < w.items.map((i) => i.kind).indexOf('design')), true);
+  check('Plan v3: weeks 4, 6 and 8 are required flagships of about 3 hours', design.filter((d) => d.flagship && !d.optional && d.extraMinutes === 180).map((d) => d.week).join(','), '4,6,8');
+  check('Plan v3: the other five are optional', design.filter((d) => d.optional && !d.flagship).map((d) => d.week).join(','), '1,2,3,5,7');
+  check('Plan v3: optional ones are about 2 hours, Week 3 about 3', design.filter((d) => d.optional).map((d) => d.extraMinutes / 60).join(','), '2,2,3,2,2');
+  check('Plan v3: titles match the brief', design.map((d) => d.text).join('|'),
+    ['Enterprise identity mental model', 'Consent screen and scopes', 'Admin provisioning flow', 'Redesign account recovery', 'Device posture failure experience',
+      'Permission management for a non-security admin', 'Account-takeover investigation console', 'Agent authorization case-study outline'].join('|'));
+  check('Plan v3: the weekly hour budgets are still 11, 12 ×7, 8 (extra time is not added)', WEEKS.map((w) => Object.values(w.budget).reduce((a, b) => a + b, 0)).join(','), '11,12,12,12,12,12,12,12,8');
+  check('Plan v3: the extra time is described in words', extraTimeLabel(design[3]), 'about 3 h, on top of the 12');
+  check('Plan v3: required item counts per week were 9,11,12,9,10,11,9,10 and are now +1 in weeks 4, 6 and 8',
+    WEEKS.slice(0, 8).map((w) => w.items.filter((i) => !i.optional && !i.conditional).length).join(','), '9,11,12,10,10,12,9,11');
+  const tickedAll = Object.fromEntries(v2Ids.map((id) => [id, { at: 'x', testMode: false }]));
+  check('Plan v3: ticks saved under version 2 are unchanged by the rename step', JSON.stringify(renameChecks(tickedAll)), JSON.stringify(tickedAll));
+  const hoursRow = (extra) => scorecard('2026-10-18', [...sat, ...extra], {}).find((r) => r.id === 'hours');
+  check('Plan v3: logging 3 extra hours is not penalised (still On track)', hoursRow([{ date: '2026-10-17', minutes: 180 }]).status, 'on');
+  check('Plan v3: the scorecard still expects the same hours with or without extra logged time', hoursRow([{ date: '2026-10-17', minutes: 180 }]).expected, hoursRow([]).expected);
+
+  // Your Optional / Required choices.
+  const flagship = design[3];
+  const optItem = WEEKS[0].items.find((i) => i.id === 'w1-read-3');
+  check('Optional choice: no choice means the plan\'s own setting (required flagship)', itemIsOptional(flagship, {}), false);
+  check('Optional choice: your choice beats the plan (flagship marked optional)', itemIsOptional(flagship, { [`item:${flagship.id}`]: { optional: true } }), true);
+  check('Optional choice: your choice beats the plan (optional item marked required)', itemIsOptional(optItem, { [`item:${optItem.id}`]: { optional: false } }), false);
+  check('Optional choice: a choice on another item changes nothing', itemIsOptional(flagship, { 'item:other': { optional: true } }), false);
+  const cpBefore = courseProgress(emptyData(), { today: '2026-11-10' });
+  const cpAfter = courseProgress(emptyData({ optionalOverrides: { [`item:${flagship.id}`]: { optional: true } } }), { today: '2026-11-10' });
+  check('Optional choice: marking a required item optional lowers that week\'s required count by one', cpBefore.weeks[3].required - cpAfter.weeks[3].required, 1);
+  check('Optional choice: and counts it as extra', cpAfter.weeks[3].extraTotal - cpBefore.weeks[3].extraTotal, 1);
+  check('Optional choice: no other week changes', cpAfter.weeks.filter((w, i) => i !== 3 && w.required !== cpBefore.weeks[i].required).length, 0);
+  const cpMore = courseProgress(emptyData({ optionalOverrides: { [`item:${optItem.id}`]: { optional: false } } }), { today: '2026-10-14' });
+  check('Optional choice: marking an optional item required raises the required count by one', cpMore.weeks[0].required - cp({}, '2026-10-14').weeks[0].required, 1);
+  check('Optional choice: a ticked item stays ticked when its setting changes', courseProgress(emptyData({
+    weekChecks: { [flagship.id]: { at: 'x' } }, optionalOverrides: { [`item:${flagship.id}`]: { optional: true } },
+  }), { today: '2026-11-10' }).weeks[3].extraTicked, 1);
+
+  // Evidence categories (schema 5).
+  const legacyArtifact = { id: 'a1', title: 'Old one', type: 'write-up', status: 'published', createdDate: '2026-10-12', publishedDate: '2026-10-17', url: '', tags: ['oauth'], reflection: 'r', maturity: 'implemented', project: 'project-1', migrated: false, testMode: false };
+  const legacyDraft = { ...legacyArtifact, id: 'a2', status: 'draft', publishedDate: null, title: 'Draft' };
+  const v4doc = { schemaVersion: 4, planVersion: 2, sessions: [{ id: 's', date: '2026-10-13', minutes: 60 }], tallies: [], artifacts: [legacyArtifact, legacyDraft], people: [], interactions: [] };
+  const m5 = migrate(v4doc);
+  check('Category migration: a version 4 file with entries migrates', m5.ok, true);
+  check('Category migration: schema version becomes 5', m5.doc.schemaVersion, 5);
+  check('Category migration: every existing entry becomes Uncategorised', m5.doc.artifacts.map((a) => a.category).join(','), 'uncategorised,uncategorised');
+  check('Category migration: no entry was lost', m5.doc.artifacts.length, 2);
+  check('Category migration: apart from the category, entries are identical',
+    JSON.stringify(m5.doc.artifacts.map(({ category, ...r }) => r)), JSON.stringify([legacyArtifact, legacyDraft]));
+  check('Category migration: scorecard counts are the same before and after',
+    JSON.stringify(compareCounts(countsFromDoc(v4doc), countsFromDoc(m5.doc))), '[]');
+  check('Category migration: sessions are untouched', JSON.stringify(m5.doc.sessions), JSON.stringify(v4doc.sessions));
+  check('Category migration: the input file is not changed', v4doc.artifacts[0].category, undefined);
+  check('Category migration: it says what happened', /2 existing entries/.test(m5.notice ?? ''), true);
+  check('Category migration: running it twice changes nothing more', migrate(m5.doc).changed, false);
+  check('Category migration: a category you already chose is kept', migrate({ ...v4doc, artifacts: [{ ...legacyArtifact, category: 'security' }] }).doc.artifacts[0].category, 'security');
+  check('Category migration: an unknown category becomes Uncategorised', migrate({ ...v4doc, artifacts: [{ ...legacyArtifact, category: 'bogus' }] }).doc.artifacts[0].category, 'uncategorised');
+  check('Category: the five categories are Research, Systems, Interaction, Security, Product', Object.values(ARTIFACT_CATEGORIES).join(','), 'Research,Systems,Interaction,Security,Product');
+  check('Category: a new entry needs one of the five', validateArtifact({ ...legacyArtifact, category: 'uncategorised' }, { requireCategory: true }).length > 0, true);
+  check('Category: an old entry may stay Uncategorised when edited', validateArtifact({ ...legacyArtifact, category: 'uncategorised' }, { requireMaturity: true }).length, 0);
+  check('Category: an empty choice on a new entry asks to choose one, not "invalid"', validateArtifact({ ...legacyArtifact, category: '' }, { requireCategory: true }).join(' '), 'Choose a category (Research, Systems, Interaction, Security or Product).');
+  check('Category: a made-up category is refused', validateArtifact({ ...legacyArtifact, category: 'x' }).length > 0, true);
+  check('Category: a chosen category is valid', validateArtifact({ ...legacyArtifact, category: 'systems' }, { requireCategory: true }).length, 0);
+  const cov = categoryCoverage([{ category: 'security' }, { category: 'security' }, { category: 'product' }, { category: 'uncategorised' }]);
+  check('Coverage: lists all five in order', cov.rows.map((r) => r.id).join(','), 'research,systems,interaction,security,product');
+  check('Coverage: counts per category', cov.rows.map((r) => r.count).join(','), '0,0,0,2,1');
+  check('Coverage: zero categories are the ones with no entries', cov.rows.filter((r) => r.count === 0).map((r) => r.label).join(','), 'Research,Systems,Interaction');
+  check('Coverage: uncategorised entries are counted separately', cov.uncategorised, 1);
+  check('Coverage: a category does not change the scorecard', JSON.stringify(countsFromDoc({ artifacts: [{ ...legacyArtifact, category: 'systems' }] })), JSON.stringify(countsFromDoc({ artifacts: [legacyArtifact] })));
+  check('Coverage: label for a missing category', categoryLabel(undefined), 'Uncategorised');
 
   return results;
 }
