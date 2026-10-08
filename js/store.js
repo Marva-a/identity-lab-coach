@@ -15,6 +15,7 @@
 //
 // AppData {
 //   schemaVersion: 4,
+//   planVersion: number,        // version of the plan text this data was last matched to (see plan-data.js)
 //   app: 'identity-lab-coach',
 //   sessions:    Session[],     // Stage 1
 //   cards:       Card[],        // Stage 2: flashcards
@@ -169,9 +170,10 @@ import { isValidDateString } from './dates.js';
 import { SEED_CARDS, CARD_SEED_VERSION } from './cards-data.js';
 import {
   SCHEMA_VERSION, validateArtifact, validatePerson, validateInteraction, normalizeTags, countsFromDoc,
-  validateResource, validateResourceUrl, RESOURCE_STATUSES,
+  validateResource, validateResourceUrl, RESOURCE_STATUSES, SUGGESTED_SKILL_TAGS,
 } from './records.js';
 import { migrate, needsMigration } from './migrate.js';
+import { PLAN_VERSION, renameChecks } from './plan-data.js';
 
 export { SCHEMA_VERSION };
 export const STORAGE_KEY = 'identity-lab-coach:data';
@@ -197,6 +199,7 @@ function defaultSettings() {
 function emptyData() {
   return {
     schemaVersion: SCHEMA_VERSION,
+    planVersion: PLAN_VERSION,
     app: APP_ID,
     sessions: [],
     cards: [],
@@ -258,6 +261,7 @@ function normalize(raw) {
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
   out.schemaVersion = SCHEMA_VERSION;
+  out.planVersion = Number.isInteger(raw?.planVersion) ? raw.planVersion : 1; // older data: the first plan text
   out.app = APP_ID;
   delete out.exportedAt; // belongs to the export file, not to your data
   return out;
@@ -306,8 +310,22 @@ export function load() {
       migrated = result.changed;
     }
   }
-  if (seedCards() || migrated) persist();
+  const planChanged = migratePlan();
+  const seeded = seedCards();
+  if (seeded || planChanged || migrated) persist();
   return data;
+}
+
+/**
+ * Brings saved data up to the current plan text. Ticks are keyed by plan item id and
+ * ids never change, so a ticked item stays ticked and nothing is removed. If an id is
+ * ever renamed (PLAN_ID_RENAMES), its tick moves to the new id. Returns true if anything changed.
+ */
+function migratePlan() {
+  if (data.planVersion >= PLAN_VERSION) return false;
+  data.weekChecks = renameChecks(data.weekChecks);
+  data.planVersion = PLAN_VERSION;
+  return true;
 }
 
 /**
@@ -583,6 +601,13 @@ export function publishArtifact(id, publishedDate, maturity) {
 export function deleteArtifact(id) {
   data.artifacts = data.artifacts.filter((a) => a.id !== id);
   persist();
+}
+
+/** The built-in suggestions plus every tag you have used, once each (ignoring capitals), alphabetically. */
+export function suggestedSkillTags() {
+  const seen = new Map();
+  for (const t of [...SUGGESTED_SKILL_TAGS, ...allSkillTags()]) if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /** Every skill tag in use, once each (ignoring capitals), alphabetically. */
@@ -1027,6 +1052,9 @@ export function parseImport(text) {
   for (const c of COLLECTIONS) {
     if (raw[c] !== undefined && !Array.isArray(raw[c])) problems.push(`"${c}" should be a list.`);
   }
+  if (raw.planVersion !== undefined && !(Number.isInteger(raw.planVersion) && raw.planVersion >= 1 && raw.planVersion <= PLAN_VERSION)) {
+    problems.push(`The file's plan version (${String(raw.planVersion).slice(0, 12)}) is not one this app knows (1 to ${PLAN_VERSION}).`);
+  }
   if (Array.isArray(raw.sessions)) {
     raw.sessions.forEach((s, i) => {
       const p = validateSession(s ?? {});
@@ -1112,6 +1140,7 @@ export function replaceWithImport(parsed) {
   }
   loadProblem = null;
   data = normalize(parsed.doc);
+  migratePlan();
   seedCards();
   persist();
   return { ok: true };
@@ -1148,6 +1177,7 @@ export function restoreBackup() {
   }
   const current = { savedAt: new Date().toISOString(), data };
   data = normalize(result.doc);
+  migratePlan();
   seedCards();
   persist();
   writeKey(BACKUP_KEY, JSON.stringify(current));

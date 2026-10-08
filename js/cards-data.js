@@ -8,7 +8,8 @@
 // SeedCard: { seedId, week, type: 'recall'|'explain', topic, front, back, reference }
 // `seedId` lets the app add new seed cards later without duplicating old ones.
 
-export const CARD_SEED_VERSION = 1;
+/** 2: added the zero trust and cloud security foundations cards for Weeks 5 and 6. */
+export const CARD_SEED_VERSION = 2;
 
 export const SEED_CARDS = [
   // ─── Week 1: identity foundations ─────────────────────────────────────────
@@ -295,5 +296,126 @@ export const SEED_CARDS = [
     front: 'When should an agent stop and ask a human for approval?',
     back: 'Before high-impact or hard-to-reverse actions, such as sending money or messages, deleting data or changing permissions, and whenever an action goes beyond what the user asked for. The approval should show exactly what will happen and be logged with both the user\'s and the agent\'s identity.',
     reference: 'OWASP Top 10 for LLM Applications (2025), LLM06: Excessive Agency (human-in-the-loop)',
+  },
+  // ─── Added with plan version 2 (zero trust and cloud security foundations) ─
+  {
+    seedId: 'w5-tcpip-layers', week: 5, type: 'recall', topic: 'TCP/IP layers',
+    front: 'Name the four layers of the TCP/IP model and give one example at each layer.',
+    back: 'Link (for example Ethernet or Wi-Fi), Internet (IP), Transport (TCP or UDP) and Application (for example HTTP or DNS). Each layer relies on the one below it.',
+    reference: 'RFC 1122, Requirements for Internet Hosts: Communication Layers, section 1.1.3 (Internet Architecture)',
+  },
+  {
+    seedId: 'w5-dns', week: 5, type: 'recall', topic: 'What DNS does',
+    front: 'What does DNS do, and what can someone watching your network see of it?',
+    back: 'DNS turns names into IP addresses: a resolver asks other name servers until it gets an answer. Ordinary DNS queries are not encrypted, so someone on the network path can see which names you look up. Encrypted DNS (DNS over HTTPS or over TLS) hides them from that observer.',
+    reference: 'Cloudflare Learning Center: "What is DNS?"',
+  },
+  {
+    seedId: 'w5-tls-vs-mtls', week: 5, type: 'recall', topic: 'TLS vs mutual TLS',
+    front: 'How does mutual TLS (mTLS) differ from ordinary TLS?',
+    back: 'In ordinary TLS only the server proves its identity, with a certificate. In mutual TLS the client also presents a certificate, so each side authenticates the other before any data is exchanged.',
+    reference: 'Cloudflare Learning Center: "What is mutual TLS (mTLS)?"',
+  },
+  {
+    seedId: 'w5-tls-observer', week: 5, type: 'explain', topic: 'TLS handshake and what an observer sees',
+    front: 'Explain what a TLS handshake sets up, and what an observer on the network can and cannot see once it is done.',
+    back: 'The handshake lets the client check the server\'s certificate and lets both sides agree on keys. After it, the content of the connection is encrypted, so an observer cannot read it. The observer can still see the IP addresses involved, when the connection happens and roughly how much data moves. Whether the server name is also visible depends on the TLS version and settings.',
+    reference: 'Cloudflare Learning Center: "What is Transport Layer Security (TLS)?"',
+  },
+  {
+    seedId: 'w5-fw-sg-ztna', week: 5, type: 'recall', topic: 'Firewall vs security group vs ZTNA',
+    front: 'How do a network firewall, an AWS security group and ZTNA differ in what they decide on?',
+    back: 'A network firewall filters traffic by rules on addresses, ports and protocols at a network boundary. An AWS security group is a stateful virtual firewall attached to resources inside a VPC, and it only has allow rules. ZTNA decides per application, using who the user is, the state of their device and policy, rather than where they are on the network.',
+    reference: 'AWS VPC User Guide: security groups; Cloudflare Learning Center: "What is ZTNA?"',
+  },
+  {
+    seedId: 'w5-segmentation', week: 5, type: 'recall', topic: 'Network segmentation',
+    front: 'What is network segmentation, and why does it help security?',
+    back: 'Splitting a network into separate zones with rules controlling what may pass between them. If something in one zone is compromised, the rules at the boundary limit how far an attacker can move sideways into other zones.',
+    reference: 'Professor Messer, Network+ N10-009: Network Security Concepts (segmentation enforcement)',
+  },
+  {
+    seedId: 'w5-vpn-vs-ztna-2', week: 5, type: 'recall', topic: 'VPN vs ZTNA',
+    front: 'Why is a traditional VPN described as giving network-level access, and ZTNA application-level access?',
+    back: 'A traditional VPN puts your device on the network, from where many resources may be reachable. ZTNA connects a user only to the specific applications a policy allows, checking identity and device each time, and keeps everything else out of reach.',
+    reference: 'Cloudflare Learning Center: "What is ZTNA?"; NIST SP 800-207',
+  },
+  {
+    seedId: 'w5-pdp-pep', week: 5, type: 'recall', topic: 'Policy decision point vs policy enforcement point',
+    front: 'In NIST SP 800-207, what do the policy decision point and the policy enforcement point each do?',
+    back: 'The policy decision point (made of the policy engine, which decides, and the policy administrator, which sets up or ends the session) decides whether a subject may access a resource. The policy enforcement point sits in the path of the connection and allows, monitors and ends it according to that decision.',
+    reference: 'NIST SP 800-207, section 3 (logical components)',
+  },
+  {
+    seedId: 'w5-posture-example', week: 5, type: 'recall', topic: 'Device posture',
+    front: 'Give two device-posture signals and say how an access rule can use them.',
+    back: 'Examples: the operating system version, whether disk encryption is on, whether the device is managed. An access rule can require them, so a request is only allowed from devices that meet the conditions, for example up-to-date and encrypted ones.',
+    reference: 'Tailscale documentation: Device posture management; NIST SP 800-207',
+  },
+  {
+    seedId: 'w5-beyondcorp', week: 5, type: 'recall', topic: 'BeyondCorp\'s core idea',
+    front: 'What is the core idea of Google\'s BeyondCorp?',
+    back: 'Access to applications depends on who the user is and the state of their device, not on being inside the corporate network. The internal network gets no special trust, and applications are reached through an access proxy that applies policy.',
+    reference: 'Rory Ward and Betsy Beyer (Google, 2014), "BeyondCorp: A New Approach to Enterprise Security"',
+  },
+  {
+    seedId: 'w5-wireguard', week: 5, type: 'recall', topic: 'WireGuard at concept level',
+    front: 'At concept level, what is WireGuard, and how does it relate to Tailscale?',
+    back: 'WireGuard is a modern VPN tunnel protocol: each device has a key pair, and peers exchange public keys to set up encrypted connections. Tailscale builds its network on WireGuard and adds identity-based coordination and access policy on top.',
+    reference: 'wireguard.com; Tailscale documentation',
+  },
+  {
+    seedId: 'w6-shared-responsibility', week: 6, type: 'recall', topic: 'Shared responsibility model',
+    front: 'In the cloud shared responsibility model, who is responsible for what?',
+    back: 'The provider is responsible for the security of the cloud: the hardware, software, networking and facilities that run its services. The customer is responsible for security in the cloud: their data, who can access it, and how they configure the services. The exact split depends on the service.',
+    reference: 'AWS Shared Responsibility Model',
+  },
+  {
+    seedId: 'w6-shared-example', week: 6, type: 'explain', topic: 'Shared responsibility: examples',
+    front: 'Give two examples of things that stay your responsibility when you use a cloud provider.',
+    back: 'For example: deciding who can access your data and resources (identity and access management settings), and, on a virtual machine you run yourself, patching its guest operating system. Misconfigured access is a customer-side failure even though the provider runs the platform.',
+    reference: 'AWS Shared Responsibility Model',
+  },
+  {
+    seedId: 'w6-vpc-subnet-sg', week: 6, type: 'recall', topic: 'VPC, subnet and security group',
+    front: 'In AWS, what are a VPC, a subnet and a security group?',
+    back: 'A VPC is a logically isolated virtual network in your account. A subnet is a range of IP addresses in the VPC, within one Availability Zone. A security group is a virtual firewall that controls the traffic allowed to and from the resources it is attached to.',
+    reference: 'AWS VPC User Guide: "What is Amazon VPC?"',
+  },
+  {
+    seedId: 'w6-public-private-subnet', week: 6, type: 'recall', topic: 'Public vs private subnet',
+    front: 'What makes a subnet "public" rather than "private" in a VPC?',
+    back: 'A public subnet has a route to an internet gateway in its route table, so resources with public addresses can reach and be reached from the internet. A private subnet has no such route.',
+    reference: 'AWS VPC User Guide: subnets and route tables',
+  },
+  {
+    seedId: 'w6-sg-stateful', week: 6, type: 'recall', topic: 'Security groups are stateful',
+    front: 'What does it mean that an AWS security group is stateful, and what kind of rules does it have?',
+    back: 'If traffic is allowed in, the reply is automatically allowed out, and the other way round, whatever the opposite direction\'s rules say. A security group has allow rules only: anything not allowed is denied.',
+    reference: 'AWS VPC User Guide: security groups',
+  },
+  {
+    seedId: 'w6-flow-logs', week: 6, type: 'recall', topic: 'VPC flow logs',
+    front: 'What do VPC flow logs record, and what do they not record?',
+    back: 'They record information about IP traffic to and from network interfaces: source and destination addresses and ports, the protocol, bytes and packets, and whether the traffic was accepted or rejected. They do not record the contents of the packets.',
+    reference: 'AWS VPC User Guide: "Logging IP traffic using VPC Flow Logs"',
+  },
+  {
+    seedId: 'w6-flow-logs-use', week: 6, type: 'explain', topic: 'Using flow logs to check a security group',
+    front: 'How would you use flow logs to check that a security group blocks what you meant it to block?',
+    back: 'Look for records for that source, destination and port. Traffic the group allows shows as accepted and traffic it blocks shows as rejected. A rejection can also come from a network ACL, so check which control applies. Flow logs add cost, so keep them short and delete them when you are done.',
+    reference: 'AWS VPC User Guide: "Logging IP traffic using VPC Flow Logs"',
+  },
+  {
+    seedId: 'w6-spiffe-id', week: 6, type: 'recall', topic: 'SPIFFE ID and SVID',
+    front: 'What is a SPIFFE ID, and what is an SVID?',
+    back: 'A SPIFFE ID is a string that names a workload, written as a URI that starts with spiffe:// followed by a trust domain and a path. An SVID (SPIFFE Verifiable Identity Document) is the document that proves a workload has that ID, as an X.509 certificate or a JWT.',
+    reference: 'SPIFFE Overview (spiffe.io)',
+  },
+  {
+    seedId: 'w6-spiffe-why', week: 6, type: 'explain', topic: 'Workload identity instead of shared secrets',
+    front: 'Why give software workloads their own verifiable identity instead of sharing secrets between them?',
+    back: 'With verifiable identities, services can prove who they are to each other without long-lived shared secrets such as stored passwords or API keys that can leak. The identity documents can be short-lived and checked automatically, which also supports mutual TLS between services.',
+    reference: 'SPIFFE Overview (spiffe.io)',
   },
 ];

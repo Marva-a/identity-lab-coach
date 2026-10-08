@@ -42,7 +42,7 @@ node js/selftest.js
 | `js/store.js` | Data model, saving, JSON export and import (the data model is documented at the top) |
 | `js/timer.js` | The 50/10/50 session timer |
 | `js/srs.js` | Leitner spaced repetition, unlocking by week, interleaving |
-| `js/cards-data.js` | The 45 seed flashcards (all unverified, each with a reference) |
+| `js/cards-data.js` | The 65 seed flashcards (all unverified, each with a reference) |
 | `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
 | `js/week.js` | Week view: checklist, days, hours against the budget |
 | `js/pace.js` | Scorecard maths: expected-by-today and status (no page code) |
@@ -100,6 +100,12 @@ node js/selftest.js
   "Unassigned (migrated)". The scorecard is recounted before saving; if any
   number differs, nothing is saved. A copy of the old data is kept in Settings
   until you delete it.
+- **Plan text version** (`planVersion`): the plan lives in code, so changing its text
+  bumps `PLAN_VERSION` in `plan-data.js`. Your ticks are keyed by plan item id and
+  existing ids never change (new items get new ids), so a ticked item stays ticked.
+  If an id ever has to change, `PLAN_ID_RENAMES` moves its tick. Version 2 is the
+  revised roadmap: Weeks 5 and 6 renamed, extra items added (extras are Optional),
+  exercises 21 and 22, and 20 more flashcards for Weeks 5 and 6.
 - **Every saved record has `id`, `createdAt` and `updatedAt`**, ready for a
   server, sync or an append-only audit log. Add `ownerId` when you add
   sign-in; `store.js` is the only file that touches storage, so it is the one

@@ -2,7 +2,9 @@
 // run from Settings → "Run date checks" (or `node js/selftest.js`).
 import { vancouverDate, addDays, weekday, TIME_ZONE } from './dates.js';
 import { getDayContext, dayNumberFor } from './plan.js';
-import { WEEKS, PLAN_START } from './plan-data.js';
+import {
+  WEEKS, PLAN_START, PLAN_VERSION, PLAN_ID_HISTORY, renameChecks, SCORECARD_TARGETS,
+} from './plan-data.js';
 import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
 import { SEED_CARDS } from './cards-data.js';
 import { migrate, needsMigration, compareCounts } from './migrate.js';
@@ -10,7 +12,7 @@ import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
-  validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
+  SUGGESTED_SKILL_TAGS, validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
 } from './records.js';
 import {
   expectedHours, expectedArtifactsPeriod1, expectedFor, statusFor, countStudyDays, scorecard, PERIOD_1, PERIOD_2,
@@ -139,7 +141,7 @@ export function runDateChecks() {
   check('Cards: a week 4 card is due on Mon Nov 2', scheduleAll([w4], [], '2026-11-02', {}).get('x').isDue, true);
   const mixed = [{ id: 'a', week: 3 }, { id: 'b', week: 3 }, { id: 'c', week: 1 }, { id: 'd', week: 2 }];
   check('Cards: the retrieval check mixes weeks', pickInterleaved(mixed, 3).map((c) => c.week).join(','), '3,1,2');
-  check('Cards: about 40 seed cards', SEED_CARDS.length >= 38 && SEED_CARDS.length <= 46, true);
+  check('Cards: 45 original seed cards plus 20 for Weeks 5 and 6', SEED_CARDS.length, 65);
   check('Cards: every seed card has a reference', SEED_CARDS.every((c) => c.reference && c.week >= 1 && c.week <= 8), true);
   check('Cards: every week 1–8 has seed cards', [1, 2, 3, 4, 5, 6, 7, 8].every((w) => SEED_CARDS.some((c) => c.week === w)), true);
 
@@ -374,6 +376,37 @@ export function runDateChecks() {
   const withResources = { artifacts: [pub], interactions: [], tallies: [], resources: [{ ...good, id: 'r', status: 'done', minutes: 120 }] };
   check('Hours: resource minutes never count as hours or change the scorecard',
     scorecard('2026-10-18', [], countsFromDoc(withResources)).find((r) => r.id === 'hours').actual, 0);
+
+  // Plan text version 2 (revised roadmap): nothing you ticked or logged can be lost.
+  const itemIds = new Set(WEEKS.flatMap((w) => w.items.map((i) => i.id)));
+  const item = (id) => WEEKS.flatMap((w) => w.items).find((i) => i.id === id);
+  check('Plan: the plan text is version 2', PLAN_VERSION, 2);
+  check('Plan: every item id from version 1 still exists (so every saved tick still matches)',
+    PLAN_ID_HISTORY[1].filter((id) => !itemIds.has(id)).length, 0);
+  check('Plan: item ids are unique', itemIds.size, WEEKS.reduce((n, w) => n + w.items.length, 0));
+  check('Plan: weekly hour budgets are unchanged (11, 12 ×7, 8)', WEEKS.map((w) => Object.values(w.budget).reduce((a, b) => a + b, 0)).join(','), '11,12,12,12,12,12,12,12,8');
+  check('Plan: planned hours are still 103 in total', WEEKS.reduce((n, w) => n + w.days.reduce((m, d) => m + d.hours, 0), 0), 103);
+  check('Plan: scorecard targets are unchanged', JSON.stringify(SCORECARD_TARGETS.map((t) => [t.hours ?? null, t.artifacts, t.conversations, t.applications.join('-'), t.referralAsks.join('-')])),
+    JSON.stringify([[100, 9, 15, '3-6', '2-3'], [null, 12, 25, '20-30', '10-10']]));
+  check('Plan: Week 5 is renamed', WEEKS[4].title, 'Zero Trust and network security foundations');
+  check('Plan: Week 6 is renamed', WEEKS[5].title, 'Cloud security foundations, IAM and secrets');
+  check('Plan: Week 5 Learn now covers TCP/IP layers, mutual TLS and policy points', ['TCP/IP layers', 'mutual TLS', 'policy decision and enforcement points'].every((t) => item('w5-learn-1').text.includes(t)), true);
+  const extras = ['w1-read-3', 'w4-read-3', 'w5-practice-2', 'w6-read-3', 'w6-practice-4', 'w6-apply-2', 'w7-apply-2', 'w8-read-3', 'w8-read-4'];
+  check('Plan: every addition marked "extra" is an Optional item', extras.every((id) => item(id)?.optional === true), true);
+  const required = ['w3-evidence-2', 'w5-read-3', 'w5-evidence-2', 'w6-learn-2', 'w6-evidence-2', 'w7-learn-2', 'w8-learn-2'];
+  check('Plan: additions not marked "extra" are required items', required.every((id) => item(id) && !item(id).optional), true);
+  check('Plan: Week 5 and 6 each gained an Optional exercise (21 and 22)', `${item('w5-practice-2').exercises} ${item('w6-practice-4').exercises}`, '21 22');
+  const ticks = { 'w5-learn-1': { at: 'x' }, 'w1-read-1': { at: 'y' } };
+  check('Plan migration: with no renames your ticks are exactly as they were', JSON.stringify(renameChecks(ticks, {})), JSON.stringify(ticks));
+  check('Plan migration: a renamed item keeps its tick on the new id', JSON.stringify(renameChecks(ticks, { 'w5-learn-1': 'w5-learn-9' })),
+    JSON.stringify({ 'w1-read-1': { at: 'y' }, 'w5-learn-9': { at: 'x' } }));
+  check('Plan migration: a tick already on the new id is not overwritten', renameChecks({ a: { at: '1' }, b: { at: '2' } }, { a: 'b' }).b.at, '2');
+  const newCards = SEED_CARDS.slice(45);
+  check('Cards: 20 new cards, all unlocking in Week 5 or 6', newCards.length === 20 && newCards.every((c) => c.week === 5 || c.week === 6), true);
+  check('Cards: every new card has a reference and a question and answer', newCards.every((c) => c.reference && c.front && c.back), true);
+  check('Cards: seed data never marks a card verified', SEED_CARDS.every((c) => !('verified' in c)), true);
+  check('Cards: seed ids are unique, so re-seeding cannot duplicate', new Set(SEED_CARDS.map((c) => c.seedId)).size, SEED_CARDS.length);
+  check('Skill tags: the five new suggestions are offered', ['network-security', 'cloud-security', 'zero-trust', 'segmentation', 'workload-identity'].every((t) => SUGGESTED_SKILL_TAGS.includes(t)), true);
 
   return results;
 }

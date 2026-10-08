@@ -29,6 +29,8 @@ export const PROJECTS = {
   other: 'Other',
 };
 export const TAGS_MAX = 3;
+/** Skill tags offered as suggestions in the Evidence form (you can still type any tag). */
+export const SUGGESTED_SKILL_TAGS = ['network-security', 'cloud-security', 'zero-trust', 'segmentation', 'workload-identity'];
 export const TAG_MAX_LENGTH = 40;
 
 // ─── People ──────────────────────────────────────────────────────────────────

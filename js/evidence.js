@@ -59,7 +59,7 @@ function formHtml(artifact) {
   const isNew = !artifact;
   const f = ui.form ?? (artifact ? formFrom(artifact) : blankForm());
   const showPublished = f.status === 'published';
-  const datalist = `<datalist id="skill-suggestions">${store.allSkillTags().map((t) => `<option value="${esc(t)}"></option>`).join('')}</datalist>`;
+  const datalist = `<datalist id="skill-suggestions">${store.suggestedSkillTags().map((t) => `<option value="${esc(t)}"></option>`).join('')}</datalist>`;
   return `
     <form id="evidence-form" class="card-form" data-id="${esc(artifact?.id ?? 'new')}" novalidate>
       <h3 id="evidence-form-heading" tabindex="-1">${isNew ? 'Add evidence' : 'Edit evidence'}</h3>
@@ -106,7 +106,7 @@ function formHtml(artifact) {
       </div>
       <fieldset>
         <legend>What this proves (1–${TAGS_MAX} skill tags)</legend>
-        <p class="hint">For example OAuth, PKCE, threat modelling, SCIM.</p>
+        <p class="hint">Pick a suggestion or type your own: for example network-security, cloud-security, zero-trust, segmentation, workload-identity, OAuth or PKCE.</p>
         ${[0, 1, 2].map((i) => `
           <div class="field">
             <label for="ev-tag-${i}">Skill ${i + 1}${i === 0 ? ' (required)' : ' (optional)'}</label>

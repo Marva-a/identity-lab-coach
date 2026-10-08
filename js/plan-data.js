@@ -13,6 +13,52 @@
 
 /** @typedef {'learn'|'practice'|'build'|'publish'|'capstone'} BlockType */
 
+/**
+ * Plan text version. Bump it when plan text changes. Saved ticks are keyed by item id,
+ * and existing ids never change (new items get new ids), so a ticked item stays ticked.
+ * If an id ever has to change, list it in PLAN_ID_RENAMES and saved ticks move with it.
+ *   2: revised roadmap (zero trust and cloud security foundations; extras as Optional items)
+ */
+export const PLAN_VERSION = 2;
+/** { oldId: newId } for any item whose id changed in a later version. Empty so far. */
+export const PLAN_ID_RENAMES = {};
+/** Every item id that existed in each earlier plan version. A check proves none were removed. */
+export const PLAN_ID_HISTORY = {
+  1: [
+    'w1-learn-1', 'w1-read-1', 'w1-read-2', 'w1-practice-1', 'w1-build-1',
+    'w1-apply-1', 'w1-network-1', 'w1-network-2', 'w1-network-3', 'w1-evidence-1',
+    'w2-learn-1', 'w2-read-1', 'w2-read-2', 'w2-read-3', 'w2-practice-1',
+    'w2-practice-2', 'w2-practice-3', 'w2-build-1', 'w2-apply-1', 'w2-network-1',
+    'w2-evidence-1', 'w3-learn-1', 'w3-read-1', 'w3-read-2', 'w3-read-3',
+    'w3-practice-1', 'w3-practice-2', 'w3-build-1', 'w3-apply-1', 'w3-network-1',
+    'w3-network-2', 'w3-evidence-1', 'w4-learn-1', 'w4-read-1', 'w4-read-2',
+    'w4-practice-1', 'w4-practice-2', 'w4-build-1', 'w4-apply-1', 'w4-network-1',
+    'w4-evidence-1', 'w5-learn-1', 'w5-read-1', 'w5-read-2', 'w5-practice-1',
+    'w5-build-1', 'w5-apply-1', 'w5-network-1', 'w5-evidence-1', 'w6-learn-1',
+    'w6-read-1', 'w6-read-2', 'w6-practice-1', 'w6-practice-2', 'w6-practice-3',
+    'w6-build-1', 'w6-apply-1', 'w6-network-1', 'w6-evidence-1', 'w7-learn-1',
+    'w7-read-1', 'w7-practice-1', 'w7-practice-2', 'w7-build-1', 'w7-apply-1',
+    'w7-network-1', 'w7-evidence-1', 'w8-learn-1', 'w8-read-1', 'w8-read-2',
+    'w8-practice-1', 'w8-practice-2', 'w8-build-1', 'w8-apply-1', 'w8-network-1',
+    'w8-evidence-1',
+  ],
+};
+
+/**
+ * Moves saved ticks to renamed item ids. Nothing is ever removed, and a tick already on the
+ * new id is kept. With no renames (today) it returns the same ticks.
+ */
+export function renameChecks(weekChecks, renames = PLAN_ID_RENAMES) {
+  const out = { ...weekChecks };
+  for (const [oldId, newId] of Object.entries(renames)) {
+    if (out[oldId] && !out[newId]) {
+      out[newId] = out[oldId];
+      delete out[oldId];
+    }
+  }
+  return out;
+}
+
 export const PLAN_START = '2026-10-12'; // Day 1, Monday
 export const PLAN_END = '2026-12-10'; // Day 60, Thursday
 export const BRIDGE_START = '2026-12-11';
@@ -75,6 +121,7 @@ export const WEEKS = [
       { id: 'w1-learn-1', kind: 'learn', text: 'Authentication vs authorization vs accounting; identity lifecycle (joiner, mover, leaver); credentials, sessions, tokens; threat-model vocabulary' },
       { id: 'w1-read-1', kind: 'read', text: "Professor Messer's SY0-701 access-control and authentication videos only (3 hours maximum)" },
       { id: 'w1-read-2', kind: 'read', text: 'The Threat Modeling Manifesto' },
+      { id: 'w1-read-3', kind: 'read', text: 'NIST Cybersecurity Framework 2.0 overview and one Quick Start Guide (about 1 hour, extra)', optional: true },
       { id: 'w1-practice-1', kind: 'practice', text: 'Exercise 1: Keycloak realm, users, groups, roles', exercises: [1] },
       { id: 'w1-build-1', kind: 'build', text: 'A seed script for 50 users and 8 "apps" (groups), with several planted stale accounts' },
       { id: 'w1-apply-1', kind: 'apply', text: 'Read the admin getting-started docs for Tailscale, 1Password and Okta; list what an admin must do on day one' },
@@ -138,6 +185,7 @@ export const WEEKS = [
       { id: 'w3-network-1', kind: 'network', text: 'One Vancouver event' },
       { id: 'w3-network-2', kind: 'network', text: 'Start recruiting 3–5 IT admins for Project 1 usability sessions in weeks 7–8 (Slack, LinkedIn, client and mentoring networks)' },
       { id: 'w3-evidence-1', kind: 'evidence', text: 'SSO and SCIM admin journey map with failure points' },
+      { id: 'w3-evidence-2', kind: 'evidence', text: 'Persona-conflict table (employee, IT admin, security admin, CISO, compliance: what each needs from the same sign-in)' },
     ],
     days: [
       { day: 15, date: '2026-10-26', block: 'learn', focus: 'SAML flows; SCIM concepts', hours: 2 },
@@ -158,6 +206,7 @@ export const WEEKS = [
       { id: 'w4-learn-1', kind: 'learn', text: 'Factor types, TOTP, push fatigue, WebAuthn and passkeys (synced vs device-bound), phishing resistance, step-up, account-recovery attacks, and WCAG 2.2 success criterion 3.3.8, Accessible Authentication' },
       { id: 'w4-read-1', kind: 'read', text: 'passkeys.dev' },
       { id: 'w4-read-2', kind: 'read', text: 'The syncable-authenticator and recovery sections of NIST SP 800-63B-4 (final, July 2025)' },
+      { id: 'w4-read-3', kind: 'read', text: 'FIDO Alliance passkey design guidelines on Passkey Central (about 1 hour, extra)', optional: true },
       { id: 'w4-practice-1', kind: 'practice', text: 'Exercise 3: TOTP and passkeys in Keycloak', exercises: [3] },
       { id: 'w4-practice-2', kind: 'practice', text: 'Exercise 11: STRIDE model of account recovery', exercises: [11] },
       { id: 'w4-build-1', kind: 'build', text: 'Offboarding, part 2: revoke active sessions through the Keycloak admin API and write every step to an append-only audit log' },
@@ -177,18 +226,21 @@ export const WEEKS = [
   },
   {
     number: 5,
-    title: 'Zero Trust and networking essentials',
+    title: 'Zero Trust and network security foundations',
     start: '2026-11-09',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
-      { id: 'w5-learn-1', kind: 'learn', text: 'TLS and DNS basics, VPN vs zero-trust network access, WireGuard at concept level, NIST SP 800-207, device posture, access policy as code' },
+      { id: 'w5-learn-1', kind: 'learn', text: 'TCP/IP layers, DNS and TLS basics, mutual TLS, firewalls and segmentation, VPN vs zero-trust network access, WireGuard at concept level, NIST SP 800-207, policy decision and enforcement points, device posture, access policy as code' },
       { id: 'w5-read-1', kind: 'read', text: 'Tailscale docs on access-control policies, tags, SSO and device posture' },
       { id: 'w5-read-2', kind: 'read', text: 'A summary of NIST SP 800-207' },
+      { id: 'w5-read-3', kind: 'read', text: "Cloudflare's Zero Trust and ZTNA explainers, Google's BeyondCorp paper, and the Professor Messer Network+ videos on segmentation, security rules, Zero Trust and VPNs (selected, about 90 minutes)" },
       { id: 'w5-practice-1', kind: 'practice', text: 'A tailnet with two devices, tag-based access rules, and sign-in through an identity provider' },
+      { id: 'w5-practice-2', kind: 'practice', text: 'Extra: exercise 21, capture a DNS lookup and a TLS handshake in Wireshark on your own machine and note what an observer can and cannot see (60–90 minutes)', exercises: [21], optional: true },
       { id: 'w5-build-1', kind: 'build', text: 'Access requests: request, approve, and automatic expiry (API and data model)' },
       { id: 'w5-apply-1', kind: 'apply', text: 'An access-policy design for a fictional 20-person startup, plus five specific, constructive observations on a zero-trust admin experience' },
       { id: 'w5-network-1', kind: 'network', text: 'Ask two networking or zero-trust practitioners which policy mistakes they see most' },
       { id: 'w5-evidence-1', kind: 'evidence', text: 'Policy design document plus the five observations' },
+      { id: 'w5-evidence-2', kind: 'evidence', text: 'A one-page trust-boundary diagram showing where identity, device and network checks happen' },
     ],
     days: [
       { day: 29, date: '2026-11-09', block: 'learn', focus: 'TLS, DNS, VPN vs ZTNA', hours: 2 },
@@ -204,20 +256,25 @@ export const WEEKS = [
   },
   {
     number: 6,
-    title: 'Cloud IAM and secrets',
+    title: 'Cloud security foundations, IAM and secrets',
     start: '2026-11-16',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w6-learn-1', kind: 'learn', text: 'AWS IAM users, roles and policies; STS and short-lived credentials; least privilege; Microsoft Entra basics; workload identity; secrets management' },
+      { id: 'w6-learn-2', kind: 'learn', text: 'The shared responsibility model; VPCs, subnets and security groups' },
       { id: 'w6-read-1', kind: 'read', text: 'AWS IAM security best practices' },
       { id: 'w6-read-2', kind: 'read', text: 'Three selected modules of the free Microsoft Learn SC-300 path (conditional access, app registrations, identity governance basics), not the whole path' },
+      { id: 'w6-read-3', kind: 'read', text: 'The AWS shared responsibility model, VPC and security group documentation (about 2 hours, extra)', optional: true },
       { id: 'w6-practice-1', kind: 'practice', text: 'Exercise 9: AWS role, STS, Access Analyzer (set a budget alert first)', exercises: [9] },
       { id: 'w6-practice-2', kind: 'practice', text: 'Exercise 15: gitleaks', exercises: [15] },
       { id: 'w6-practice-3', kind: 'practice', text: 'Exercise 10: Entra conditional access', exercises: [10], optional: true },
+      { id: 'w6-practice-4', kind: 'practice', text: 'Extra: exercise 22, a VPC with one public and one private subnet and a security group that allows only the traffic you intend; turn on flow logs, read them, then delete everything (60–90 minutes)', exercises: [22], optional: true },
       { id: 'w6-build-1', kind: 'build', text: 'A simple UI for request, approve, offboard and audit' },
       { id: 'w6-apply-1', kind: 'apply', text: 'Write half a page on why AI agents need workload identity rather than user credentials (this feeds week 8)' },
+      { id: 'w6-apply-2', kind: 'apply', text: "A 30-minute teardown of one security product's access-review or alert screens (extra)", optional: true },
       { id: 'w6-network-1', kind: 'network', text: 'One ISACA Vancouver or OWASP Vancouver event' },
       { id: 'w6-evidence-1', kind: 'evidence', text: 'A bad-to-good IAM policy pair with an explanation of each change' },
+      { id: 'w6-evidence-2', kind: 'evidence', text: 'A segmentation diagram showing subnets, security groups and the roles that cross them' },
     ],
     days: [
       { day: 36, date: '2026-11-16', block: 'learn', focus: 'AWS IAM fundamentals; STS', hours: 2 },
@@ -242,6 +299,8 @@ export const WEEKS = [
       { id: 'w7-practice-1', kind: 'practice', text: 'Exercise 8: four PortSwigger access-control labs', exercises: [8] },
       { id: 'w7-practice-2', kind: 'practice', text: 'Exercise 12: Keycloak events and jq', exercises: [12] },
       { id: 'w7-build-1', kind: 'build', text: 'Threat-model your own Project 1 and fix the two most serious findings' },
+      { id: 'w7-learn-2', kind: 'learn', text: 'Compliance vocabulary (SOC 2, ISO 27001, PIPEDA, GDPR) as control, evidence, audit' },
+      { id: 'w7-apply-2', kind: 'apply', text: "A 30-minute teardown of one product's audit-log or alert screens (extra)", optional: true },
       { id: 'w7-apply-1', kind: 'apply', text: 'Exercise 14: a short tabletop for "stolen refresh token": signals, response steps, and how the admin is told', exercises: [14] },
       { id: 'w7-network-1', kind: 'network', text: 'Run the first one or two Project 1 usability sessions with IT admins (they count as conversations)' },
       { id: 'w7-evidence-1', kind: 'evidence', text: 'Project 1 threat model and the tabletop' },
@@ -265,6 +324,9 @@ export const WEEKS = [
       { id: 'w8-learn-1', kind: 'learn', text: 'LLM risks (prompt injection, sensitive data disclosure, excessive agency); agentic risks; MCP architecture and its OAuth 2.1 authorization model; delegation and token exchange; human approval patterns' },
       { id: 'w8-read-1', kind: 'read', text: 'Skim the OWASP Top 10 for LLM Applications (2026) and the Top 10 for Agentic Applications, then read three entries closely: goal hijack, tool misuse, identity and privilege abuse' },
       { id: 'w8-read-2', kind: 'read', text: 'The authorization section of the MCP specification' },
+      { id: 'w8-read-3', kind: 'read', text: 'NIST AI Risk Management Framework overview (45 minutes, extra)', optional: true },
+      { id: 'w8-read-4', kind: 'read', text: "Microsoft's Entra Agent ID documentation (1 hour, extra)", optional: true },
+      { id: 'w8-learn-2', kind: 'learn', text: 'Applying zero trust to agents (each agent a workload identity, each tool call a policy decision)' },
       { id: 'w8-practice-1', kind: 'practice', text: 'Exercise 16: prompt-injection tests against a small local app', exercises: [16] },
       { id: 'w8-practice-2', kind: 'practice', text: 'Exercise 17: agent permission model', exercises: [17] },
       { id: 'w8-build-1', kind: 'build', text: 'Apply the usability findings; finish the remaining sessions' },
@@ -326,6 +388,8 @@ export const EXERCISES = [
   { n: 18, title: 'MCP server with policy-gated tools', tool: 'MCP SDK, a policy layer (Cedar or OPA)', learn: 'OAuth-protected tool access, approvals, audit trails', hours: 8, artifact: 'Working prototype with README', schedule: 'bridge', note: 'The core of Project 2' },
   { n: 19, title: 'Data leakage test for a retrieval-augmented app', tool: 'Local RAG demo with seeded confidential documents', learn: 'How untrusted content crosses permission boundaries', hours: 4, artifact: 'Leakage test results', schedule: 'unscheduled' },
   { n: 20, title: "Security review of a real product's admin UX", tool: 'Public docs and free tiers (Tailscale, 1Password, Okta developer)', learn: 'Spotting trust and risk-communication problems', hours: 3, artifact: 'Three-page critique with annotated screens', schedule: 'unscheduled' },
+  { n: 21, title: 'Capture a DNS lookup and a TLS handshake', tool: 'Wireshark, on your own machine', learn: 'What an observer can and cannot see', hours: 1.5, artifact: 'Notes on what an observer can and cannot see', schedule: 'optional', week: 5, note: 'Extra. 60–90 minutes.' },
+  { n: 22, title: 'A VPC with one public and one private subnet, and a tight security group', tool: 'AWS: VPC, security group, flow logs', learn: 'Segmentation; reading flow logs', hours: 1.5, artifact: '', schedule: 'optional', week: 6, note: 'Extra. 60–90 minutes. Turn on flow logs, read them, then delete everything. The revised roadmap names no artifact.' },
 ];
 
 /** Bridge period (Dec 11 – Jan 17). Sundays are rest days here too. */
