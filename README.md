@@ -91,6 +91,11 @@ at the top of `css/styles.css` (light and dark), and the file is organised by sc
 the 60-tick plan rail under "Day N" (where you are, never what you missed), flashcards as index cards,
 and the stacked recall bar on Progress. Motion is short and switches off with reduced motion.
 
+Icons are Google's **Material Symbols Rounded** (Apache License 2.0), built into `index.html` as SVG paths
+(viewBox `0 -960 960 960`) so the app never fetches anything. Each icon has an outlined path and a filled
+one; the filled one shows for the place you are on. To add one, take its 24px SVG from
+fonts.google.com/icons (Rounded, weight 400) and copy the `d` of both variants.
+
 ## Words the app uses
 
 One word per idea, everywhere (screens, messages, the export, the README). Use these when you add content.

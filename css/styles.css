@@ -213,6 +213,11 @@ body:not(.using-keyboard) [tabindex="-1"]:focus { outline: none; }
   content: ""; position: absolute; left: 0.7rem; right: 0.7rem; bottom: -9px; height: 2px;
   border-radius: 2px; background: var(--accent);
 }
+/* Material Symbols Rounded: outlined normally, filled for the place you are on (Material's own convention). */
+.icon { display: block; flex: none; fill: currentColor; }
+.icon__fill { display: none; }
+[aria-current="page"] > .icon:has(.icon__fill) .icon__line { display: none; }
+[aria-current="page"] > .icon .icon__fill { display: inline; }
 .nav-icon { display: none; }
 
 .settings-link {
