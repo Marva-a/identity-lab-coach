@@ -226,12 +226,14 @@ export function weekDayResourcesHtml(contentDay) {
   if (!list.length) return '';
   const { main, deep } = splitDeep(list);
   const rows = (items) => `<ul>${items.map((r) => `<li class="${r.optional ? 'is-optional' : ''}">${levelFlagHtml(r)} ${esc(RESOURCE_TYPES[r.type])}: ${r.url ? linkHtml(r.url, r.title) : esc(r.title)}${r.optional ? ' <span class="flag">Optional</span>' : ''}${r.url ? '' : ` <span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`} · about ${r.minutes} min · <span class="res-status res-status--${r.status}">${esc(RESOURCE_STATUSES[r.status])}</span></li>`).join('')}</ul>`;
+  const key = `weekres-${contentDay}`;
   return `
-    <span class="day-resources">
-      <span class="meta">Resources · about ${totalMinutes(list)} min estimated (<a href="#learn/library">open in the Library</a>)</span>
+    <details class="day-resources" data-deep-group="${key}" ${ui.openDeep.has(key) ? 'open' : ''}>
+      <summary>${plural(list.length, 'resource', 'resources')} · about ${totalMinutes(list)} min</summary>
+      <p class="meta">Estimates. <a href="#learn/library">Open in the Library</a> to mark them done or take notes.</p>
       ${main.length ? rows(main) : ''}
       ${deepGroupHtml(deep, `week-${contentDay}`, rows)}
-    </span>`;
+    </details>`;
 }
 
 // ─── Library ─────────────────────────────────────────────────────────────────

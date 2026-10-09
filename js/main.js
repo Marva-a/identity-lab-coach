@@ -10,7 +10,7 @@ import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.
 import {
   retrievalHtml, retrievalRemaining, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
-import { weekView, weekActions, handleWeekChange, resetWeekView, itemFlagsHtml } from './week.js';
+import { weekView, weekActions, handleWeekChange, handleWeekToggle, resetWeekView, itemFlagsHtml } from './week.js';
 import {
   scorecardView, applicationsView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
 } from './scorecard.js';
@@ -27,7 +27,7 @@ import {
   selectPersonOnNavigate, resetPeopleView,
 } from './people.js';
 
-import { planTopHtml, courseActions } from './course.js';
+import { planIntroHtml, nextUpHtml, courseActions } from './course.js';
 import { resolveHash } from './routes.js';
 import { todayLessonHtml, lessonPageView, flushLessonAnswers, handleLessonInput, handleLessonClick } from './lessons.js';
 import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
@@ -560,7 +560,7 @@ function subnavHtml(place, label, items) {
 }
 
 function planView() {
-  return planTopHtml() + weekView();
+  return weekView({ top: planIntroHtml(), next: nextUpHtml });
 }
 
 function learnView() {
@@ -1228,7 +1228,7 @@ mainEl.addEventListener('input', (e) => {
 // Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
 mainEl.addEventListener('toggle', (e) => {
   if (e.target.id === 'test-section') testsOpen = e.target.open;
-  else handleResourceToggle(e);
+  else if (!handleWeekToggle(e)) handleResourceToggle(e);
 }, true);
 // Leaving a notes box saves it straight away.
 mainEl.addEventListener('focusout', (e) => {
