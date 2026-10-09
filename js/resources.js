@@ -311,7 +311,7 @@ function packListHtml(plan) {
     </ul>`;
 }
 
-function contentHtml() {
+function contentHtml({ compact = false } = {}) {
   const c = ui.content;
   let body;
   if (c.busy) {
@@ -348,10 +348,18 @@ function contentHtml() {
   } else {
     body = '';
   }
+  if (compact) {
+    return `
+      <div class="manage-row">
+        <button type="button" class="button--small" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
+        <span class="meta">Looks only at this app’s own site. Nothing is added until you confirm.</span>
+      </div>
+      ${body}`;
+  }
   return `
     <section class="card" aria-labelledby="content-heading">
       <h2 id="content-heading" tabindex="-1">Content from the course</h2>
-      <p class="meta">Checking looks only at this app’s own site and sends none of your data. Nothing is added until you confirm, and what you already have (links, statuses, notes, edits) is never changed.</p>
+      <p class="meta">Checking looks only at this app’s own site and sends none of your data. Nothing is added until you confirm, and what you already have is never changed.</p>
       <div class="button-row">
         <button type="button" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
       </div>
@@ -412,9 +420,12 @@ function importHtml() {
     }
   }
   return `
-    <section class="card" aria-labelledby="import-heading">
-      <h2 id="import-heading" tabindex="-1">Import from a file</h2>
-      <p class="meta">Add resources from your own JSON file. Every entry is checked before anything is added.</p>
+    <div class="manage-import">
+      <div class="field">
+        <label for="resource-import-file">Import resources from a JSON file</label>
+        <input type="file" id="resource-import-file" accept="application/json,.json" aria-describedby="import-hint">
+        <span class="hint" id="import-hint">Every entry is checked before anything is added.</span>
+      </div>
       <details>
         <summary>Import guide</summary>
         <p>The file is a JSON object with <code>"schema": "${RESOURCE_SCHEMA}"</code> and a <code>resources</code> list. Each entry has:</p>
@@ -431,12 +442,8 @@ function importHtml() {
         <p class="meta">Example of the shape only. Its address is a placeholder, and the app refuses it so it cannot be imported by accident:</p>
         <pre class="code" tabindex="0">${esc(GUIDE_EXAMPLE)}</pre>
       </details>
-      <div class="field">
-        <label for="resource-import-file">Choose a JSON file</label>
-        <input type="file" id="resource-import-file" accept="application/json,.json">
-      </div>
       ${report}
-    </section>`;
+    </div>`;
 }
 
 /** The plan week (1–9) a date is in; before the plan starts it is Week 1, after it Week 9. */
@@ -484,11 +491,11 @@ export function libraryView() {
     </section>` : '';
 
   const manage = `
-    <details class="card" data-deep-group="manage" ${ui.openDeep.has('manage') || (all.length && contentActive) || ui.editing === 'new' || ui.report ? 'open' : ''}>
-      <summary>Manage content: check for updates, import a file, add your own</summary>
-      ${all.length ? contentHtml() : ''}
+    <details class="card" data-deep-group="manage" ${ui.openDeep.has('manage') || contentActive || ui.editing === 'new' || ui.report ? 'open' : ''}>
+      <summary>More: update content, import a file</summary>
+      ${contentHtml({ compact: true })}
       ${importHtml()}
-      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" data-action="resource-add">Add a resource yourself</button></div>'}
+      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" class="button--small" data-action="resource-add">Add a resource yourself</button></div>'}
     </details>`;
 
   return `
@@ -496,7 +503,7 @@ export function libraryView() {
     <p class="meta">What to read, watch or do for each plan day, with a rough time for each. Links open in a new tab.</p>
 
     ${firstRun}
-    ${all.length === 0 && contentActive ? contentHtml() : ''}
+    
 
     ${all.length ? `
     <section class="card" aria-labelledby="resources-heading">

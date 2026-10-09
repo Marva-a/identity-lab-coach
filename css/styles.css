@@ -496,3 +496,5 @@ details.card > summary { font-weight: 600; cursor: pointer; }
 .filters-more { margin: 0.5rem 0 1rem; }
 .filters-more > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
 details.card > summary { min-height: 32px; }
+.manage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.5rem 0; }
+.manage-import { margin-top: 0.75rem; }
