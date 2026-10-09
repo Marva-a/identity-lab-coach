@@ -30,6 +30,7 @@ const ui = {
   form: null, // values typed into the card form
   formErrors: [],
   message: null,
+  open: new Set(), // folded sections you opened
 };
 
 function currentSchedule() {
@@ -299,6 +300,15 @@ function matchesFilter(card, sched) {
   }
 }
 
+/** Remembers which folded sections of Flashcards you opened. Returns true when the event was for one of them. */
+export function handleCardsToggle(event) {
+  const key = event.target?.dataset?.cardsGroup;
+  if (!key) return false;
+  if (event.target.open) ui.open.add(key);
+  else ui.open.delete(key);
+  return true;
+}
+
 export function flashcardsView() {
   const date = today();
   const d = store.getData();
@@ -332,14 +342,14 @@ export function flashcardsView() {
       ${study}
     </section>
 
-    <section class="card card--quiet" aria-labelledby="rule-heading">
-      <h2 id="rule-heading">How scheduling works</h2>
+    <details class="card card--quiet" data-cards-group="how" ${ui.open.has('how') ? 'open' : ''}>
+      <summary id="rule-heading">How it works</summary>
       <p>${esc(SRS_RULE[0])} ${esc(SRS_RULE[1])}</p>
       <p class="meta">Boxes: ${BOX_DAYS.map((days, i) => `${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. New cards are due on the day their week unlocks.</p>
-    </section>
+    </details>
 
-    <section class="card" aria-labelledby="cards-heading">
-      <h2 id="cards-heading" tabindex="-1">Your cards</h2>
+    <details class="card" data-cards-group="manage" ${ui.open.has('manage') || ui.message || ui.editing ? 'open' : ''}>
+      <summary id="cards-heading">Browse and edit your cards (${active.length})</summary>
       <p class="meta">${plural(active.length, 'active card', 'active cards')}: ${unlocked} unlocked, ${active.length - unlocked} in later weeks, ${unverified} unverified${retired ? `, ${retired} retired` : ''}.</p>
       ${ui.message ? `<p class="status-ok" id="cards-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <div class="filters">
@@ -363,7 +373,7 @@ export function flashcardsView() {
       <ul class="card-list">
         ${shown.map((c) => cardRowHtml(c, sched.get(c.id))).join('')}
       </ul>
-    </section>`;
+    </details>`;
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────

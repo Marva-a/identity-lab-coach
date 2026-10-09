@@ -485,3 +485,14 @@ details.card > summary { font-weight: 600; cursor: pointer; }
 .day-resources[open] { flex-basis: 100%; }
 .day-resources > summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; }
 .card--soft .focus-line { font-size: 1.05rem; font-weight: 600; margin: 0.25rem 0; }
+
+/* ─── Learn: Library and Flashcards ─────────────────────── */
+.resource-week { margin: 1.25rem 0 0.25rem; font-size: 1rem; color: var(--muted); }
+.resource__status { display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0; }
+.resource__status label { margin: 0; font-weight: 600; }
+.resource__status select { width: auto; min-width: 9rem; }
+.res-more { margin-top: 0.25rem; }
+.res-more > summary { cursor: pointer; min-height: 32px; display: inline-flex; align-items: center; color: var(--accent); font-weight: 600; }
+.filters-more { margin: 0.5rem 0 1rem; }
+.filters-more > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
+details.card > summary { min-height: 32px; }

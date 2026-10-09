@@ -8,7 +8,7 @@ import { PLAN_START, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
 import { runDateChecks, timeZoneInfo } from './selftest.js';
 import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.js';
 import {
-  retrievalHtml, retrievalRemaining, flashcardsView, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
+  retrievalHtml, retrievalRemaining, flashcardsView, handleCardsToggle, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
 import { weekView, weekActions, handleWeekChange, handleWeekToggle, resetWeekView, itemFlagsHtml } from './week.js';
 import {
@@ -1228,7 +1228,7 @@ mainEl.addEventListener('input', (e) => {
 // Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
 mainEl.addEventListener('toggle', (e) => {
   if (e.target.id === 'test-section') testsOpen = e.target.open;
-  else if (!handleWeekToggle(e)) handleResourceToggle(e);
+  else if (!handleWeekToggle(e) && !handleCardsToggle(e)) handleResourceToggle(e);
 }, true);
 // Leaving a notes box saves it straight away.
 mainEl.addEventListener('focusout', (e) => {

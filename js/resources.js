@@ -28,7 +28,7 @@ const ui = {
   highlight: null, // a resource a lesson step pointed at
   linkDrafts: {}, // id → link typed but not saved yet
   linkErrors: {}, // id → problem with the link just typed
-  filter: { status: 'all', type: 'all', week: 'all', retired: false, link: 'all' },
+  filter: { status: 'all', type: 'all', week: 'this', retired: false, link: 'all' },
   report: null, // result of checking an import file
   reportFile: '',
   message: null,
@@ -157,6 +157,7 @@ function resourceItemHtml(r, { library = false } = {}) {
   const done = r.status === 'done';
   const hasNotes = Boolean((r.notes ?? '').trim());
   const title = r.url ? linkHtml(r.url, r.title) : esc(r.title);
+  const dayText = library ? ` · ${r.days.length === 1 ? 'Day' : 'Days'} ${esc(r.days.join(', '))}` : '';
   return `
     <li id="res-${esc(r.id)}" tabindex="-1" class="resource ${ui.highlight === r.id ? 'resource--highlight' : ''} ${done ? 'resource--done' : ''} ${r.optional ? 'resource--optional' : ''} ${r.retired ? 'resource--retired' : ''}">
       <p class="resource__title">${title}
@@ -166,12 +167,10 @@ function resourceItemHtml(r, { library = false } = {}) {
         ${r.url ? '' : `<span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`}
         ${r.retired ? '<span class="flag">Retired</span>' : ''}
         ${r.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
-      <p class="meta">${esc(RESOURCE_TYPES[r.type])} · ${esc(r.source)} · about ${r.minutes} min (estimate)${done && r.doneDate ? ` · Done ${esc(formatShort(r.doneDate))}` : ''}</p>
+      <p class="meta">${esc(RESOURCE_TYPES[r.type])} · ${esc(r.source)} · about ${r.minutes} min${dayText}${done && r.doneDate ? ` · Done ${esc(formatShort(r.doneDate))}` : ''}</p>
       ${r.howToUse ? `<p class="how-to-use">${esc(r.howToUse)}</p>` : ''}
-      ${r.why ? `<p class="meta">Why: ${esc(r.why)}</p>` : ''}
       ${newerVersionHtml(r)}
-      ${library ? `<p class="meta">Plan ${r.days.length === 1 ? 'day' : 'days'}: ${esc(r.days.map(dayLabel).join(', '))}</p>` : ''}
-      ${linkStateHtml(r)}
+      ${r.url ? '' : linkStateHtml(r)}
       <div class="resource__status field">
         <label for="rs-${esc(r.id)}">Status</label>
         <select id="rs-${esc(r.id)}" data-res-status="${esc(r.id)}">
@@ -179,23 +178,26 @@ function resourceItemHtml(r, { library = false } = {}) {
         </select>
       </div>
       ${ui.doneFor === r.id ? donePromptHtml(r) : ''}
-      <details data-res-details="${esc(r.id)}" ${ui.openNotes.has(r.id) ? 'open' : ''}>
-        <summary>Notes${hasNotes ? ' (has notes)' : ''}</summary>
+      <details class="res-more" data-res-details="${esc(r.id)}" ${ui.openNotes.has(r.id) ? 'open' : ''}>
+        <summary>${library ? 'Notes and details' : 'Notes'}${hasNotes ? ' (has notes)' : ''}</summary>
+        ${r.why ? `<p class="meta">Why: ${esc(r.why)}</p>` : ''}
+        ${library ? `<p class="meta">Plan ${r.days.length === 1 ? 'day' : 'days'}: ${esc(r.days.map(dayLabel).join(', '))}</p>` : ''}
+        ${r.url ? linkStateHtml(r) : ''}
         <div class="field">
           <label for="rn-${esc(r.id)}">Your notes on "${esc(r.title)}"</label>
           <textarea id="rn-${esc(r.id)}" data-res-notes="${esc(r.id)}" rows="4" maxlength="${RESOURCE_LIMITS.notes}" aria-describedby="rns-${esc(r.id)}">${esc(r.notes ?? '')}</textarea>
           <span class="hint" id="rns-${esc(r.id)}" aria-live="polite">${hasNotes ? 'Saved' : 'Saved as you type.'}</span>
         </div>
-        <button type="button" class="button--small" data-action="resource-make-card" data-id="${esc(r.id)}">Make a flashcard from this note</button>
-      </details>
-      ${library ? `
         <div class="button-row">
-          <button type="button" class="button--small" data-action="resource-edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.title)}">Edit</button>
-          <button type="button" class="button--small" data-action="resource-toggle-optional" data-id="${esc(r.id)}" aria-label="${r.optional ? 'Mark as required' : 'Mark as optional'}: ${esc(r.title)}">${r.optional ? 'Mark as required' : 'Mark as optional'}</button>
-          ${r.retired
-            ? `<button type="button" class="button--small" data-action="resource-restore" data-id="${esc(r.id)}" aria-label="Restore ${esc(r.title)}">Restore</button>`
-            : `<button type="button" class="button--small button--danger" data-action="resource-retire" data-id="${esc(r.id)}" aria-label="Retire ${esc(r.title)}">Retire</button>`}
-        </div>` : ''}
+          <button type="button" class="button--small" data-action="resource-make-card" data-id="${esc(r.id)}">Make a flashcard from this note</button>
+          ${library ? `
+            <button type="button" class="button--small" data-action="resource-edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.title)}">Edit</button>
+            <button type="button" class="button--small" data-action="resource-toggle-optional" data-id="${esc(r.id)}" aria-label="${r.optional ? 'Mark as required' : 'Mark as optional'}: ${esc(r.title)}">${r.optional ? 'Mark as required' : 'Mark as optional'}</button>
+            ${r.retired
+    ? `<button type="button" class="button--small" data-action="resource-restore" data-id="${esc(r.id)}" aria-label="Restore ${esc(r.title)}">Restore</button>`
+    : `<button type="button" class="button--small button--danger" data-action="resource-retire" data-id="${esc(r.id)}" aria-label="Retire ${esc(r.title)}">Retire</button>`}` : ''}
+        </div>
+      </details>
     </li>`;
 }
 
@@ -348,8 +350,8 @@ function contentHtml() {
   }
   return `
     <section class="card" aria-labelledby="content-heading">
-      <h2 id="content-heading" tabindex="-1">Content packs</h2>
-      <p class="meta">Resources and flashcards that come with the app. Checking asks only this app’s own site for its content files; none of your data is sent. Nothing is added until you confirm, and anything you already have is never changed: your links, statuses, notes, edits, ratings and retirements all stay.</p>
+      <h2 id="content-heading" tabindex="-1">Content from the course</h2>
+      <p class="meta">Checking looks only at this app’s own site and sends none of your data. Nothing is added until you confirm, and what you already have (links, statuses, notes, edits) is never changed.</p>
       <div class="button-row">
         <button type="button" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
       </div>
@@ -412,7 +414,7 @@ function importHtml() {
   return `
     <section class="card" aria-labelledby="import-heading">
       <h2 id="import-heading" tabindex="-1">Import from a file</h2>
-      <p class="meta">The library starts empty. The app does not come with any resources and never makes up titles or links: you provide a JSON file, and every entry is checked before anything is added.</p>
+      <p class="meta">Add resources from your own JSON file. Every entry is checked before anything is added.</p>
       <details>
         <summary>Import guide</summary>
         <p>The file is a JSON object with <code>"schema": "${RESOURCE_SCHEMA}"</code> and a <code>resources</code> list. Each entry has:</p>
@@ -437,34 +439,82 @@ function importHtml() {
     </section>`;
 }
 
+/** The plan week (1–9) a date is in; before the plan starts it is Week 1, after it Week 9. */
+function currentPlanWeek() {
+  const day = planDayFor(today());
+  if (day) return Math.ceil(day / 7);
+  return today() < WEEKS[0].start ? 1 : 9;
+}
+
 export function libraryView() {
   const all = store.effectiveResources();
   const f = ui.filter;
+  const thisWeek = currentPlanWeek();
+  const weekWanted = f.week === 'this' ? thisWeek : f.week;
   const firstDay = (r) => Math.min(...r.days);
+  const weekOf = (r) => Math.ceil(firstDay(r) / 7);
   const shown = all
     .filter((r) => (f.retired ? true : !r.retired))
     .filter((r) => f.status === 'all' || r.status === f.status)
     .filter((r) => f.type === 'all' || r.type === f.type)
-    .filter((r) => f.week === 'all' || r.days.some((d) => Math.ceil(d / 7) === Number(f.week)))
+    .filter((r) => weekWanted === 'all' || r.days.some((d) => Math.ceil(d / 7) === Number(weekWanted)))
     .filter((r) => f.link === 'all' || !r.url)
     .sort((a, b) => firstDay(a) - firstDay(b) || levelRank(a) - levelRank(b) || (a.position ?? 0) - (b.position ?? 0));
   const { main: shownMain, deep: shownDeep } = splitDeep(shown);
   const active = all.filter((r) => !r.retired);
   const needLink = active.filter((r) => !r.url).length;
+  const doneCount = active.filter((r) => r.status === 'done').length;
+  const filtered = f.status !== 'all' || f.type !== 'all' || f.link !== 'all' || f.retired;
+  const contentActive = ui.content.busy || ui.content.plan || ui.content.message || ui.content.failure;
+  const list = (items) => {
+    if (weekWanted !== 'all') return `<ol class="resources">${items.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>`;
+    // All weeks: a heading for each week, so a long list has landmarks.
+    const weeks = [...new Set(items.map(weekOf))];
+    return weeks.map((w) => `
+      <h3 class="resource-week">Week ${w}</h3>
+      <ol class="resources">${items.filter((r) => weekOf(r) === w).map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>`).join('');
+  };
+
+  // First run: one clear step instead of a list of ways to bring content in.
+  const firstRun = all.length === 0 ? `
+    <section class="card card--soft" aria-labelledby="first-heading">
+      <h2 id="first-heading">Add the course resources</h2>
+      <p>The course comes with a reading and watching list for each day. Add it to see what to read, watch or do, in order.</p>
+      ${contentActive ? '' : '<div class="button-row"><button type="button" class="button--primary" data-action="content-check">Add the course resources</button></div>'}
+    </section>` : '';
+
+  const manage = `
+    <details class="card" data-deep-group="manage" ${ui.openDeep.has('manage') || (all.length && contentActive) || ui.editing === 'new' || ui.report ? 'open' : ''}>
+      <summary>Manage content: check for updates, import a file, add your own</summary>
+      ${all.length ? contentHtml() : ''}
+      ${importHtml()}
+      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" data-action="resource-add">Add a resource yourself</button></div>'}
+    </details>`;
 
   return `
     <h1 id="day-heading" tabindex="-1">Library</h1>
-    <p class="meta">Resources you chose for each plan day. Links open in a new tab and are never embedded. The app stores only titles, links, estimates and your own notes, not other people's content.</p>
+    <p class="meta">What to read, watch or do for each plan day, with a rough time for each. Links open in a new tab.</p>
 
-    ${contentHtml()}
+    ${firstRun}
+    ${all.length === 0 && contentActive ? contentHtml() : ''}
 
-    ${importHtml()}
-
+    ${all.length ? `
     <section class="card" aria-labelledby="resources-heading">
-      <h2 id="resources-heading" tabindex="-1">Your resources</h2>
-      <p class="meta">${plural(active.length, 'resource', 'resources')}${all.length - active.length ? `, ${all.length - active.length} retired` : ''}${needLink ? `, ${needLink} still need a link` : ''}. Minutes are estimates, not logged time.</p>
+      <h2 id="resources-heading" tabindex="-1">${weekWanted === 'all' ? 'All weeks' : `Week ${weekWanted}`}</h2>
+      <p class="meta">${plural(shown.length, 'resource', 'resources')}${weekWanted === 'this' || weekWanted === thisWeek ? ' this week' : ''} · ${doneCount} of ${active.length} done in total${needLink ? ` · ${needLink} still need a link` : ''}. Minutes are estimates, not logged time.</p>
       ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
-      ${all.length === 0 ? '<p>The library is empty. Import a file above, or add a resource yourself.</p>' : `
+      <div class="filters">
+        <div class="field">
+          <label for="rl-week">Week</label>
+          <select id="rl-week">
+            <option value="this" ${f.week === 'this' ? 'selected' : ''}>This week (Week ${thisWeek})</option>
+            <option value="all" ${f.week === 'all' ? 'selected' : ''}>All weeks</option>
+            ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((w) => `<option value="${w}" ${String(f.week) === String(w) ? 'selected' : ''}>Week ${w}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <details class="filters-more" data-deep-group="filters" ${ui.openDeep.has('filters') || f.status !== 'all' || f.type !== 'all' || f.link !== 'all' || f.retired ? 'open' : ''}>
+        <summary>More filters${f.status !== 'all' || f.type !== 'all' || f.link !== 'all' || f.retired ? ' (on)' : ''}</summary>
         <div class="filters">
           <div class="field">
             <label for="rl-status">Status</label>
@@ -481,13 +531,6 @@ export function libraryView() {
             </select>
           </div>
           <div class="field">
-            <label for="rl-week">Week</label>
-            <select id="rl-week">
-              <option value="all">All weeks</option>
-              ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((w) => `<option value="${w}" ${String(f.week) === String(w) ? 'selected' : ''}>Week ${w}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field">
             <label for="rl-link">Link</label>
             <select id="rl-link">
               <option value="all">All</option>
@@ -498,12 +541,14 @@ export function libraryView() {
         <label class="check" for="rl-retired">
           <input type="checkbox" id="rl-retired" ${f.retired ? 'checked' : ''}>
           <span>Show retired resources</span>
-        </label>`}
-      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" data-action="resource-add">Add a resource</button></div>'}
-      ${all.length ? `<p class="meta" aria-live="polite">${plural(shown.length, 'resource', 'resources')} shown.</p>` : ''}
-      <ol class="resources">${shownMain.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>
-      ${deepGroupHtml(shownDeep, 'library', (items) => `<ol class="resources">${items.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>`)}
-    </section>`;
+        </label>
+      </details>
+      ${shown.length === 0 ? `<p>Nothing matches${weekWanted === 'all' && !filtered ? '' : ' here'}. ${f.week !== 'all' ? '<button type="button" class="button--small" data-action="resource-show-all">Show all weeks</button>' : ''}</p>` : ''}
+      ${list(shownMain)}
+      ${deepGroupHtml(shownDeep, 'library', list)}
+    </section>` : ''}
+
+    ${manage}`;
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -641,6 +686,10 @@ export const resourceActions = {
     ui.message = `${raw.title} is now ${next ? 'optional' : 'required'}${store.isChangedByMe('resource', raw.id, raw.optional) ? ' (your choice; content updates will not change it)' : " (the content pack's own setting)"}.`;
     announce(ui.message);
     return `[data-action="resource-toggle-optional"][data-id="${raw.id}"]`;
+  },
+  'resource-show-all': () => {
+    ui.filter = { status: 'all', type: 'all', week: 'all', retired: false, link: 'all' };
+    return '#resources-heading';
   },
   'resource-newer-use': (el) => {
     store.resolveNewerVersion(el.dataset.id, true);
