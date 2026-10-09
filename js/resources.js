@@ -14,7 +14,7 @@ import {
   optionalMinutes, parseDays, validateResource, findSameLink, RESOURCE_LEVELS, splitDeep, levelRank,
 } from './records.js';
 import { parseResourceImport, MAX_ROWS, RESOURCE_SCHEMA } from './resource-import.js';
-import { startCardFromResource } from './flashcards.js';
+import { startCardDraft } from './flashcards.js';
 import { checkForContent, planContent, summarizePlan, planSize } from './content.js';
 
 // Transient UI state (not saved).
@@ -666,7 +666,7 @@ export const resourceActions = {
     }
     const week = Math.min(9, Math.max(1, Math.ceil(Math.min(...r.days) / 7)));
     const withLink = r.url ? `${r.title} (${r.source}) ${r.url}` : `${r.title} (${r.source})`;
-    startCardFromResource({
+    startCardDraft({
       back: note,
       week,
       topic: r.title.slice(0, 120),

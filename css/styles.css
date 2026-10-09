@@ -441,6 +441,9 @@ details.card > summary { font-weight: 600; cursor: pointer; }
 .words dd { margin: 0; }
 .lesson-steps { padding-left: 1.25rem; }
 .lesson-steps li { margin-bottom: 0.5rem; }
+.lesson-check { margin: -0.25rem 0 1rem; }
+.lesson-check__when { font-weight: 400; color: var(--muted); }
+.lesson-check__answer { background: var(--surface-2); border-radius: 8px; padding: 0.75rem 0.9rem; }
 .step-minutes { display: inline-block; min-width: 3.4rem; font-weight: 600; color: var(--muted); }
 .how-to-use { margin: 0.25rem 0 0.5rem; }
 .flag--level { text-transform: none; }

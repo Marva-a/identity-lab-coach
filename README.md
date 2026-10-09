@@ -44,7 +44,8 @@ Two more pack types teach rather than list:
 - **Lessons** (`type: lessons`, `"schema": "identity-lab-coach.lessons.v1"`): one lesson per study day, with
   its week, day and the plan's date for that day. Today shows the day's lesson, and the Week view has a
   Lesson button on each day. Your answers to the check-yourself questions are stored apart, so a newer
-  lesson version (a higher pack `version`) replaces the text and keeps your answers.
+  lesson version (a higher pack `version`) replaces the text and keeps your answers. An optional `lookFor` list (one line per
+  question) says what a good answer includes; it stays folded under each answer box until you open it, and can be turned into a flashcard.
 
 A resource or card whose id you already have is skipped, even if the pack file has changed since:
 changes to existing items are not applied, so your edits are safe. Give a changed resource a new id.
@@ -60,6 +61,13 @@ share anything with your computer, and on an iPhone the home-screen app is separ
 Safari too. Use Export and Import in Settings to move data between them.
 
 ## Less manual work
+
+- **Flashcards follow the lessons**: a seed card first comes up the day after the plan day that teaches
+  its topic (`SEED_TEACH_DAYS` in `js/cards-data.js`), so the warm-up never asks about something you
+  have not met. Cards you add, and pack cards, come up from the first day of their week.
+- **What you can recall** (top of Progress): by week, how many cards are held (recalled after a gap of
+  7 days or more), recalled with a short gap, need another look, or not tried yet. It comes only from
+  your ratings, never from time spent.
 
 - **Guided daily session** (Today → "Start today's session"): warm-up flashcards,
   then "do this next" with the timer, then one tap to log. It reuses the same
@@ -110,8 +118,8 @@ node js/selftest.js
 | `js/plan.js` | Turns a date into "what's on today" |
 | `js/store.js` | Data model, saving, JSON export and import (the data model is documented at the top) |
 | `js/timer.js` | The 50/10/50 session timer |
-| `js/srs.js` | Leitner spaced repetition, unlocking by week, interleaving |
-| `js/cards-data.js` | The 65 seed flashcards (all unverified, each with a reference) |
+| `js/srs.js` | Leitner spaced repetition, unlocking the day after a topic is taught, interleaving, and "What you can recall" on Progress |
+| `js/cards-data.js` | The 65 seed flashcards (all unverified, each with a reference) and the plan day that teaches each one |
 | `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
 | `js/week.js` | Week view: checklist, days, hours against the budget |
 | `js/pace.js` | Scorecard maths: expected-by-today and status (no page code) |

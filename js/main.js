@@ -8,7 +8,7 @@ import { PLAN_START, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
 import { runDateChecks, timeZoneInfo } from './selftest.js';
 import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.js';
 import {
-  retrievalHtml, retrievalRemaining, flashcardsView, handleCardsToggle, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
+  retrievalHtml, retrievalRemaining, flashcardsView, recallProgressHtml, handleCardsToggle, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
 import { weekView, weekActions, handleWeekChange, handleWeekToggle, resetWeekView, itemFlagsHtml } from './week.js';
 import {
@@ -29,7 +29,9 @@ import {
 
 import { planIntroHtml, nextUpHtml, courseActions } from './course.js';
 import { resolveHash } from './routes.js';
-import { todayLessonHtml, lessonPageView, flushLessonAnswers, handleLessonInput, handleLessonClick } from './lessons.js';
+import {
+  todayLessonHtml, lessonPageView, flushLessonAnswers, handleLessonInput, handleLessonClick, handleLessonToggle, lessonActions,
+} from './lessons.js';
 import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
 import * as AB from './autobackup.js';
 
@@ -197,12 +199,20 @@ function formatMonthDay(date) {
   return formatLong(date).replace(/,\s*\d{4}$/, '');
 }
 
-/** The one main button on Today, and the quick form it opens. */
+/**
+ * The one main button on Today: start the guided session (recall first, then study, then log). Log time is
+ * beside it for when you studied away from the app, and opens the quick form.
+ */
 function logTimeHtml(ctx) {
   const open = ui.logOpen;
+  const started = store.sessionsOn(ctx.date).length > 0;
   return `
     <div class="log-time">
-      <button type="button" class="button--primary" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>
+      <div class="button-row">
+        <button type="button" class="button--primary" data-action="flow-start">${started ? 'Start another session' : 'Start today’s session'}</button>
+        <button type="button" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>
+      </div>
+      ${started ? '' : '<p class="meta">One step at a time: a short warm-up from memory, then today’s study with the timer, then log your time. Or use the whole page below.</p>'}
       <div id="log-time-panel" ${open ? '' : 'hidden'}>${open ? flowWrapUpHtml(ctx, { heading: false }) : ''}</div>
     </div>`;
 }
@@ -442,16 +452,14 @@ function startFlow() {
   setFlow({ date: today(), step: retrievalRemaining() > 0 ? 'warmup' : 'focus' });
 }
 
+/** "Today so far", once something is logged today (the button to start a session is at the top). */
 function flowStartCardHtml(ctx) {
   const logged = store.sessionsOn(ctx.date).reduce((n, s) => n + s.minutes, 0);
-  const has = store.sessionsOn(ctx.date).length > 0;
+  if (!store.sessionsOn(ctx.date).length) return '';
   return `
     <section class="card card--quiet" aria-labelledby="flow-heading">
-      <h2 id="flow-heading" tabindex="-1" class="small-heading">${has ? 'Today so far' : 'One step at a time'}</h2>
-      ${has
-    ? `<p class="status-ok">${ui.flash ? esc(ui.flash) : `You have logged ${plural(logged, 'minute', 'minutes')} today.`}</p>`
-    : '<p class="meta">Prefer to be walked through it? Warm-up, then study with the timer, then log your time.</p>'}
-      <div class="button-row"><button type="button" class="button--small" data-action="flow-start">${has ? 'Start another session' : 'Start the guided session'}</button></div>
+      <h2 id="flow-heading" tabindex="-1" class="small-heading">Today so far</h2>
+      <p class="status-ok">${ui.flash ? esc(ui.flash) : `You have logged ${plural(logged, 'minute', 'minutes')} today.`}</p>
     </section>`;
 }
 
@@ -852,7 +860,7 @@ function render({ focus } = {}) {
   });
   renderedDate = today();
   const views = {
-    today: todayView, plan: planView, learn: learnView, proof: proofView, progress: scorecardView, settings: settingsView,
+    today: todayView, plan: planView, learn: learnView, proof: proofView, progress: () => scorecardView({ before: recallProgressHtml() }), settings: settingsView,
     lesson: () => lessonPageView(section),
   };
   const problem = store.getLoadProblem();
@@ -1194,7 +1202,8 @@ mainEl.addEventListener('click', (e) => {
   if (actions[el.dataset.action]) actions[el.dataset.action](el);
   else {
     const handler = cardActions[el.dataset.action] ?? weekActions[el.dataset.action] ?? scorecardActions[el.dataset.action]
-      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action] ?? resourceActions[el.dataset.action] ?? courseActions[el.dataset.action];
+      ?? evidenceActions[el.dataset.action] ?? peopleActions[el.dataset.action] ?? resourceActions[el.dataset.action] ?? courseActions[el.dataset.action]
+      ?? lessonActions[el.dataset.action];
     if (!handler) return;
     const focus = handler(el);
     render(focus ? { focus } : {});
@@ -1254,7 +1263,7 @@ mainEl.addEventListener('input', (e) => {
 // Open or closed notes are remembered across redraws ("toggle" does not bubble, so listen while capturing).
 mainEl.addEventListener('toggle', (e) => {
   if (e.target.id === 'test-section') testsOpen = e.target.open;
-  else if (!handleWeekToggle(e) && !handleCardsToggle(e)) handleResourceToggle(e);
+  else if (!handleWeekToggle(e) && !handleCardsToggle(e) && !handleLessonToggle(e)) handleResourceToggle(e);
 }, true);
 // Leaving a notes box saves it straight away.
 mainEl.addEventListener('focusout', (e) => {

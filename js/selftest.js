@@ -5,8 +5,8 @@ import { getDayContext, dayNumberFor } from './plan.js';
 import {
   WEEKS, PLAN_START, PLAN_VERSION, PLAN_ID_HISTORY, renameChecks, SCORECARD_TARGETS, itemIsOptional, extraTimeLabel,
 } from './plan-data.js';
-import { nextState, initialState, replay, unlockDate, scheduleAll, pickInterleaved } from './srs.js';
-import { SEED_CARDS } from './cards-data.js';
+import { nextState, initialState, replay, unlockDate, cardUnlockDate, scheduleAll, pickInterleaved, recallState, recallSummary } from './srs.js';
+import { SEED_CARDS, SEED_TEACH_DAYS } from './cards-data.js';
 import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
@@ -148,6 +148,33 @@ export function runDateChecks() {
   const w4 = { id: 'x', week: 4, retired: false };
   check('Cards: a week 4 card is hidden on Sun Nov 1', scheduleAll([w4], [], '2026-11-01', {}).get('x').unlocked, false);
   check('Cards: a week 4 card is due on Mon Nov 2', scheduleAll([w4], [], '2026-11-02', {}).get('x').isDue, true);
+  // Recall is only asked for after the plan has taught the topic (the day after its teaching day).
+  const aaa = { id: 'aaa', week: 1, seedId: 'w1-aaa', retired: false };
+  const jml = { id: 'jml', week: 1, seedId: 'w1-jml', retired: false };
+  check('Cards: the AuthN/AuthZ card (taught Day 2) is not asked on Day 1', scheduleAll([aaa], [], '2026-10-12', {}).get('aaa').isDue, false);
+  check('Cards: the AuthN/AuthZ card first comes up on Day 3', cardUnlockDate(aaa, {}), '2026-10-14');
+  check('Cards: the lifecycle card (taught Day 4) first comes up on Day 5', cardUnlockDate(jml, {}), '2026-10-16');
+  check('Cards: the flow-logs cards wait for their Day 46 reading (first up Nov 27)', cardUnlockDate({ week: 6, seedId: 'w6-flow-logs' }, {}), '2026-11-27');
+  check('Cards: with weeks 2 and 5 swapped, a Day 30 card comes up on Day 10 (Oct 21)', cardUnlockDate({ week: 5, seedId: 'w5-zero-trust' }, { swapWeeks2and5: true }), '2026-10-21');
+  check('Cards: a seed card you moved to another week follows your week', cardUnlockDate({ week: 3, seedId: 'w1-aaa' }, {}), '2026-10-26');
+  check('Cards: a card you added unlocks on its week\'s Monday', cardUnlockDate({ week: 4, seedId: null }, {}), '2026-11-02');
+  check('Cards: every seed card has a teaching day in or after its week, on a study day',
+    SEED_CARDS.every((c) => {
+      const d = SEED_TEACH_DAYS[c.seedId];
+      return Number.isInteger(d) && d >= (c.week - 1) * 7 + 1 && d <= 60 && d % 7 !== 0;
+    }), true);
+  // What you can recall: "held" needs a Good or Easy after a gap of 7+ days; a high box alone is not enough.
+  const rv = (date, rating, n = 'a') => ({ cardId: 'c', date, rating, createdAt: `${date}${n}` });
+  check('Recall: no reviews is "not tried yet"', recallState([]), 'new');
+  check('Recall: last rating Hard is "needs another look"', recallState([rv('2026-10-14', 'good'), rv('2026-10-21', 'hard')]), 'shaky');
+  check('Recall: two Easy ratings four days apart are not "held"', recallState([rv('2026-10-14', 'easy'), rv('2026-10-18', 'easy')]), 'recent');
+  check('Recall: Good after a 7-day gap is "held"', recallState([rv('2026-10-14', 'again'), rv('2026-10-14', 'good', 'b'), rv('2026-10-21', 'good')]), 'held');
+  check('Recall: a later Again turns "held" back into "needs another look"', recallState([rv('2026-10-14', 'good'), rv('2026-10-21', 'good'), rv('2026-11-04', 'again')]), 'shaky');
+  {
+    const cards = [{ id: 'c', week: 1, seedId: 'w1-aaa' }, { id: 'j', week: 1, seedId: 'w1-jml' }, { id: 'r', week: 1, retired: true }];
+    const sum = recallSummary(cards, [rv('2026-10-14', 'again')], '2026-10-14', {});
+    check('Recall: only taught, unretired cards count (lifecycle is taught on Day 4)', [sum.totals.total, sum.totals.shaky, sum.shaky.length].join(), '1,1,1');
+  }
   const mixed = [{ id: 'a', week: 3 }, { id: 'b', week: 3 }, { id: 'c', week: 1 }, { id: 'd', week: 2 }];
   check('Cards: the retrieval check mixes weeks', pickInterleaved(mixed, 3).map((c) => c.week).join(','), '3,1,2');
   check('Cards: 45 original seed cards plus 20 for Weeks 5 and 6', SEED_CARDS.length, 65);
@@ -674,6 +701,14 @@ export function runDateChecks() {
   check('Lessons: two lessons on one day are refused', parseLessonPack(lText([lesson(), lesson({ id: 'other' })])).ok, false);
   check('Lessons: a repeated id is refused', parseLessonPack(lText([lesson(), lesson({ day: 2, date: '2026-10-13' })])).ok, false);
   check('Lessons: no questions is refused', parseLessonPack(lText([lesson({ checkYourself: [] })])).ok, false);
+  {
+    const n = lesson().checkYourself.length;
+    const withLook = parseLessonPack(lText([lesson({ lookFor: Array.from({ length: n }, (_, i) => `Good answer ${i + 1}`) })]));
+    check('Lessons: a good answer for each question is accepted and kept', [withLook.ok, withLook.lessons[0].lookFor.length].join(), `true,${n}`);
+    check('Lessons: good answers are optional (none means null)', parseLessonPack(lText([lesson()])).lessons[0].lookFor, null);
+    check('Lessons: good answers that do not match the questions are refused', parseLessonPack(lText([lesson({ lookFor: Array(n + 1).fill('x') })])).ok, false);
+    check('Lessons: an empty good answer is refused', parseLessonPack(lText([lesson({ lookFor: Array(n).fill(' ') })])).ok, false);
+  }
   check('Lessons: an unknown field is refused', parseLessonPack(lText([lesson({ video: 'x' })])).ok, false);
   check('Lessons: markup in text is kept as text (it is escaped when shown)', parseLessonPack(lText([lesson({ title: '<b>T</b>' })])).lessons[0].title, '<b>T</b>');
   const cManifest = { schema: 'identity-lab-coach.content-manifest.v1', packs: [

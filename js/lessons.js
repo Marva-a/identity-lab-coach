@@ -5,9 +5,11 @@
 import * as store from './store.js';
 import { esc, announce, testMode, nav } from './ui.js';
 import { showResourceInLibrary } from './resources.js';
+import { startCardDraft } from './flashcards.js';
 
 const pending = new Map(); // "lessonId:index" → text not saved yet
 const timers = new Map();
+const openChecks = new Set(); // "lessonId:index" of the good answers you opened (kept across redraws)
 
 const key = (lessonId, index) => `${lessonId}:${index}`;
 
@@ -94,9 +96,56 @@ export function lessonHtml(lesson, { level = 2 } = {}) {
           <label for="la-${esc(lesson.id)}-${i}">${esc(q)}</label>
           <textarea id="la-${esc(lesson.id)}-${i}" rows="3" maxlength="4000" data-lesson-answer="${esc(lesson.id)}" data-q="${i}" aria-describedby="las-${esc(lesson.id)}-${i}">${esc(answers[i] ?? '')}</textarea>
           <span class="hint" id="las-${esc(lesson.id)}-${i}" aria-live="polite">${(answers[i] ?? '').trim() ? 'Saved' : 'Saved as you type.'}</span>
-        </div>`).join('')}
+        </div>
+        ${lookForHtml(lesson, i)}`).join('')}
     </section>`;
 }
+
+/**
+ * What a good answer includes, folded away so you answer first. Opening it is your choice; it never blocks you.
+ * From there one click makes the question a flashcard, so it comes back for spaced review.
+ */
+function lookForHtml(lesson, i) {
+  const text = lesson.lookFor?.[i];
+  if (!text) return '';
+  const k = key(lesson.id, i);
+  return `
+    <details class="lesson-check" data-lesson-check="${esc(k)}" ${openChecks.has(k) ? 'open' : ''}>
+      <summary><span>Compare with a good answer <span class="lesson-check__when">(after you try)</span></span></summary>
+      <p class="meta">Check what you wrote against this. Missing a part is normal: add it to your answer in your own words.</p>
+      <p class="lesson-check__answer">${esc(text)}</p>
+      <button type="button" class="button--small" data-action="lesson-card" data-lesson="${esc(lesson.id)}" data-q="${i}">Make it a flashcard<span class="visually-hidden">: ${esc(lesson.checkYourself[i])}</span></button>
+    </details>`;
+}
+
+/** Remembers which good answers you opened. Returns true when the event was for one of them. */
+export function handleLessonToggle(event) {
+  const k = event.target?.dataset?.lessonCheck;
+  if (!k) return false;
+  if (event.target.open) openChecks.add(k);
+  else openChecks.delete(k);
+  return true;
+}
+
+export const lessonActions = {
+  /** Opens the card form with the question on the front and the good answer on the back (unverified, editable). */
+  'lesson-card': (el) => {
+    const lesson = store.lessonById(el.dataset.lesson);
+    const i = Number(el.dataset.q);
+    if (!lesson?.lookFor?.[i]) return null;
+    flushLessonAnswers();
+    startCardDraft({
+      front: lesson.checkYourself[i],
+      back: lesson.lookFor[i],
+      week: lesson.week,
+      topic: lesson.title.slice(0, 120),
+      reference: `Lesson, Day ${lesson.day}: ${lesson.title}`.slice(0, 300),
+    });
+    nav.focus = '#card-form-heading';
+    location.hash = '#learn/cards';
+    return null;
+  },
+};
 
 /** The day's lesson on Today (the main content of a study day), or nothing when there is none. */
 export function todayLessonHtml(ctx) {

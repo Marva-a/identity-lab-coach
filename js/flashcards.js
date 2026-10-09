@@ -3,9 +3,9 @@
 import * as store from './store.js';
 import { esc, announce, today, testMode, plural } from './ui.js';
 import { formatShort } from './dates.js';
-import { getDayContext } from './plan.js';
+import { getDayContext, getWeek } from './plan.js';
 import {
-  scheduleAll, dueCards, pickInterleaved, nextState, RATINGS, RATING_LABELS, SRS_RULE, BOX_DAYS,
+  scheduleAll, dueCards, pickInterleaved, nextState, RATINGS, RATING_LABELS, SRS_RULE, BOX_DAYS, recallSummary, recallState, HELD_GAP_DAYS,
 } from './srs.js';
 
 export const RETRIEVAL_SIZE = 3;
@@ -13,9 +13,10 @@ const TYPE_LABELS = { recall: 'Recall', explain: 'Explain it' };
 const FILTERS = {
   unlocked: 'Unlocked (not retired)',
   due: 'Due today',
+  shaky: 'Needs another look',
   unverified: 'Unverified',
   verified: 'Verified',
-  locked: 'Unlocks in a later week',
+  locked: 'Not taught yet',
   retired: 'Retired',
   all: 'All cards',
 };
@@ -148,7 +149,8 @@ export function retrievalHtml() {
       <p class="status-ok" id="retrieval-done" tabindex="-1">Warm-up done: ${plural(doneToday.size, 'question', 'questions')} (${counts.map(([r, n]) => `${RATING_LABELS[r]} ${n}`).join(', ')}).</p>
       ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#learn/cards">Study them in Flashcards</a>.</p>` : ''}`;
   } else {
-    body = '<p class="meta">No warm-up questions are due today.</p>';
+    const next = nextDueAfter(d.cards, sched, date);
+    body = `<p class="meta">No warm-up questions today.${next ? ` The next ones come up ${esc(formatShort(next))}. A card first comes up the day after the plan teaches its topic.` : ''}</p>`;
   }
 
   return `
@@ -292,6 +294,7 @@ function matchesFilter(card, sched) {
   switch (ui.filter) {
     case 'unlocked': return sched.unlocked && !card.retired;
     case 'due': return sched.isDue;
+    case 'shaky': return sched.unlocked && !card.retired && recallState(sched.reviews) === 'shaky';
     case 'unverified': return !card.verified && !card.retired;
     case 'verified': return card.verified;
     case 'locked': return !sched.unlocked && !card.retired;
@@ -345,12 +348,12 @@ export function flashcardsView() {
     <details class="card card--quiet" data-cards-group="how" ${ui.open.has('how') ? 'open' : ''}>
       <summary id="rule-heading">How it works</summary>
       <p>${esc(SRS_RULE[0])} ${esc(SRS_RULE[1])}</p>
-      <p class="meta">Boxes: ${BOX_DAYS.map((days, i) => `${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. New cards are due on the day their week unlocks.</p>
+      <p class="meta">Boxes: ${BOX_DAYS.map((days, i) => `${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. A new card first comes up the day after the plan day that teaches it, so you are never asked about something you have not met yet. Cards you add come up from the first day of their week.</p>
     </details>
 
     <details class="card" data-cards-group="manage" ${ui.open.has('manage') || ui.message || ui.editing ? 'open' : ''}>
       <summary id="cards-heading">Browse and edit your cards (${active.length})</summary>
-      <p class="meta">${plural(active.length, 'active card', 'active cards')}: ${unlocked} unlocked, ${active.length - unlocked} in later weeks, ${unverified} unverified${retired ? `, ${retired} retired` : ''}.</p>
+      <p class="meta">${plural(active.length, 'active card', 'active cards')}: ${unlocked} unlocked, ${active.length - unlocked} not taught yet, ${unverified} unverified${retired ? `, ${retired} retired` : ''}.</p>
       ${ui.message ? `<p class="status-ok" id="cards-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <div class="filters">
         <div class="field">
@@ -374,6 +377,60 @@ export function flashcardsView() {
         ${shown.map((c) => cardRowHtml(c, sched.get(c.id))).join('')}
       </ul>
     </details>`;
+}
+
+// ─── What you can recall (on Progress) ───────────────────────────────────────
+
+const RECALL_WORDS = {
+  held: 'held',
+  recent: 'recalled, short gap',
+  shaky: 'needs another look',
+  new: 'not tried yet',
+};
+
+/** Evidence of learning from your flashcard ratings: by week, and the cards that need another look. */
+export function recallProgressHtml() {
+  const date = today();
+  const d = store.getData();
+  const r = recallSummary(d.cards, d.cardReviews, date, store.getSettings());
+  const t = r.totals;
+  let body;
+  if (!t.total) {
+    const next = nextDueAfter(d.cards, currentSchedule(), date);
+    body = `<p>Nothing to show yet. Once the plan has taught a topic, its flashcards come up in the warm-up${next ? ` (the first ones on ${esc(formatShort(next))})` : ''}, and this shows what you can recall and what needs another look.</p>`;
+  } else {
+    const parts = (row) => ['held', 'recent', 'shaky', 'new'].filter((k) => row[k]).map((k) => `${row[k]} ${RECALL_WORDS[k]}`).join(' · ');
+    const weekName = (w) => (w ? `Week ${w}: ${getWeek(w)?.title ?? ''}` : 'No week');
+    const shaky = r.shaky.slice(0, 5);
+    body = `
+      <p><strong>${t.held} of ${plural(t.total, 'card', 'cards')}</strong> you have met so far ${t.held === 1 ? 'is' : 'are'} held: you recalled ${t.held === 1 ? 'it' : 'them'} after a gap of ${HELD_GAP_DAYS} days or more.${t.shaky ? ` ${plural(t.shaky, 'card needs', 'cards need')} another look.` : ''}</p>
+      <ul class="recall-weeks">
+        ${r.rows.map((row) => `<li><strong>${esc(weekName(row.week))}</strong><br><span class="meta">${plural(row.total, 'card', 'cards')}: ${esc(parts(row))}</span></li>`).join('')}
+      </ul>
+      ${shaky.length ? `
+        <h3>Needs another look</h3>
+        <p class="meta">Your last rating was Again or Hard. That is normal: these come back sooner, and each try makes them stick.</p>
+        <ul class="recall-shaky">
+          ${shaky.map(({ card, last, due }) => `<li>${esc(card.front)}<br><span class="meta">Last: ${RATING_LABELS[last.rating]} on ${esc(formatShort(last.date))} · ${due <= date ? 'due now' : `back ${esc(formatShort(due))}`}</span></li>`).join('')}
+        </ul>
+        <p><a href="#learn/cards" data-action="cards-show-shaky">See ${r.shaky.length > shaky.length ? `all ${r.shaky.length}` : 'them'} in Flashcards</a></p>` : ''}
+      <details>
+        <summary>What these words mean</summary>
+        <ul>
+          <li><strong>Held</strong>: you rated it Good or Easy after not seeing it for ${HELD_GAP_DAYS} days or more. This is the best sign the app has that you will remember it.</li>
+          <li><strong>Recalled, short gap</strong>: you got it last time, but not yet after a week's gap.</li>
+          <li><strong>Needs another look</strong>: your last rating was Again or Hard.</li>
+          <li><strong>Not tried yet</strong>: the plan has taught it, but you have not answered it yet.</li>
+        </ul>
+        <p class="meta">These come from your own ratings, so they are only as honest as the ratings. Retired cards and cards for topics not taught yet are not counted.</p>
+      </details>`;
+  }
+  return `
+    <section class="card" aria-labelledby="recall-heading">
+      <h2 id="recall-heading">What you can recall</h2>
+      <p class="meta">From your flashcard answers, not from time spent.${r.anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
+      ${body}
+    </section>`;
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -416,6 +473,13 @@ export const cardActions = {
     // Focus the next card, or the completion message.
     if (context === 'retrieval') return `#card-front-retrieval, #retrieval-done, #retrieval-heading`;
     return '#card-front-study, #study-done';
+  },
+  /** From Progress: open Flashcards with the cards that need another look listed. */
+  'cards-show-shaky': () => {
+    ui.filter = 'shaky';
+    ui.week = 'all';
+    ui.open.add('manage');
+    return null;
   },
   'card-add': () => {
     ui.editing = 'new';
@@ -506,14 +570,13 @@ export function resetCardMessages() {
 }
 
 /**
- * Opens the add-card form with a resource note filled in, so a note can become
- * a card through the normal card flow. The card starts unverified; you write
- * the question and save it yourself.
+ * Opens the add-card form filled in from a resource note or a lesson question, so it can become a card
+ * through the normal card flow. The card starts unverified; you check it, edit it and save it yourself.
  */
-export function startCardFromResource({ back, week, topic, reference }) {
+export function startCardDraft({ front = '', back, week, topic, reference }) {
   ui.editing = 'new';
   ui.form = {
-    type: 'recall', front: '', back: String(back).slice(0, store.CARD_TEXT_MAX), week: week ? String(week) : '', topic, reference, verified: false,
+    type: 'recall', front: String(front).slice(0, store.CARD_TEXT_MAX), back: String(back).slice(0, store.CARD_TEXT_MAX), week: week ? String(week) : '', topic, reference, verified: false,
   };
   ui.formErrors = [];
   ui.message = null;

@@ -134,7 +134,8 @@ function recentHtml() {
     </ul>`;
 }
 
-export function scorecardView() {
+/** Progress. `before` is shown first, under the title (what you can recall). */
+export function scorecardView({ before = '' } = {}) {
   const date = today();
   const d = store.getData();
   const period = activePeriod(date);
@@ -148,6 +149,7 @@ export function scorecardView() {
 
   return `
     <h1 id="day-heading" tabindex="-1">Progress</h1>
+    ${before}
 
     <section class="card" aria-labelledby="period-heading">
       <h2 id="period-heading">${esc(period.label.replace(/^By\s+/, 'Targets for '))}${period.id === 'jan31' ? ' (everything since Oct 12)' : ''}</h2>

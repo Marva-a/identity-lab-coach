@@ -316,7 +316,7 @@ export function parseGuidancePack(text) {
 export const LESSON_LIMITS = { title: 120, sentence: 400, paragraph: 600, idea: 400, term: 80, meaning: 300, step: 400, check: 300 };
 const LESSON_FIELDS = [
   'id', 'week', 'day', 'date', 'title', 'inOneSentence', 'whyItMattersToADesigner', 'keyIdeas', 'words', 'steps',
-  'skipOrSkim', 'checkYourself', 'plannedMinutes',
+  'skipOrSkim', 'checkYourself', 'lookFor', 'plannedMinutes',
 ];
 
 /**
@@ -383,6 +383,11 @@ export function parseLessonPack(text) {
     if (!Array.isArray(l.checkYourself) || !l.checkYourself.length || l.checkYourself.length > 4 || l.checkYourself.some((q) => !str(q, LESSON_LIMITS.check))) {
       m.push(`checkYourself must be 1–4 questions of up to ${LESSON_LIMITS.check} characters`);
     }
+    // Optional: for each question, what a good answer includes (shown only when you open it, after you try).
+    if (l.lookFor !== undefined && (!Array.isArray(l.lookFor) || !Array.isArray(l.checkYourself) || l.lookFor.length !== l.checkYourself.length
+      || l.lookFor.some((a) => !str(a, LESSON_LIMITS.paragraph)))) {
+      m.push(`lookFor, when given, must have one line of up to ${LESSON_LIMITS.paragraph} characters for each checkYourself question`);
+    }
     if (!Number.isInteger(l.plannedMinutes) || l.plannedMinutes < 15 || l.plannedMinutes > 600) m.push('plannedMinutes must be a whole number from 15 to 600');
     if (m.length) {
       out.rowProblems.push({ entry: i + 1, id, messages: m });
@@ -395,7 +400,8 @@ export function parseLessonPack(text) {
       whyItMattersToADesigner: l.whyItMattersToADesigner.trim(), keyIdeas: l.keyIdeas.map((k) => k.trim()),
       words: l.words.map((w) => ({ term: w.term.trim(), meaning: w.meaning.trim() })),
       steps: l.steps.map((s) => ({ text: s.text.trim(), minutes: s.minutes, resourceId: s.resourceId })),
-      skipOrSkim: l.skipOrSkim.trim(), checkYourself: l.checkYourself.map((q) => q.trim()), plannedMinutes: l.plannedMinutes,
+      skipOrSkim: l.skipOrSkim.trim(), checkYourself: l.checkYourself.map((q) => q.trim()),
+      lookFor: l.lookFor ? l.lookFor.map((a) => a.trim()) : null, plannedMinutes: l.plannedMinutes,
     });
   });
   out.ok = !out.fileProblems.length && !out.rowProblems.length;

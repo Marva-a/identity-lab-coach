@@ -1,7 +1,7 @@
 {
  "schema": "identity-lab-coach.lessons.v1",
  "createdOn": "2026-10-08",
- "note": "Week 1 lessons. Written to give each day plain-language context before the resources. resourceId links to a resource id in the resource packs.",
+ "note": "Week 1 lessons. Written to give each day plain-language context before the resources. resourceId links to a resource id in the resource packs. lookFor (version 2) says what a good answer to each check-yourself question includes; it is written from the lesson's own key ideas and words.",
  "lessons": [
   {
    "id": "w1-d1",
@@ -60,6 +60,10 @@
    "checkYourself": [
     "What is the difference between an image and a container?",
     "What does an identity provider do?"
+   ],
+   "lookFor": [
+    "An image is the packaged recipe; a container is a running, isolated copy started from it. One image can start many containers, and deleting a container leaves the image in place.",
+    "It checks who someone is (it signs them in) and then tells other apps who that person is, so each app does not have to handle passwords itself."
    ],
    "plannedMinutes": 60
   },
@@ -121,6 +125,10 @@
     "A user signs in but sees 'access denied' on one page. Which of the three is that?",
     "Give one example of accounting in a product you use."
    ],
+   "lookFor": [
+    "Authorization. Authentication worked (the user is signed in and known), but they are not allowed to see that page. Being signed in and being allowed are different checks.",
+    "Any record of who did what and when that you can look back at: for example a 'recent sign-ins' or login-activity list, a document's version history, or an admin audit log."
+   ],
    "plannedMinutes": 100
   },
   {
@@ -180,6 +188,10 @@
    "checkYourself": [
     "Why give a role to a group rather than to each user?",
     "What is the difference between a realm and a user?"
+   ],
+   "lookFor": [
+    "People join, move and leave teams. If the role belongs to the group, one change of group membership updates their access, everyone on a team gets the same access, and reviewing access means checking a few groups instead of every person.",
+    "A realm is the whole isolated space for one organization: its users, groups, roles and settings. A user is one account inside a realm."
    ],
    "plannedMinutes": 110
   },
@@ -245,6 +257,10 @@
     "What is an orphaned account and why does it matter?",
     "Which of the four questions did you find hardest to answer for your lab?"
    ],
+   "lookFor": [
+    "An account that stays active after its owner has gone (left, or no longer needs it). It matters because nobody is watching it but it still works, so a former employee or an attacker can use it without anyone noticing.",
+    "There is no single right answer. A useful answer names the question, says what made it hard (for example, not yet knowing what can go wrong in an identity system) and notes what you would need to learn or try to answer it better."
+   ],
    "plannedMinutes": 100
   },
   {
@@ -296,6 +312,10 @@
     "Could you explain every part of the script to an interviewer?",
     "Why keep an answer key?"
    ],
+   "lookFor": [
+    "Answer honestly, part by part: what does it do and why is it there? Any part you cannot explain yet is the thing to review next, before you show the script to anyone.",
+    "You planted the stale accounts on purpose, so you know the right answer. Comparing what the tool finds with the key shows what it caught, what it missed and what it flagged by mistake."
+   ],
    "plannedMinutes": 120
   },
   {
@@ -346,6 +366,10 @@
    "checkYourself": [
     "What does an admin need to do on day one in each product?",
     "Which credential in your lab is the riskiest, and why?"
+   ],
+   "lookFor": [
+    "This depends on your reading. A good answer lists, for each product, the first few things its admin guide asks for and points out what all three have in common and where one differs.",
+    "There is no single right answer. A strong answer names one credential (for example the Keycloak admin password or an app's client secret), says who or what holds it and where it travels, and says what someone could do with it if it leaked."
    ],
    "plannedMinutes": 120
   }

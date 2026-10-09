@@ -419,3 +419,40 @@ export const SEED_CARDS = [
     reference: 'SPIFFE Overview (spiffe.io)',
   },
 ];
+
+/**
+ * The plan day that teaches each seed card's topic, taken from the day focus lines in plan-data.js and the
+ * days the resource packs give the matching reading. A seed card first comes up the day after this day, so
+ * the warm-up never asks you to recall something the plan has not taught yet. (Cards you add, and cards from
+ * content packs, still unlock on the first day of their week.)
+ */
+export const SEED_TEACH_DAYS = {
+  // Week 1: Day 2 is AuthN/AuthZ/accounting, Day 4 is lifecycle and threat-model vocabulary.
+  'w1-aaa': 2, 'w1-credential-session-token': 2,
+  'w1-jml': 4, 'w1-four-questions': 4, 'w1-stride': 4, 'w1-threat-vuln-risk': 4,
+  // Week 2: Day 8 grant types and PKCE, Day 9 tokens and JWTs.
+  'w2-oauth-roles': 8, 'w2-grants': 8, 'w2-pkce-flow': 8, 'w2-pkce-attack': 8,
+  'w2-token-types': 9, 'w2-jwt': 9, 'w2-token-storage': 9,
+  // Week 3: Day 15 SAML and SCIM, Day 16 authorization models.
+  'w3-saml-assertion': 15, 'w3-sp-idp': 15, 'w3-scim': 15, 'w3-scim-deprovision': 15,
+  'w3-rbac-abac-rebac': 16, 'w3-role-explosion': 16,
+  // Week 4: Day 22 factors and passkeys, Day 23 NIST 800-63B-4 (recovery) and WCAG 3.3.8.
+  'w4-factors': 22, 'w4-synced-device-bound': 22, 'w4-phishing-resistance': 22, 'w4-mfa-fatigue': 22,
+  'w4-recovery': 23, 'w4-wcag-338': 23,
+  // Week 5: Day 29 TLS, DNS, VPN vs ZTNA; Day 30 NIST 800-207, BeyondCorp, mTLS, WireGuard; Day 32 device posture.
+  'w5-tcpip-layers': 29, 'w5-dns': 29, 'w5-tls-observer': 29, 'w5-vpn-ztna': 29, 'w5-vpn-vs-ztna-2': 29,
+  'w5-zero-trust': 30, 'w5-components': 30, 'w5-pdp-pep': 30, 'w5-beyondcorp': 30, 'w5-tls-vs-mtls': 30,
+  'w5-wireguard': 30, 'w5-segmentation': 30, 'w5-fw-sg-ztna': 30,
+  'w5-device-posture': 32, 'w5-posture-example': 32,
+  // Week 6: Day 36 AWS IAM, shared responsibility, VPC and security groups; Day 37 workload identity (SPIFFE);
+  // Day 39 secrets. Flow logs are read on Day 46 (Week 7), so those two cards wait for it.
+  'w6-identity-resource-policy': 36, 'w6-explicit-deny': 36, 'w6-short-lived': 36, 'w6-least-privilege': 36,
+  'w6-shared-responsibility': 36, 'w6-shared-example': 36, 'w6-vpc-subnet-sg': 36, 'w6-public-private-subnet': 36,
+  'w6-sg-stateful': 36, 'w6-spiffe-id': 37, 'w6-spiffe-why': 37, 'w6-leaked-secret': 39,
+  'w6-flow-logs': 46, 'w6-flow-logs-use': 46,
+  // Week 7: Day 43 identity events and NIST 800-61, Day 44 OWASP Top 10 and API Top 10.
+  'w7-identity-events': 43, 'w7-ir-lifecycle': 43, 'w7-a01': 44, 'w7-bola': 44, 'w7-bola-bfla': 44,
+  // Week 8: Day 50 OWASP LLM and agentic lists, Day 51 MCP authorization, Day 53 the agent permission model.
+  'w8-prompt-injection': 50, 'w8-excessive-agency': 50, 'w8-agentic-three': 50, 'w8-mcp-authz': 51,
+  'w8-agent-authz': 53, 'w8-human-approval': 53,
+};
