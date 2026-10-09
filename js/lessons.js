@@ -42,7 +42,7 @@ export function handleLessonInput(target) {
   const index = Number(target.dataset.q);
   const k = key(lessonId, index);
   pending.set(k, target.value);
-  setStatus(lessonId, index, 'Saving…');
+  setStatus(lessonId, index, '');
   clearTimeout(timers.get(k));
   timers.set(k, setTimeout(() => save(lessonId, index), 600));
   return true;

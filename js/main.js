@@ -135,7 +135,7 @@ function headerHtml(ctx, { log = true } = {}) {
           <h1 id="day-heading" tabindex="-1">Day ${ctx.dayNumber} of 60</h1>
           <p class="meta">${esc(formatLong(ctx.date))}</p>
           <ul class="tags" aria-label="Today's block">
-            <li class="tag tag--block">Block: ${esc(ctx.blockLabel)}</li>
+            <li class="tag tag--block">${esc(ctx.blockLabel)}</li>
             <li class="tag">${ctx.hours} h planned</li>
             ${ctx.holiday ? `<li class="tag">${esc(ctx.holiday)}</li>` : ''}
           </ul>
@@ -216,25 +216,39 @@ function applicationHtml(ctx) {
     ${ctx.interviewPrep ? `<p class="note"><strong>Interview prep:</strong> ${esc(ctx.interviewPrep)}</p>` : ''}`;
 }
 
-function itemsHtml(ctx) {
-  if (ctx.kind !== 'study') return '';
-  const blockItems = ctx.items.length
-    ? `<ul class="items">${ctx.items.map((i) => itemHtml(i)).join('')}</ul>`
-    : '<p class="meta">The capstone has no week checklist; follow the day\'s focus.</p>';
-  const network = ctx.networkItems.length
-    ? `<details>
-         <summary>This week's networking (evenings, outside the 12 h)</summary>
-         <ul class="items">${ctx.networkItems.map((i) => itemHtml(i, false)).join('')}</ul>
-       </details>`
-    : '';
-  const notes = ctx.notes.map((n) => `<p class="note">${esc(n)}</p>`).join('');
+/** The week's networking, folded away: it happens in the evenings and is not part of today's study. */
+function networkHtml(ctx) {
+  if (ctx.kind !== 'study' || !ctx.networkItems.length) return '';
   return `
-    <section class="card" aria-labelledby="items-heading">
-      <h2 id="items-heading">This week's ${esc(ctx.blockLabel.toLowerCase())} items</h2>
-      ${blockItems}
-      ${network}
-      ${notes}
+    <details class="card card--quiet">
+      <summary>This week's networking (evenings, outside the 12 h)</summary>
+      <ul class="items">${ctx.networkItems.map((i) => itemHtml(i, false)).join('')}</ul>
+    </details>`;
+}
+
+/** Shown on a study day that has no lesson yet, so the page says what to do instead of just stopping. */
+function noLessonHtml(ctx) {
+  if (ctx.kind !== 'study') return '';
+  const days = store.getData().lessons.map((l) => l.day).sort((a, b) => a - b);
+  const where = days.length ? `Lessons are written for days ${days[0]} to ${days[days.length - 1]} so far.` : 'No lessons have been added yet.';
+  return `
+    <section class="card" aria-labelledby="nolesson-heading">
+      <h2 id="nolesson-heading">No lesson for this day yet</h2>
+      <p class="meta">${esc(where)} Until this day has one, use the focus above and the list below.</p>
+      <ol>
+        <li>Start with the items marked Start here, then Practical.</li>
+        <li>Skip the Reference group unless you are curious.</li>
+        <li>Before you stop, write two sentences in your own words about what you learned.</li>
+      </ol>
+      ${days.length ? '' : '<p class="meta">Check for course updates in <a href="#learn/library">Learn</a> to add lessons.</p>'}
     </section>`;
+}
+
+/** What to study today: the lesson with its resources folded below, or the no-lesson note and the full list. */
+function studyBodyHtml(ctx) {
+  const lesson = todayLessonHtml(ctx);
+  if (lesson) return lesson + todayResourcesHtml(ctx, { fold: true });
+  return noLessonHtml(ctx) + todayResourcesHtml(ctx);
 }
 
 function defaultBlocks(ctx) {
@@ -389,14 +403,22 @@ function recentSessionsHtml() {
 function logHtml(ctx) {
   const studyish = ['study', 'bridge', 'applications'].includes(ctx.kind) || activeTimer;
   const flash = ui.flash ? `<p class="status-ok" id="log-flash" tabindex="-1">${esc(ui.flash)}</p>` : '';
-  const form = studyish
-    ? logFormHtml(ctx)
-    : `<details ${ui.logErrors.length ? 'open' : ''}><summary>Log a session anyway</summary>${logFormHtml(ctx)}</details>`;
+  if (studyish) {
+    // Log time (at the top) covers today. This is for earlier sessions and other dates.
+    return `
+      <details class="card card--quiet" ${ui.flash || ui.logErrors.length ? 'open' : ''}>
+        <summary id="log-heading">Recent sessions and other dates</summary>
+        ${flash}
+        ${recentSessionsHtml()}
+        <h3 class="small-heading">Log time for another date</h3>
+        ${logFormHtml(ctx)}
+      </details>`;
+  }
   return `
     <section class="card" aria-labelledby="log-heading">
-      <h2 id="log-heading">Log a session</h2>
+      <h2 id="log-heading">Recent sessions</h2>
       ${flash}
-      ${form}
+      <details ${ui.logErrors.length ? 'open' : ''}><summary>Log time anyway</summary>${logFormHtml(ctx)}</details>
       ${recentSessionsHtml()}
     </section>`;
 }
@@ -424,13 +446,12 @@ function flowStartCardHtml(ctx) {
   const logged = store.sessionsOn(ctx.date).reduce((n, s) => n + s.minutes, 0);
   const has = store.sessionsOn(ctx.date).length > 0;
   return `
-    <section class="card card--notice" aria-labelledby="flow-heading">
-      <h2 id="flow-heading" tabindex="-1">Today’s session</h2>
+    <section class="card card--quiet" aria-labelledby="flow-heading">
+      <h2 id="flow-heading" tabindex="-1" class="small-heading">${has ? 'Today so far' : 'One step at a time'}</h2>
       ${has
     ? `<p class="status-ok">${ui.flash ? esc(ui.flash) : `You have logged ${plural(logged, 'minute', 'minutes')} today.`}</p>`
-    : '<p>A few flashcards to warm up, then focus time with the timer, then log it in one tap.</p>'}
-      <div class="button-row"><button type="button" data-action="flow-start">${has ? 'Start another session' : 'Start today’s session'}</button></div>
-      <p class="meta">Prefer to see everything at once? It is all below.</p>
+    : '<p class="meta">Prefer to be walked through it? Warm-up, then study with the timer, then log your time.</p>'}
+      <div class="button-row"><button type="button" class="button--small" data-action="flow-start">${has ? 'Start another session' : 'Start the guided session'}</button></div>
     </section>`;
 }
 
@@ -445,7 +466,7 @@ function flowWrapUpHtml(ctx, { heading = true } = {}) {
     : '';
   return `
     <section ${heading ? 'class="card"' : 'class="log-quick"'} aria-labelledby="wrap-heading">
-      <h2 id="wrap-heading" ${heading ? '' : 'class="visually-hidden"'}>Log your session</h2>
+      <h2 id="wrap-heading" ${heading ? '' : 'class="visually-hidden"'}>How long did you study?</h2>
       <form id="flow-log-form" novalidate>
         ${errors}
         <div class="field">
@@ -481,7 +502,7 @@ function flowView(ctx, f) {
   const body = f.step === 'warmup'
     ? retrievalHtml()
     : f.step === 'focus'
-      ? [todayResourcesHtml(ctx), itemsHtml(ctx), timerHtml(ctx)].join('')
+      ? [studyBodyHtml(ctx), networkHtml(ctx), timerHtml(ctx)].join('')
       : flowWrapUpHtml(ctx);
   const back = idx > 0 ? `<button type="button" data-action="flow-back">← ${esc(STEPS[idx - 1].label)}</button>` : '';
   const next = idx < STEPS.length - 1 ? `<button type="button" class="button--primary" data-action="flow-next">Next: ${esc(STEPS[idx + 1].label)} →</button>` : '';
@@ -499,8 +520,14 @@ function flowView(ctx, f) {
 // ─── Backup notices on Today ────────────────────────────────────────────────
 
 const PROMPT_FLAG = 'identity-lab-coach:backup-prompt-dismissed';
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** "Remind me next week": the note stays away for seven days (an older "1" means it stays away). */
 function promptDismissed() {
-  try { return localStorage.getItem(PROMPT_FLAG) === '1'; } catch { return false; }
+  try {
+    const v = localStorage.getItem(PROMPT_FLAG);
+    if (v === '1') return true;
+    return v !== null && Date.now() - Number(v) < WEEK_MS;
+  } catch { return false; }
 }
 
 /** A gentle note on Today only when automatic backups need you. It never blocks anything. */
@@ -517,11 +544,11 @@ function backupNoticeHtml() {
       <p>${esc(s.folderError || 'The backup folder could not be written to.')} Your data is still saved in this browser, and daily snapshots continue.</p>
       <div class="button-row"><button type="button" class="button--primary" data-action="backup-choose-folder">Choose the folder again</button></div>`;
   } else if (s.folder === 'none' && !promptDismissed()) {
-    inner = `<h2 id="backup-heading" tabindex="-1">Set up automatic backups, once</h2>
-      <p>Choose a folder (for example in Documents or iCloud Drive) and the app will keep a backup file there by itself, so you never have to remember to export.</p>
+    inner = `<h2 id="backup-heading" tabindex="-1">Protect your progress: choose a backup folder</h2>
+      <p>One minute, once. Pick a folder (for example in Documents or iCloud Drive) and the app keeps a backup file there by itself.</p>
       <div class="button-row">
         <button type="button" class="button--primary" data-action="backup-choose-folder">Choose a backup folder</button>
-        <button type="button" data-action="backup-prompt-dismiss">Not now</button>
+        <button type="button" data-action="backup-prompt-dismiss">Remind me next week</button>
       </div>`;
   }
   return `<div id="backup-notice">${inner ? `<section class="banner-inline" aria-labelledby="backup-heading">${inner}</section>` : ''}</div>`;
@@ -535,15 +562,14 @@ function todayView() {
   if (ctx.kind === 'before') return [headerHtml(ctx), backupNoticeHtml(), todayFollowUpsHtml()].join('');
   return [
     headerHtml(ctx),
-    backupNoticeHtml(),
-    todayLessonHtml(ctx),
-    studyish ? flowStartCardHtml(ctx) : '',
     todayFollowUpsHtml(),
     studyish ? retrievalHtml() : '',
-    todayResourcesHtml(ctx),
-    itemsHtml(ctx),
+    studyBodyHtml(ctx),
+    networkHtml(ctx),
     timerHtml(ctx),
+    studyish ? flowStartCardHtml(ctx) : '',
     logHtml(ctx),
+    backupNoticeHtml(),
   ].join('');
 }
 
@@ -1031,7 +1057,7 @@ const actions = {
     await loadSnapshots();
   },
   'backup-prompt-dismiss': () => {
-    try { localStorage.setItem(PROMPT_FLAG, '1'); } catch { /* the note simply shows again next time */ }
+    try { localStorage.setItem(PROMPT_FLAG, String(Date.now())); } catch { /* the note simply shows again next time */ }
     refreshBackupUi();
     announce('Okay. You can set up automatic backups any time in Settings.');
   },

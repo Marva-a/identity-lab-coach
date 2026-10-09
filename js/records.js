@@ -336,7 +336,7 @@ export function orderResources(list) {
 
 // ─── Levels (from a guidance pack) ───────────────────────────────────────────
 // foundation = plain language, no background needed; core = practical; deep = standards and specs, for reference.
-export const RESOURCE_LEVELS = { foundation: 'Foundation', core: 'Core', deep: 'Deep' };
+export const RESOURCE_LEVELS = { foundation: 'Start here', core: 'Practical', deep: 'Reference' };
 export const HOW_TO_USE_MAX = 500;
 /** foundation first, then core, then deep. A resource with no level sits with core. */
 export const levelRank = (r) => ({ foundation: 0, core: 1, deep: 2 }[r.level] ?? 1);

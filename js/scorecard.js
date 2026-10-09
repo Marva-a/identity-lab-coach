@@ -64,7 +64,7 @@ function tableHtml(rows, period) {
           <tr>
             <th scope="col">Measure</th>
             <th scope="col">Logged</th>
-            <th scope="col">Expected by today</th>
+            <th scope="col">Where the plan says you should be</th>
             <th scope="col">Target</th>
             <th scope="col">Status</th>
           </tr>
@@ -144,13 +144,13 @@ export function scorecardView() {
   let context;
   if (date < PLAN_START) context = `The plan starts ${formatShort(PLAN_START)}; nothing is expected yet.`;
   else if (date > PERIOD_2.end) context = 'The Jan 31 targets have passed; these are your final numbers.';
-  else context = `Today is ${formatShort(date)}. "Expected" only counts days that have ended, so a Sunday or the morning of a study day never puts you behind.`;
+  else context = 'Worked out only from what you log. A day that has not ended never counts against you.';
 
   return `
     <h1 id="day-heading" tabindex="-1">Progress</h1>
 
     <section class="card" aria-labelledby="period-heading">
-      <h2 id="period-heading">${esc(period.label)}${period.id === 'jan31' ? ' (cumulative since Oct 12)' : ''}</h2>
+      <h2 id="period-heading">${esc(period.label.replace(/^By\s+/, 'Targets for '))}${period.id === 'jan31' ? ' (everything since Oct 12)' : ''}</h2>
       <p class="meta">${esc(context)}</p>
       ${tableHtml(rows, period)}
       <p class="rule"><strong>Status:</strong> ${esc(STATUS_RULE)}</p>

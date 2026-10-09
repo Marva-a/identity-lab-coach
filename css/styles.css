@@ -498,3 +498,9 @@ details.card > summary { font-weight: 600; cursor: pointer; }
 details.card > summary { min-height: 32px; }
 .manage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0.5rem 0; }
 .manage-import { margin-top: 0.75rem; }
+
+/* ─── Today as one path ───────────────────────────────── */
+.small-heading { font-size: 1rem; margin: 0.75rem 0 0.25rem; }
+.card--quiet h2.small-heading:first-child { margin-top: 0; }
+.form-more { margin: 0.75rem 0; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+.form-more > summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }

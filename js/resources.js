@@ -204,16 +204,28 @@ function resourceItemHtml(r, { library = false } = {}) {
 // ─── Today: "Do this next" ───────────────────────────────────────────────────
 
 /** The ordered "Do this next" list for a study day. Empty string when nothing is assigned. */
-export function todayResourcesHtml(ctx) {
+export function todayResourcesHtml(ctx, { fold = false } = {}) {
   if (ctx.kind !== 'study') return '';
   const list = orderResources(store.resourcesForDay(ctx.contentDay));
   if (!list.length) return '';
   const optional = optionalMinutes(list);
   const { main, deep } = splitDeep(list);
+  const intro = `<p class="meta">Start at the top: Start here, then Practical. Reference items are tucked below. About ${totalMinutes(list)} min in all${optional ? ` (${optional} min optional)` : ''}, against ${ctx.hours * 60} min planned today. These are estimates: your hours only change when you log time.</p>`;
+  if (fold) {
+    const key = `todayres-${ctx.contentDay}`;
+    return `
+    <details class="card" data-deep-group="${key}" ${ui.openDeep.has(key) || ui.message ? 'open' : ''}>
+      <summary id="next-heading">All of today's resources (${list.length}, about ${totalMinutes(list)} min)</summary>
+      ${intro}
+      ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
+      <ol class="resources">${main.map((r) => resourceItemHtml(r)).join('')}</ol>
+      ${deepGroupHtml(deep, `today-${ctx.contentDay}`, (items) => `<ol class="resources">${items.map((r) => resourceItemHtml(r)).join('')}</ol>`)}
+    </details>`;
+  }
   return `
     <section class="card" aria-labelledby="next-heading">
-      <h2 id="next-heading" tabindex="-1">Do this next</h2>
-      <p class="meta">In order: foundation first, then core. Deep reference items are tucked below. Estimated total ${totalMinutes(list)} min${optional ? ` (${optional} min of it optional)` : ''}; ${remainingMinutes(list)} min of the required part still to do, against ${ctx.hours * 60} min planned today. These are estimates: your hours only change when you log a session.</p>
+      <h2 id="next-heading" tabindex="-1">Today's reading and videos</h2>
+      ${intro}
       ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <ol class="resources">${main.map((r) => resourceItemHtml(r)).join('')}</ol>
       ${deepGroupHtml(deep, `today-${ctx.contentDay}`, (items) => `<ol class="resources">${items.map((r) => resourceItemHtml(r)).join('')}</ol>`)}

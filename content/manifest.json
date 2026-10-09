@@ -30,13 +30,6 @@
       "path": "cards-core.json"
     },
     {
-      "id": "cards-test",
-      "title": "Test flashcards (2): to try this feature, then retire them",
-      "version": 1,
-      "type": "cards",
-      "path": "cards-test.json"
-    },
-    {
       "id": "guidance-v1",
       "title": "Guidance: level and how to use each resource",
       "version": 1,

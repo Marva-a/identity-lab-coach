@@ -13,7 +13,7 @@
 // - Conversations follow the same spread but start in Week 2 (Mon Oct 19),
 //   because the roadmap schedules the first conversations in Week 2.
 // - Status: On track at 90% or more of expected; Behind at 70–89%, or when a
-//   count is just one short; At risk below 70%.
+//   count is just one short; Well behind means below 70%.
 import { addDays, weekday } from './dates.js';
 import {
   PLAN_START, PLAN_END, BRIDGE_REST_START, BRIDGE_REST_END, WEEKS, SCORECARD_TARGETS,
@@ -32,9 +32,9 @@ export const MEASURES = [
   { id: 'referral', label: 'Referral asks' },
 ];
 
-export const STATUS_RULE = 'On track means you are at 90% or more of what the plan expects by today; Behind means 70–89%, or a count that is just one short; At risk means below 70%.';
+export const STATUS_RULE = 'On track means you are at 90% or more of what the plan expects by today; A bit behind means 70–89%, or a count that is just one short; Well behind means below 70%.';
 
-export const STATUS_LABELS = { on: 'On track', behind: 'Behind', risk: 'At risk', none: 'No target' };
+export const STATUS_LABELS = { on: 'On track', behind: 'A bit behind', risk: 'Well behind', none: 'No target' };
 
 /** Targets per period. Ranges keep both ends; pacing uses `low`. */
 export function targetsFor(periodId) {

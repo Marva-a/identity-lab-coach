@@ -199,7 +199,7 @@ export const WEEKS = [
     ],
     days: [
       { day: 8, date: '2026-10-19', block: 'learn', focus: 'Grant types; auth code and PKCE', hours: 2 },
-      { day: 9, date: '2026-10-20', block: 'learn', focus: 'Tokens, JWTs; RFC 9700 summary', hours: 2 },
+      { day: 9, date: '2026-10-20', block: 'learn', focus: 'Tokens and JWTs; OpenID Connect basics (RFC 9700 comes on Day 13)', hours: 2 },
       { day: 10, date: '2026-10-21', block: 'practice', focus: 'Exercise 4: PKCE flow in dev tools', hours: 2 },
       { day: 11, date: '2026-10-22', block: 'practice', focus: 'Exercise 5 and PortSwigger OAuth labs', hours: 2 },
       { day: 12, date: '2026-10-23', block: 'build', focus: 'Project 1: App A with OIDC login', hours: 2 },

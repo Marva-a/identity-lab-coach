@@ -11,6 +11,7 @@ import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
 import { courseProgress } from './progress.js';
+import { STATUS_LABELS } from './pace.js';
 import { resolveHash, ROUTES, SECTIONS, LEGACY_HASHES } from './routes.js';
 import {
   validateManifest, parseCardPack, planContent, summarizePlan, contentUrl, CONTENT_REQUEST_INIT, parseGuidancePack, parseLessonPack, planSize,
@@ -19,7 +20,7 @@ import { stepIndex, nextStep, previousStep, STEPS } from './session-flow.js';
 import { datedFilesToRemove, snapshotsToRemove, datedName, isOurDatedFile, KEEP_FILES, KEEP_SNAPSHOTS } from './backup-files.js';
 import {
   countsFromDoc, validateArtifact, validateInteraction, validatePerson, isHttpUrl, UNASSIGNED_ID,
-  ARTIFACT_CATEGORIES, categoryCoverage, categoryLabel, splitDeep, levelRank,
+  ARTIFACT_CATEGORIES, categoryCoverage, categoryLabel, splitDeep, levelRank, RESOURCE_LEVELS,
   SUGGESTED_SKILL_TAGS, validateResource, orderResources, totalMinutes, remainingMinutes, optionalMinutes, parseDays, findSameLink,
 } from './records.js';
 import {
@@ -706,6 +707,14 @@ export function runDateChecks() {
   check('Resource: a known level is accepted', validateResource({ id: 'a', title: 't', source: 's', type: 'article', minutes: 5, url: '', days: [1], level: 'deep', howToUse: 'x' }).length, 0);
   check('Routes: #lesson/3 is a page of its own', where('#lesson/3'), 'lesson/3');
   check('Routes: a lesson address with no real day goes to Plan', where('#lesson/99'), 'plan');
+
+  // Plain words (from the principal designer review).
+  check('Words: levels read Start here, Practical, Reference', Object.values(RESOURCE_LEVELS).join(','), 'Start here,Practical,Reference');
+  check('Words: no status says "At risk"', Object.values(STATUS_LABELS).includes('At risk'), false);
+  check('Words: the statuses are On track, A bit behind, Well behind', [STATUS_LABELS.on, STATUS_LABELS.behind, STATUS_LABELS.risk].join(','), 'On track,A bit behind,Well behind');
+  const dayFocus = (n) => WEEKS.flatMap((w) => w.days).find((d) => d.day === n).focus;
+  check('Plan text: Day 9 no longer says to read RFC 9700 (it moved to Day 13)', /RFC 9700 summary/.test(dayFocus(9)), false);
+  check('Plan text: Day 9 points to Day 13 for RFC 9700', /Day 13/.test(dayFocus(9)), true);
 
   return results;
 }

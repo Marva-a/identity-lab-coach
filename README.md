@@ -48,8 +48,8 @@ Two more pack types teach rather than list:
 
 A resource or card whose id you already have is skipped, even if the pack file has changed since:
 changes to existing items are not applied, so your edits are safe. Give a changed resource a new id.
-`content/cards-test.json` is a 2-card test pack; remove its line from the manifest when you no
-longer want it (and retire the two cards in the app).
+(There used to be a 2-card test pack, `cards-test.json`. It has been removed; if you added those two
+cards earlier, retire them in Flashcards.)
 
 ## Install it like an app
 

@@ -157,7 +157,7 @@ export function weekView({ top = '', next = () => '' } = {}) {
     <section class="card" aria-labelledby="checklist-heading">
       <div class="section-head">
         <h2 id="checklist-heading">What to finish this week</h2>
-        <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">Edit plan: ${ui.editPlan ? 'on' : 'off'}</button>
+        <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">Change required items: ${ui.editPlan ? 'on' : 'off'}</button>
       </div>
       ${ui.editPlan ? '<p class="meta">Each item has a button to mark it Required or Optional.</p>' : ''}
       ${content.items.length

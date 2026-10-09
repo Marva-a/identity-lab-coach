@@ -57,6 +57,14 @@ function options(map, selected, emptyLabel) {
   return empty + Object.entries(map).map(([v, l]) => `<option value="${v}" ${selected === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
 }
 
+/** The maturity choices in plain words (the saved values and the export keep their original names). */
+const MATURITY_PLAIN = {
+  implemented: 'Implemented: built and working',
+  simulated: 'Simulated: mocked up and labelled as such',
+  conceptual: 'Conceptual: designed, not built',
+  future: 'Future phase: planned for later',
+};
+
 function formHtml(artifact) {
   const isNew = !artifact;
   const f = ui.form ?? (artifact ? formFrom(artifact) : blankForm());
@@ -82,13 +90,10 @@ function formHtml(artifact) {
         <span class="hint" id="ev-category-hint">What kind of work it shows: Research, Systems, Interaction, Security or Product. It never changes the scorecard counts.</span>
       </div>
       <div class="field">
-        <label for="ev-project">Project (optional)</label>
-        <select id="ev-project" name="project">${options(PROJECTS, f.project, 'Not set')}</select>
-      </div>
-      <div class="field">
-        <label for="ev-maturity">Maturity${f.status === 'published' ? ' (required)' : ' (required before you publish)'}</label>
-        <select id="ev-maturity" name="maturity" aria-describedby="ev-maturity-hint">${options(MATURITIES, f.maturity, 'Choose…')}</select>
-        <span class="hint" id="ev-maturity-hint">How real is it? Implemented (it runs), Simulated (mocked and labelled), Conceptual (designed, not built) or Future phase.</span>
+        <label for="ev-tag-0">What does this show you can do? (one skill is enough to start)</label>
+        <input type="text" id="ev-tag-0" name="tag" list="skill-suggestions" maxlength="40" value="${esc(f.tags[0] ?? '')}" autocomplete="off" aria-describedby="ev-tag-hint">
+        <span class="hint" id="ev-tag-hint">Pick a suggestion or type your own, for example OAuth, PKCE, zero-trust or segmentation.</span>
+        ${datalist}
       </div>
       ${isNew ? `
         <fieldset>
@@ -98,36 +103,43 @@ function formHtml(artifact) {
             <label class="choice"><input type="radio" name="status" value="published" ${f.status === 'published' ? 'checked' : ''}> Published</label>
           </div>
         </fieldset>` : `<p class="meta">Status: <strong>${esc(ARTIFACT_STATUSES[artifact.status])}</strong>${artifact.status === 'draft' ? '. Use "Publish" on the list when it is ready.' : ''}</p>`}
-      <div class="field">
-        <label for="ev-created">Date created</label>
-        <input type="date" id="ev-created" name="createdDate" value="${esc(f.createdDate)}">
-      </div>
-      ${showPublished ? `
+      <details class="form-more" ${!isNew || showPublished || ui.errors.length ? 'open' : ''}>
+        <summary>More details${showPublished ? ' (maturity is needed to publish)' : ''}</summary>
         <div class="field">
-          <label for="ev-published">Date published</label>
-          <input type="date" id="ev-published" name="publishedDate" value="${esc(f.publishedDate)}" aria-describedby="ev-published-hint">
-          <span class="hint" id="ev-published-hint">The scorecard counts it on this date.</span>
-        </div>` : ''}
-      <div class="field">
-        <label for="ev-url">Link (optional)</label>
-        <input type="url" id="ev-url" name="url" inputmode="url" maxlength="${LIMITS.url}" value="${esc(f.url)}" autocomplete="off" aria-describedby="ev-url-hint">
-        <span class="hint" id="ev-url-hint">Starts with https://. The app never opens it unless you click it.</span>
-      </div>
-      <fieldset>
-        <legend>What this proves (1–${TAGS_MAX} skill tags)</legend>
-        <p class="hint">Pick a suggestion or type your own: for example network-security, cloud-security, zero-trust, segmentation, workload-identity, OAuth or PKCE.</p>
-        ${[0, 1, 2].map((i) => `
+          <label for="ev-project">Project (optional)</label>
+          <select id="ev-project" name="project">${options(PROJECTS, f.project, 'Not set')}</select>
+        </div>
+        <div class="field">
+          <label for="ev-maturity">How real is this?${showPublished ? ' (needed to publish)' : ' (needed before you publish)'}</label>
+          <select id="ev-maturity" name="maturity" aria-describedby="ev-maturity-hint">${options(MATURITY_PLAIN, f.maturity, 'Choose…')}</select>
+          <span class="hint" id="ev-maturity-hint">Be honest: a mocked-up design is still good evidence if it is labelled as one.</span>
+        </div>
+        <div class="field">
+          <label for="ev-created">Date created</label>
+          <input type="date" id="ev-created" name="createdDate" value="${esc(f.createdDate)}">
+        </div>
+        ${showPublished ? `
           <div class="field">
-            <label for="ev-tag-${i}">Skill ${i + 1}${i === 0 ? ' (required)' : ' (optional)'}</label>
+            <label for="ev-published">Date published</label>
+            <input type="date" id="ev-published" name="publishedDate" value="${esc(f.publishedDate)}" aria-describedby="ev-published-hint">
+            <span class="hint" id="ev-published-hint">The scorecard counts it on this date.</span>
+          </div>` : ''}
+        <div class="field">
+          <label for="ev-url">Link (optional)</label>
+          <input type="url" id="ev-url" name="url" inputmode="url" maxlength="${LIMITS.url}" value="${esc(f.url)}" autocomplete="off" aria-describedby="ev-url-hint">
+          <span class="hint" id="ev-url-hint">Starts with https://. The app never opens it unless you click it.</span>
+        </div>
+        ${[1, 2].map((i) => `
+          <div class="field">
+            <label for="ev-tag-${i}">Another skill (optional)</label>
             <input type="text" id="ev-tag-${i}" name="tag" list="skill-suggestions" maxlength="40" value="${esc(f.tags[i] ?? '')}" autocomplete="off">
           </div>`).join('')}
-        ${datalist}
-      </fieldset>
-      <div class="field">
-        <label for="ev-reflection">Reflection (optional)</label>
-        <textarea id="ev-reflection" name="reflection" rows="3" maxlength="${LIMITS.reflection}" aria-describedby="ev-reflection-hint">${esc(f.reflection)}</textarea>
-        <span class="hint" id="ev-reflection-hint">What went wrong, what you would change, what you learned.</span>
-      </div>
+        <div class="field">
+          <label for="ev-reflection">Reflection (optional)</label>
+          <textarea id="ev-reflection" name="reflection" rows="3" maxlength="${LIMITS.reflection}" aria-describedby="ev-reflection-hint">${esc(f.reflection)}</textarea>
+          <span class="hint" id="ev-reflection-hint">What went wrong, what you would change, what you learned.</span>
+        </div>
+      </details>
       <div class="button-row">
         <button type="submit" class="button--primary">${isNew ? 'Add evidence' : 'Save changes'}</button>
         <button type="button" data-action="evidence-cancel">Cancel</button>
@@ -142,8 +154,8 @@ function publishFormHtml(artifact) {
       <h3 id="publish-heading" tabindex="-1">Publish "${esc(artifact.title)}"</h3>
       ${errorSummaryHtml('publish-errors', ui.publishErrors)}
       <div class="field">
-        <label for="publish-maturity">Maturity (required)</label>
-        <select id="publish-maturity" name="maturity" aria-describedby="publish-maturity-hint">${options(MATURITIES, maturity, 'Choose…')}</select>
+        <label for="publish-maturity">How real is this? (needed to publish)</label>
+        <select id="publish-maturity" name="maturity" aria-describedby="publish-maturity-hint">${options(MATURITY_PLAIN, maturity, 'Choose…')}</select>
         <span class="hint" id="publish-maturity-hint">Implemented, Simulated, Conceptual or Future phase. Be honest about depth: it is shown wherever the evidence appears.</span>
       </div>
       <div class="field">
@@ -269,18 +281,14 @@ export function evidenceView() {
     </section>`;
 }
 
-/** Entries per category. A category with none is called out in words, not only by styling. */
+/** Where your evidence stands by category. Quiet until you have made something. */
 function coverageHtml(all) {
   const { rows, uncategorised } = categoryCoverage(all);
+  if (!all.length) return '';
+  const missing = rows.filter((r) => r.count === 0).map((r) => r.label);
   return `
-      <div class="export-box" role="group" aria-labelledby="coverage-heading">
-        <h3 id="coverage-heading">Category coverage</h3>
-        <ul class="coverage">${rows.map((r) => `
-          <li>${esc(r.label)}: <strong>${r.count}</strong>${r.count === 0 ? ' <span class="flag flag--need">None yet</span>' : ''}</li>`).join('')}
-          ${uncategorised ? `<li>Uncategorised: <strong>${uncategorised}</strong> <span class="meta">(edit an entry to choose its category)</span></li>` : ''}
-        </ul>
-        <p class="meta">Counts every entry, drafts and published.</p>
-      </div>`;
+      <p class="meta" id="coverage-line"><strong>By category:</strong> ${rows.map((r) => `${esc(r.label)} ${r.count}`).join(' · ')}${uncategorised ? ` · Uncategorised ${uncategorised} (edit an entry to choose)` : ''}.
+        ${missing.length ? `Not covered yet: ${esc(missing.join(', '))}.` : 'Every category has something.'}</p>`;
 }
 
 function readForm(form) {

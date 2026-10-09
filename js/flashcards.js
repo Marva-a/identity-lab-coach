@@ -40,7 +40,7 @@ function currentSchedule() {
 
 function verificationBadge(card) {
   if (card.verified) return '<span class="tag tag--verified">Verified by you</span>';
-  if (card.source === 'seed') return '<span class="tag tag--unverified">Unverified: written by Claude</span>';
+  if (card.source === 'seed') return '<span class="tag tag--unverified">Written by Claude, not yet checked by you</span>';
   if (card.source === 'pack') return '<span class="tag tag--unverified">Unverified: from a content pack</span>';
   return '<span class="tag tag--unverified">Unverified</span>';
 }
@@ -139,22 +139,22 @@ export function retrievalHtml() {
   let body;
   if (remaining > 0 && candidates.length) {
     const [card] = pickInterleaved(candidates, remaining);
-    body = cardFaceHtml(card, sched.get(card.id), 'retrieval', `Card ${doneToday.size + 1} of ${Math.min(RETRIEVAL_SIZE, doneToday.size + candidates.length)}`);
+    body = cardFaceHtml(card, sched.get(card.id), 'retrieval', `Question ${doneToday.size + 1} of ${Math.min(RETRIEVAL_SIZE, doneToday.size + candidates.length)}`);
   } else if (doneToday.size) {
     const ratings = d.cardReviews.filter((r) => r.date === date && r.context === 'retrieval');
     const counts = RATINGS.map((r) => [r, ratings.filter((x) => x.rating === r).length]).filter(([, n]) => n);
     const more = due.length;
     body = `
-      <p class="status-ok" id="retrieval-done" tabindex="-1">Retrieval check done: ${plural(doneToday.size, 'card', 'cards')} (${counts.map(([r, n]) => `${RATING_LABELS[r]} ${n}`).join(', ')}).</p>
+      <p class="status-ok" id="retrieval-done" tabindex="-1">Warm-up done: ${plural(doneToday.size, 'question', 'questions')} (${counts.map(([r, n]) => `${RATING_LABELS[r]} ${n}`).join(', ')}).</p>
       ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#learn/cards">Study them in Flashcards</a>.</p>` : ''}`;
   } else {
-    body = '<p class="meta">No cards are due today.</p>';
+    body = '<p class="meta">No warm-up questions are due today.</p>';
   }
 
   return `
     <section class="card" aria-labelledby="retrieval-heading">
-      <h2 id="retrieval-heading" tabindex="-1">Retrieval check</h2>
-      <p class="meta">Recall first, before you start the timer.</p>
+      <h2 id="retrieval-heading" tabindex="-1">Warm-up</h2>
+      <p class="meta">Try to answer from memory first, then read. Getting it wrong still helps.</p>
       ${body}
     </section>`;
 }
