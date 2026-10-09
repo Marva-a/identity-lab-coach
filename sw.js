@@ -23,7 +23,8 @@ self.addEventListener('fetch', (event) => {
   if (new URL(request.url).origin !== self.location.origin) return; // other sites are none of its business
   event.respondWith((async () => {
     try {
-      const response = await fetch(request);
+      // Ask the site whether the file changed (the browser's own copy can be up to ten minutes old, which can mix old and new files after an update).
+      const response = await fetch(request, { cache: 'no-cache' });
       if (response && response.ok && response.type === 'basic') {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
