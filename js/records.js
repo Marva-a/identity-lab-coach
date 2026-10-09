@@ -26,21 +26,21 @@ export function categoryCoverage(artifacts) {
 
 // ─── Evidence (artifacts) ────────────────────────────────────────────────────
 export const ARTIFACT_TYPES = {
-  'project-slice': 'Project slice',
+  'project-slice': 'Part of a project',
   'write-up': 'Write-up',
   'threat-model': 'Threat model',
   diagram: 'Diagram',
-  repo: 'Repo',
+  repo: 'Code repo',
   post: 'Post',
   other: 'Other',
 };
-export const ARTIFACT_STATUSES = { draft: 'Draft', published: 'Published' };
+export const ARTIFACT_STATUSES = { draft: 'Draft', published: 'Shared' };
 /** How real the work is. Empty until you choose; required before an artifact is published. */
 export const MATURITIES = {
-  implemented: 'Implemented',
+  implemented: 'Built and working',
   simulated: 'Simulated',
-  conceptual: 'Conceptual',
-  future: 'Future phase',
+  conceptual: 'Concept only',
+  future: 'Planned for later',
 };
 export const PROJECTS = {
   'project-1': 'Project 1',
@@ -64,7 +64,7 @@ export const CONNECTIONS = {
   community: 'Community',
   other: 'Other',
 };
-export const INTERACTION_TYPES = { conversation: 'Conversation', referral: 'Referral ask' };
+export const INTERACTION_TYPES = { conversation: 'Conversation', referral: 'Referral request' };
 
 export const LIMITS = {
   title: 120, reflection: 500, url: 500, name: 100, short: 100, notes: 1000, outcome: 1000,
@@ -120,20 +120,20 @@ export function validateArtifact(a, { requireMaturity = false, requireCategory =
   if (!String(a.title ?? '').trim()) problems.push('Add a title.');
   if (String(a.title ?? '').length > LIMITS.title) problems.push(`Keep the title under ${LIMITS.title} characters.`);
   if (!(a.type in ARTIFACT_TYPES)) problems.push('Choose a type.');
-  if (!(a.status in ARTIFACT_STATUSES)) problems.push('Choose draft or published.');
-  if ((a.maturity ?? '') !== '' && !(a.maturity in MATURITIES)) problems.push('Choose a valid maturity.');
+  if (!(a.status in ARTIFACT_STATUSES)) problems.push('Choose Draft or Shared.');
+  if ((a.maturity ?? '') !== '' && !(a.maturity in MATURITIES)) problems.push('Choose how real it is from the list.');
   if (requireMaturity && a.status === 'published' && !a.maturity) {
-    problems.push('Pick a maturity (Implemented, Simulated, Conceptual or Future phase). It is required for published evidence.');
+    problems.push('Choose how real it is (Built and working, Simulated, Concept only or Planned for later). It is needed before you mark it as shared.');
   }
   if ((a.project ?? '') !== '' && !(a.project in PROJECTS)) problems.push('Choose a valid project.');
-  if (!isDate(a.createdDate)) problems.push('Choose a valid created date.');
+  if (!isDate(a.createdDate)) problems.push('Choose the date you made it.');
   if (a.status === 'published') {
-    if (!isDate(a.publishedDate)) problems.push('Choose a valid published date.');
+    if (!isDate(a.publishedDate)) problems.push('Choose the date you shared it.');
     else if (isDate(a.createdDate) && a.publishedDate < a.createdDate) {
-      problems.push('The published date cannot be before the created date.');
+      problems.push('The date you shared it cannot be before the date you made it.');
     }
   } else if (a.publishedDate) {
-    problems.push('Only published evidence has a published date.');
+    problems.push('Only a shared piece has a shared date.');
   }
   if (String(a.url ?? '').trim()) {
     if (!isHttpUrl(a.url)) problems.push('The link must start with http:// or https://.');
@@ -144,7 +144,7 @@ export function validateArtifact(a, { requireMaturity = false, requireCategory =
   else if (tags.some((t) => !String(t).trim() || String(t).length > TAG_MAX_LENGTH)) {
     problems.push(`Each skill tag must be 1–${TAG_MAX_LENGTH} characters.`);
   }
-  if (String(a.reflection ?? '').length > LIMITS.reflection) problems.push(`Keep the reflection under ${LIMITS.reflection} characters.`);
+  if (String(a.reflection ?? '').length > LIMITS.reflection) problems.push(`Keep "What you learned" under ${LIMITS.reflection} characters.`);
   return problems;
 }
 
@@ -167,11 +167,11 @@ export function validateInteraction(i) {
   const problems = [];
   if (!i.personId) problems.push('Choose a person.');
   if (!isDate(i.date)) problems.push('Choose a valid date.');
-  if (!(i.type in INTERACTION_TYPES)) problems.push('Choose conversation or referral ask.');
-  if (String(i.outcome ?? '').length > LIMITS.outcome) problems.push(`Keep the outcome note under ${LIMITS.outcome} characters.`);
+  if (!(i.type in INTERACTION_TYPES)) problems.push('Choose Conversation or Referral request.');
+  if (String(i.outcome ?? '').length > LIMITS.outcome) problems.push(`Keep "What came of it" under ${LIMITS.outcome} characters.`);
   if (i.followUpDue) {
     if (!isDate(i.followUpDue)) problems.push('Choose a valid follow-up date.');
-    else if (isDate(i.date) && i.followUpDue < i.date) problems.push('The follow-up cannot be before the interaction date.');
+    else if (isDate(i.date) && i.followUpDue < i.date) problems.push('The follow-up cannot be before the conversation date.');
   }
   return problems;
 }
@@ -208,7 +208,7 @@ export function countsFromDoc(doc) {
 
 // ─── Resources (Stage 4b: Content library) ───────────────────────────────────
 export const RESOURCE_TYPES = {
-  video: 'Video', article: 'Article', spec: 'Spec', lab: 'Lab', exercise: 'Exercise',
+  video: 'Video', article: 'Article', spec: 'Docs or spec', lab: 'Lab', exercise: 'Exercise',
 };
 export const RESOURCE_STATUSES = { 'not-started': 'Not started', 'in-progress': 'In progress', done: 'Done' };
 /**

@@ -12,7 +12,7 @@ don't share it). Use Export and Import in Settings to move data between them.
 ## How to add content
 
 Resources and flashcards come to the app as **content packs** in the `content/` folder,
-so you never paste or type them in. In the app, **Learn → Library → Check for new content** shows
+so you never paste or type them in. In the app, **Learn → Library → Check for course updates** shows
 what is new ("Ready to add 71 resources and 2 cards from 4 packs") and adds it only after you
 confirm. It asks only this app's own site for the files and sends none of your data. It adds
 **new ids only**: anything you already have (links, statuses, notes, edits, ratings,
@@ -31,7 +31,7 @@ To add a pack:
    you change the pack), `type` (`resources`, `cards`, `guidance` or `lessons`) and `path` (a plain file name).
 3. Check it before you publish: `node scripts/validate-content.mjs`. Publishing also runs this
    check (`.github/workflows/pages.yml`), and **any wrong row stops the site from being published**.
-4. Push to `main`. Then click **Check for new content** in the app.
+4. Push to `main`. Then click **Check for course updates** in the app.
 
 Two more pack types teach rather than list:
 
@@ -81,6 +81,40 @@ Safari too. Use Export and Import in Settings to move data between them.
   and a dated file (the newest 14) by itself a few seconds after each change. After a
   browser restart it may need one click to be allowed again. Nothing is ever sent anywhere.
   Safari and Firefox cannot write to a folder, so they keep the daily snapshots only.
+
+## Design
+
+An editorial "field notebook": calm paper, one ink-blue accent, serif for what you learn (titles,
+lessons, flashcard questions), sans for what you do, mono for numbers and labels. All three are the
+device's own fonts, so nothing is downloaded. Every colour, size, space, radius and shadow is a token
+at the top of `css/styles.css` (light and dark), and the file is organised by screen. Signature details:
+the 60-tick plan rail under "Day N" (where you are, never what you missed), flashcards as index cards,
+and the stacked recall bar on Progress. Motion is short and switches off with reduced motion.
+
+## Words the app uses
+
+One word per idea, everywhere (screens, messages, the export, the README). Use these when you add content.
+The saved data keeps its original internal names (for example `publish`, `evidence`, `retired`), so older
+files and backups still load.
+
+| Say | Not | Meaning |
+|---|---|---|
+| Career (Portfolio, People, Job applications) | Proof | The job-search side of the plan |
+| Portfolio piece | artifact, evidence | Something you made that shows a skill |
+| Draft / Shared, Mark as shared | Published, publish | Shared = posted where others can see it; it counts from that date |
+| Learn, Lab, Project, Share, Final | Learn and read, Practice, Build, Publish and apply, Capstone | The kinds of study day (full names: Learn, Hands-on lab, Project work, Write up and share, Final project) |
+| Product study | Apply | Applying what you learned to real products (docs, audits, teardowns) |
+| Not yet / Hard / Got it / Easy | Again / Hard / Good / Easy | Flashcard answers |
+| Level 1–5 | Box | How long until a card comes back (1, 3, 7, 14, 30 days) |
+| Checked by you / Mark as checked | Verified | You checked a card against its source |
+| Archive / Unarchive | Retire / Restore | Hide a card or resource without deleting it |
+| Conversation, Referral request | Interaction, Referral ask | Entries in People |
+| Job application, Log application | Targeted application, +1 | Entries in Job applications |
+| Course updates, reading tips | Content packs, guidance notes | New lessons, resources and cards from the app's own site |
+| Checkpoint | Gate | A date by which something should be ready |
+| Goals (on Progress) | Scorecard | Your targets and pace |
+
+Tone: plain, specific and calm. Say what happens next. Never guilt ("Not yet", not "Wrong"; "A bit behind", not "At risk").
 
 ## Do not store secrets here
 

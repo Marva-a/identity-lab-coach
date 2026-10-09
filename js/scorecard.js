@@ -10,15 +10,15 @@ import {
   scorecard, activePeriod, PERIOD_1, PERIOD_2, targetsFor, MEASURES, STATUS_RULE, STATUS_LABELS,
 } from './pace.js';
 
-const KIND_LABELS = { application: 'Targeted application' };
+const KIND_LABELS = { application: 'Job application' };
 
 /** Where each measure's number comes from. */
 const SOURCES = {
   hours: 'From the sessions you log on <a href="#today">Today</a>.',
-  artifact: 'From the <a href="#proof/evidence">Evidence log</a>: published artifacts only, on their published date.',
-  conversation: 'From the interactions in the <a href="#proof/people">People log</a>.',
-  referral: 'From the interactions in the <a href="#proof/people">People log</a>.',
-  application: 'From the quick entries in <a href="#proof/applications">Proof</a>.',
+  artifact: 'From your <a href="#proof/evidence">Portfolio</a>: shared pieces only, on the date you shared them.',
+  conversation: 'From the conversations you log in <a href="#proof/people">People</a>.',
+  referral: 'From the referral requests you log in <a href="#proof/people">People</a>.',
+  application: 'From <a href="#proof/applications">Job applications</a>.',
 };
 
 const ui = {
@@ -49,22 +49,22 @@ function statusHtml(row) {
 
 function expectedNote(row, period) {
   if (row.status === 'none') return 'Hours logged since Dec 11. There is no hours target after Dec 10.';
-  if (row.id === 'hours') return 'Planned hours of study days that have ended.';
-  if (row.id === 'artifact' && period.id === 'dec10') return 'One per publish Saturday that has ended, plus the capstone after Dec 10.';
-  if (row.id === 'conversation' && period.id === 'dec10') return 'Spread over study days that have ended, starting in Week 2 (Oct 19).';
-  return 'Target spread over study days that have ended (Mon–Sat, no rest days).';
+  if (row.id === 'hours') return 'Planned hours of the study days so far.';
+  if (row.id === 'artifact' && period.id === 'dec10') return 'One per Saturday so far, plus the final project after Dec 10.';
+  if (row.id === 'conversation' && period.id === 'dec10') return 'Spread over the study days so far, starting in Week 2 (Oct 19).';
+  return 'Spread over the study days so far (Mon–Sat).';
 }
 
 function tableHtml(rows, period) {
   return `
     <div class="table-scroll">
       <table class="score-table">
-        <caption class="visually-hidden">${esc(period.label)}: logged, expected by today, target and status</caption>
+        <caption class="visually-hidden">${esc(period.label)}: so far, expected by today, target and status</caption>
         <thead>
           <tr>
-            <th scope="col">Measure</th>
-            <th scope="col">Logged</th>
-            <th scope="col">Where the plan says you should be</th>
+            <th scope="col">Goal</th>
+            <th scope="col">So far</th>
+            <th scope="col">Expected by today</th>
             <th scope="col">Target</th>
             <th scope="col">Status</th>
           </tr>
@@ -113,7 +113,7 @@ function logFormHtml() {
         <input type="text" id="tally-note" name="note" maxlength="${store.NOTE_MAX}" value="${esc(d.note)}" aria-describedby="tally-note-hint" autocomplete="off">
         <span class="hint" id="tally-note-hint">For example "Acme, senior product designer, identity team".</span>
       </div>
-      <button type="submit" class="button--primary">+1 application</button>
+      <button type="submit" class="button--primary">Log application</button>
     </form>`;
 }
 
@@ -157,17 +157,17 @@ export function scorecardView({ before = '' } = {}) {
       ${tableHtml(rows, period)}
       <p class="rule"><strong>Status:</strong> ${esc(STATUS_RULE)}</p>
       ${otherPeriodHtml(period)}
-      <p class="meta">Calculated only from what you log. Never type totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
+      <p class="meta">Counted from what you log; you never type in totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
     </section>
 `;
 }
 
 export function applicationsView() {
   return `
-    <h1 id="day-heading" tabindex="-1">Applications</h1>
+    <h1 id="day-heading" tabindex="-1">Job applications</h1>
     <section class="card" aria-labelledby="tally-heading">
-      <h2 id="tally-heading">Log an application</h2>
-      <p class="meta">A quick "+1 with date" for targeted applications. Artifacts go in the <a href="#proof/evidence">Evidence log</a>; conversations and referral asks go in the <a href="#proof/people">People log</a>.</p>
+      <h2 id="tally-heading">Log a job application</h2>
+      <p class="meta">Log each job you apply to, with the date. Add the company and role so you can find it later. Conversations and referral requests go in <a href="#proof/people">People</a>.</p>
       ${ui.message ? `<p class="status-ok" id="tally-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       ${logFormHtml()}
       <h3>Recent entries</h3>
@@ -204,7 +204,7 @@ export function submitTallyForm(form) {
   ui.errors = [];
   ui.draft = { kind: t.kind, date: '', note: '' };
   const count = store.scorecardCounts()[t.kind].length;
-  ui.message = `+1 ${KIND_LABELS[t.kind].toLowerCase()} on ${formatShort(t.date)}${t.testMode ? ' (test)' : ''}. Total: ${count}.`
+  ui.message = `Logged a ${KIND_LABELS[t.kind].toLowerCase()} on ${formatShort(t.date)}${t.testMode ? ' (test)' : ''}. Total so far: ${count}.`
     + (result.saved ? '' : ' Warning: this browser blocked saving.');
   announce(ui.message);
   return '#tally-message';

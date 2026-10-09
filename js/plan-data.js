@@ -19,8 +19,9 @@
  * If an id ever has to change, list it in PLAN_ID_RENAMES and saved ticks move with it.
  *   2: revised roadmap (zero trust and cloud security foundations; extras as Optional items)
  *   3: one Design item per week (kind 'design', after Evidence); extra time on top of the 12 h
+ *   4: wording only: Saturday focus lines say "write up and share" instead of "publish" (no id changed)
  */
-export const PLAN_VERSION = 3;
+export const PLAN_VERSION = 4;
 /** { oldId: newId } for any item whose id changed in a later version. Empty so far. */
 export const PLAN_ID_RENAMES = {};
 /** Every item id that existed in each earlier plan version. A check proves none were removed. */
@@ -106,13 +107,13 @@ export const PROJECT1_GATE = '2026-11-21'; // Day 41, Saturday
 export const FEB_REVIEW_WEEK = '2027-02-15'; // Monday of the review week
 
 export const BLOCK_LABELS = {
-  learn: 'Learn and read',
-  practice: 'Practice',
-  build: 'Build',
-  publish: 'Publish and apply',
-  capstone: 'Capstone',
+  learn: 'Learn',
+  practice: 'Hands-on lab',
+  build: 'Project work',
+  publish: 'Write up and share',
+  capstone: 'Final project',
   bridge: 'Bridge',
-  applications: 'Application system',
+  applications: 'Job search',
 };
 
 /** Which week items each block type works on (shown on the Today view). */
@@ -127,12 +128,12 @@ export const BLOCK_ITEM_KINDS = {
 export const ITEM_KIND_LABELS = {
   learn: 'Learn',
   read: 'Read',
-  practice: 'Practice',
-  build: 'Build (Project 1)',
-  apply: 'Apply',
-  network: 'Network (evenings, outside the 12 h)',
-  evidence: 'Evidence',
-  design: 'Design (on top of the 12 h)',
+  practice: 'Lab',
+  build: 'Project 1',
+  apply: 'Product study',
+  network: 'Networking (evenings, not study time)',
+  evidence: 'Portfolio piece',
+  design: 'Design exercise (extra time)',
 };
 
 /**
@@ -174,7 +175,7 @@ export const WEEKS = [
       { day: 3, date: '2026-10-14', block: 'practice', focus: 'Exercise 1: Keycloak realm, users, roles', hours: 2 },
       { day: 4, date: '2026-10-15', block: 'learn', focus: 'Lifecycle and threat-model vocabulary', hours: 2 },
       { day: 5, date: '2026-10-16', block: 'build', focus: 'Project 1: seed script', hours: 2 },
-      { day: 6, date: '2026-10-17', block: 'publish', focus: 'README, credential diagram, publish', hours: 2 },
+      { day: 6, date: '2026-10-17', block: 'publish', focus: 'README and credential diagram; write up and share', hours: 2 },
     ],
     notes: [],
   },
@@ -203,7 +204,7 @@ export const WEEKS = [
       { day: 10, date: '2026-10-21', block: 'practice', focus: 'Exercise 4: PKCE flow in dev tools', hours: 2 },
       { day: 11, date: '2026-10-22', block: 'practice', focus: 'Exercise 5 and PortSwigger OAuth labs', hours: 2 },
       { day: 12, date: '2026-10-23', block: 'build', focus: 'Project 1: App A with OIDC login', hours: 2 },
-      { day: 13, date: '2026-10-24', block: 'publish', focus: 'Sequence diagram, consent audit, publish', hours: 2 },
+      { day: 13, date: '2026-10-24', block: 'publish', focus: 'Sequence diagram and consent audit; write up and share', hours: 2 },
     ],
     notes: [],
   },
@@ -233,7 +234,7 @@ export const WEEKS = [
       { day: 17, date: '2026-10-28', block: 'practice', focus: 'Exercise 6: SAML SSO', hours: 2 },
       { day: 18, date: '2026-10-29', block: 'practice', focus: 'Exercise 7 (light): Cedar policies', hours: 2 },
       { day: 19, date: '2026-10-30', block: 'build', focus: 'Project 1: SCIM deprovisioning', hours: 2 },
-      { day: 20, date: '2026-10-31', block: 'publish', focus: 'Admin journey map, publish', hours: 2 },
+      { day: 20, date: '2026-10-31', block: 'publish', focus: 'Admin journey map; write up and share', hours: 2 },
     ],
     notes: [],
   },
@@ -261,7 +262,7 @@ export const WEEKS = [
       { day: 24, date: '2026-11-04', block: 'practice', focus: 'Exercise 3: TOTP and passkeys', hours: 2 },
       { day: 25, date: '2026-11-05', block: 'practice', focus: 'Exercise 11: STRIDE model of recovery', hours: 2 },
       { day: 26, date: '2026-11-06', block: 'build', focus: 'Project 1: session revocation and audit log', hours: 2 },
-      { day: 27, date: '2026-11-07', block: 'publish', focus: 'Score three recovery flows; publish', hours: 2 },
+      { day: 27, date: '2026-11-07', block: 'publish', focus: 'Score three recovery flows; write up and share', hours: 2 },
     ],
     notes: [],
   },
@@ -290,7 +291,7 @@ export const WEEKS = [
       { day: 31, date: '2026-11-11', block: 'practice', focus: 'Tailnet setup and access rules', hours: 2, holiday: 'Remembrance Day' },
       { day: 32, date: '2026-11-12', block: 'practice', focus: 'Identity sign-in, device posture, logs', hours: 2 },
       { day: 33, date: '2026-11-13', block: 'build', focus: 'Project 1: access requests with expiry', hours: 2 },
-      { day: 34, date: '2026-11-14', block: 'publish', focus: 'Policy design and observations; publish', hours: 2 },
+      { day: 34, date: '2026-11-14', block: 'publish', focus: 'Policy design and observations; write up and share', hours: 2 },
     ],
     notes: [
       'If your Tailscale process is active, swap this week with week 2 so the networking knowledge arrives before your interviews (Settings → Swap weeks 2 and 5).',
@@ -325,7 +326,7 @@ export const WEEKS = [
       { day: 38, date: '2026-11-18', block: 'practice', focus: 'Exercise 9: role, STS, Access Analyzer', hours: 2 },
       { day: 39, date: '2026-11-19', block: 'practice', focus: 'Exercise 15: secrets and gitleaks', hours: 2 },
       { day: 40, date: '2026-11-20', block: 'build', focus: 'Project 1: UI', hours: 2 },
-      { day: 41, date: '2026-11-21', block: 'publish', focus: 'Policy pair; agent-identity note; publish', hours: 2 },
+      { day: 41, date: '2026-11-21', block: 'publish', focus: 'Policy pair and agent-identity note; write up and share', hours: 2 },
     ],
     notes: [
       'Gate on Sat Nov 21: Project 1 must work end to end, or you freeze its scope.',
@@ -355,7 +356,7 @@ export const WEEKS = [
       { day: 45, date: '2026-11-25', block: 'practice', focus: 'Exercise 8: PortSwigger access-control labs', hours: 2 },
       { day: 46, date: '2026-11-26', block: 'practice', focus: 'Exercise 12: Keycloak events', hours: 2 },
       { day: 47, date: '2026-11-27', block: 'build', focus: 'Project 1: threat model and fixes', hours: 2 },
-      { day: 48, date: '2026-11-28', block: 'publish', focus: 'Tabletop; publish', hours: 2 },
+      { day: 48, date: '2026-11-28', block: 'publish', focus: 'Tabletop exercise; write up and share', hours: 2 },
     ],
     notes: [],
   },
@@ -385,7 +386,7 @@ export const WEEKS = [
       { day: 52, date: '2026-12-02', block: 'practice', focus: 'Exercise 16: prompt-injection tests', hours: 2 },
       { day: 53, date: '2026-12-03', block: 'practice', focus: 'Exercise 17: agent permission model', hours: 2 },
       { day: 54, date: '2026-12-04', block: 'build', focus: 'Project 1: usability fixes', hours: 2 },
-      { day: 55, date: '2026-12-05', block: 'publish', focus: 'Posting gap analysis; publish', hours: 2 },
+      { day: 55, date: '2026-12-05', block: 'publish', focus: 'Job-posting gap analysis; write up and share', hours: 2 },
     ],
     notes: [
       "Moved to the bridge: exercise 18 (MCP broker), NIST's agent identity concept paper, MITRE ATLAS.",

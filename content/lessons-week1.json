@@ -324,7 +324,7 @@
    "day": 6,
    "date": "2026-10-17",
    "title": "Write it up",
-   "inOneSentence": "Turn the week into one published piece: a README and a one-page diagram of who holds which credential.",
+   "inOneSentence": "Turn the week into one piece you share: a README and a one-page diagram of who holds which credential.",
    "whyItMattersToADesigner": "Evidence is what makes the learning visible. A clear diagram is also a design deliverable.",
    "keyIdeas": [
     "A credential diagram answers: who or what holds which secret, and where does it travel?",
@@ -352,7 +352,7 @@
      "resourceId": null
     },
     {
-     "text": "Write the identity-lab README and publish it. Log it in the Evidence tab with its category.",
+     "text": "Write the identity-lab README and share it (for example on GitHub). Add it to Career → Portfolio and mark it as shared.",
      "minutes": 30,
      "resourceId": null
     },

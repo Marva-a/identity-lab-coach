@@ -65,7 +65,7 @@ export function lessonHtml(lesson, { level = 2 } = {}) {
         ? ` <a href="#learn/library" data-resource-link="${esc(r.id)}">${esc(r.title)}<span class="visually-hidden"> (open in the Library)</span></a>`
         : ' <span class="meta">(its resource is not in your Library yet: check for new content in Learn)</span>'
       : '';
-    return `<li><span class="step-minutes">${esc(minutesText(s.minutes))}</span> ${esc(s.text)}${link}</li>`;
+    return `<li><span class="step-minutes">${esc(minutesText(s.minutes))}</span><span class="step-text">${esc(s.text)}${link}</span></li>`;
   }).join('');
   return `
     <section class="card lesson" aria-labelledby="lesson-title-${esc(lesson.id)}">
@@ -73,23 +73,23 @@ export function lessonHtml(lesson, { level = 2 } = {}) {
       <${h} id="lesson-title-${esc(lesson.id)}" tabindex="-1">${esc(lesson.title)}</${h}>
       <p class="lesson-summary">${esc(lesson.inOneSentence)}</p>
 
-      <${sub}>Why it matters</${sub}>
+      <${sub} class="lesson__label">Why it matters</${sub}>
       <p>${esc(lesson.whyItMattersToADesigner)}</p>
 
-      <${sub}>Key ideas</${sub}>
+      <${sub} class="lesson__label">Key ideas</${sub}>
       <ul>${lesson.keyIdeas.map((k) => `<li>${esc(k)}</li>`).join('')}</ul>
 
       ${lesson.words.length ? `
-        <${sub}>Words</${sub}>
+        <${sub} class="lesson__label">Key terms</${sub}>
         <dl class="words">${lesson.words.map((w) => `<div><dt>${esc(w.term)}</dt><dd>${esc(w.meaning)}</dd></div>`).join('')}</dl>` : ''}
 
-      <${sub}>Steps (${esc(minutesText(stepTotal))})</${sub}>
+      <${sub} class="lesson__label">Steps <span class="lesson__label-note">${esc(minutesText(stepTotal))}</span></${sub}>
       <ol class="lesson-steps">${steps}</ol>
 
-      <${sub}>Skim or skip</${sub}>
+      <${sub} class="lesson__label">Skim or skip</${sub}>
       <p>${esc(lesson.skipOrSkim)}</p>
 
-      <${sub}>Check yourself</${sub}>
+      <${sub} class="lesson__label">Check yourself</${sub}>
       <p class="meta">Answer in your own words before you look anything up. Your answer is saved as you type.</p>
       ${lesson.checkYourself.map((q, i) => `
         <div class="field">
@@ -167,7 +167,7 @@ export function lessonPageView(day) {
     return `
       <p><a href="#plan">← Plan</a></p>
       <h1 id="day-heading" tabindex="-1">No lesson for this day</h1>
-      <p>There is no lesson for day ${esc(day)} yet. Check for new content in <a href="#learn/library">Learn</a> to see if one has been added.</p>`;
+      <p>There is no lesson for day ${esc(day)} yet. Check for course updates in <a href="#learn/library">Learn → Library</a> to see if one has been added.</p>`;
   }
   return `
     <p><a href="#plan">← Plan</a></p>

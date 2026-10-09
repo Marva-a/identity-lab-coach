@@ -116,7 +116,7 @@ function linkStateHtml(r) {
         <span class="field-error" id="lke-${esc(r.id)}" role="alert">${error ? esc(error) : ''}</span>
       </form>`;
   }
-  if (r.verifiedNote) return `<p class="small">Link note: ${esc(r.verifiedNote)}</p>`;
+  if (r.verifiedNote) return `<p class="small">About the link: ${esc(r.verifiedNote)}</p>`;
   if (r.urlStatus === 'added-by-you') return '<p class="small">Link added by you.</p>';
   return '';
 }
@@ -165,7 +165,7 @@ function resourceItemHtml(r, { library = false } = {}) {
         ${r.optional ? '<span class="flag">Optional</span>' : ''}
         ${r.changedByMe ? '<span class="flag">Changed by me</span>' : ''}
         ${r.url ? '' : `<span class="flag flag--need">${esc(linkNeededLabel(r))}</span>`}
-        ${r.retired ? '<span class="flag">Retired</span>' : ''}
+        ${r.retired ? '<span class="flag">Archived</span>' : ''}
         ${r.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
       <p class="meta">${esc(RESOURCE_TYPES[r.type])} · ${esc(r.source)} · about ${r.minutes} min${dayText}${done && r.doneDate ? ` · Done ${esc(formatShort(r.doneDate))}` : ''}</p>
       ${r.howToUse ? `<p class="how-to-use">${esc(r.howToUse)}</p>` : ''}
@@ -180,7 +180,7 @@ function resourceItemHtml(r, { library = false } = {}) {
       ${ui.doneFor === r.id ? donePromptHtml(r) : ''}
       <details class="res-more" data-res-details="${esc(r.id)}" ${ui.openNotes.has(r.id) ? 'open' : ''}>
         <summary>${library ? 'Notes and details' : 'Notes'}${hasNotes ? ' (has notes)' : ''}</summary>
-        ${r.why ? `<p class="meta">Why: ${esc(r.why)}</p>` : ''}
+        ${r.why ? `<p class="meta">Why it is in the plan: ${esc(r.why)}</p>` : ''}
         ${library ? `<p class="meta">Plan ${r.days.length === 1 ? 'day' : 'days'}: ${esc(r.days.map(dayLabel).join(', '))}</p>` : ''}
         ${r.url ? linkStateHtml(r) : ''}
         <div class="field">
@@ -194,8 +194,8 @@ function resourceItemHtml(r, { library = false } = {}) {
             <button type="button" class="button--small" data-action="resource-edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.title)}">Edit</button>
             <button type="button" class="button--small" data-action="resource-toggle-optional" data-id="${esc(r.id)}" aria-label="${r.optional ? 'Mark as required' : 'Mark as optional'}: ${esc(r.title)}">${r.optional ? 'Mark as required' : 'Mark as optional'}</button>
             ${r.retired
-    ? `<button type="button" class="button--small" data-action="resource-restore" data-id="${esc(r.id)}" aria-label="Restore ${esc(r.title)}">Restore</button>`
-    : `<button type="button" class="button--small button--danger" data-action="resource-retire" data-id="${esc(r.id)}" aria-label="Retire ${esc(r.title)}">Retire</button>`}` : ''}
+    ? `<button type="button" class="button--small" data-action="resource-restore" data-id="${esc(r.id)}" aria-label="Unarchive ${esc(r.title)}">Unarchive</button>`
+    : `<button type="button" class="button--small button--danger" data-action="resource-retire" data-id="${esc(r.id)}" aria-label="Archive ${esc(r.title)}">Archive</button>`}` : ''}
         </div>
       </details>
     </li>`;
@@ -317,8 +317,8 @@ function packListHtml(plan) {
         <li>
           <strong>${esc(p.title)}</strong> · version ${p.version} ·
           ${p.problems.length
-    ? `<span class="flag flag--need">Problem</span> ${esc(p.problems.join(' '))} Nothing from this pack was added.`
-    : `${p.newCount} new${p.existingCount ? `, ${p.existingCount} already in your library` : ''}`}
+    ? `<span class="flag flag--need">Problem</span> ${esc(p.problems.join(' '))} Nothing from this part was added.`
+    : `${p.newCount ? `${p.newCount} to add` : 'nothing new'}${p.existingCount ? `, ${p.existingCount} already in your library` : ''}`}
         </li>`).join('')}
     </ul>`;
 }
@@ -345,11 +345,11 @@ function contentHtml({ compact = false } = {}) {
       ? 'Checked this app’s own site just now.'
       : `${c.failure ? `Could not reach this app’s site (${esc(c.failure)}). ` : 'You are offline. '}Using the copy last fetched on ${esc(formatShort(c.content.fetchedAt.slice(0, 10)))}. Nothing has changed.`;
     body = `
-      <div id="content-status" tabindex="-1" role="region" aria-label="Content check result" class="${total ? 'note note--gate' : ''}">
+      <div id="content-status" tabindex="-1" role="region" aria-label="Course update result" class="${total ? 'note note--gate' : ''}">
         <p class="meta">${where}</p>
         ${total
-    ? `<p><strong>${esc(summarizePlan(plan))}.</strong> Cards arrive unverified, with their reference. Anything you changed yourself is kept.</p>`
-    : `<p class="status-ok"><strong>You are up to date.</strong> Nothing new in ${plural(plan.packs.length, 'pack', 'packs')}${existing ? ` (${plural(existing, 'item', 'items')} already in your library)` : ''}.</p>`}
+    ? `<p><strong>${esc(summarizePlan(plan))}.</strong> Anything you changed yourself is kept.${plan.cards.length ? ' New flashcards arrive marked “not checked by you yet”.' : ''}</p>`
+    : `<p class="status-ok"><strong>You are up to date.</strong> Nothing new${existing ? ` (${plural(existing, 'item', 'items')} already in your library)` : ''}.</p>`}
         ${packListHtml(plan)}
         ${plan.warnings.length ? `<details><summary>Worth a look (does not stop anything)</summary><ul>${plan.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}
         <div class="button-row">
@@ -363,8 +363,8 @@ function contentHtml({ compact = false } = {}) {
   if (compact) {
     return `
       <div class="manage-row">
-        <button type="button" class="button--small" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
-        <span class="meta">Looks only at this app’s own site. Nothing is added until you confirm.</span>
+        <button type="button" class="button--small" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for course updates</button>
+        <span class="meta">Looks only at this app’s own site and sends none of your data. Nothing is added until you confirm.</span>
       </div>
       ${body}`;
   }
@@ -373,7 +373,7 @@ function contentHtml({ compact = false } = {}) {
       <h2 id="content-heading" tabindex="-1">Content from the course</h2>
       <p class="meta">Checking looks only at this app’s own site and sends none of your data. Nothing is added until you confirm, and what you already have is never changed.</p>
       <div class="button-row">
-        <button type="button" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for new content</button>
+        <button type="button" data-action="content-check" ${c.busy ? 'disabled' : ''}>Check for course updates</button>
       </div>
       ${body}
     </section>`;
@@ -434,7 +434,7 @@ function importHtml() {
   return `
     <div class="manage-import">
       <div class="field">
-        <label for="resource-import-file">Import resources from a JSON file</label>
+        <label for="resource-import-file">Add resources from a file (.json)</label>
         <input type="file" id="resource-import-file" accept="application/json,.json" aria-describedby="import-hint">
         <span class="hint" id="import-hint">Every entry is checked before anything is added.</span>
       </div>
@@ -504,7 +504,7 @@ export function libraryView() {
 
   const manage = `
     <details class="card" data-deep-group="manage" ${ui.openDeep.has('manage') || contentActive || ui.editing === 'new' || ui.report ? 'open' : ''}>
-      <summary>More: update content, import a file</summary>
+      <summary>Course updates and adding your own</summary>
       ${contentHtml({ compact: true })}
       ${importHtml()}
       ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" class="button--small" data-action="resource-add">Add a resource yourself</button></div>'}
@@ -559,7 +559,7 @@ export function libraryView() {
         </div>
         <label class="check" for="rl-retired">
           <input type="checkbox" id="rl-retired" ${f.retired ? 'checked' : ''}>
-          <span>Show retired resources</span>
+          <span>Show archived resources</span>
         </label>
       </details>
       ${shown.length === 0 ? `<p>Nothing matches${weekWanted === 'all' && !filtered ? '' : ' here'}. ${f.week !== 'all' ? '<button type="button" class="button--small" data-action="resource-show-all">Show all weeks</button>' : ''}</p>` : ''}
@@ -637,7 +637,8 @@ export const resourceActions = {
     ui.content = {
       ...blankContent(),
       message: done.resources + done.cards + done.guidance + done.lessons + done.newerVersions
-        ? `Added ${plural(done.resources, 'resource', 'resources')}, ${plural(done.cards, 'card', 'cards')}, ${plural(done.guidance, 'guidance note', 'guidance notes')} and ${plural(done.lessons, 'lesson', 'lessons')}. Cards are unverified until you verify them.${done.newerVersions ? ` ${plural(done.newerVersions, 'resource you changed has', 'resources you changed have')} a newer version waiting; yours is kept until you choose.` : ''}${done.saved ? '' : ' Warning: this browser blocked saving.'}`
+        ? `${summarizePlan({ resources: Array(done.resources), lessons: Array(done.lessons), cards: Array(done.cards), guidance: Array(done.guidance) }).replace(/^Ready to add/, 'Added').replace(/^Nothing new to add/, 'Nothing new was added')}.`
+          + `${done.newerVersions ? ` ${plural(done.newerVersions, 'resource you changed has', 'resources you changed have')} a newer version waiting; yours is kept until you choose.` : ''}${done.saved ? '' : ' Warning: this browser blocked saving.'}`
         : 'Nothing new to add: it is already all here.',
     };
     announce(ui.content.message);
@@ -693,7 +694,7 @@ export const resourceActions = {
     const r = store.getResource(el.dataset.id);
     if (!r) return null;
     store.setResourceRetired(r.id, true, testMode());
-    ui.message = `Retired: ${r.title}. It is hidden from Today and Week; "Show retired resources" brings it back into view.`;
+    ui.message = `Archived: ${r.title}. It is hidden from Today and Plan; "Show archived resources" brings it back into view.`;
     announce(ui.message);
     return '#resources-message';
   },
@@ -724,7 +725,7 @@ export const resourceActions = {
     const r = store.getResource(el.dataset.id);
     if (!r) return null;
     store.setResourceRetired(r.id, false, testMode());
-    ui.message = `Restored: ${r.title}.`;
+    ui.message = `Unarchived: ${r.title}.`;
     announce(ui.message);
     return '#resources-message';
   },

@@ -24,20 +24,20 @@ export function evidenceToMarkdown(artifacts, { exportedOn } = {}) {
     .sort((a, b) => a.publishedDate.localeCompare(b.publishedDate) || (a.createdAt ?? '').localeCompare(b.createdAt ?? ''));
 
   const lines = [
-    '# Evidence log',
+    '# Portfolio',
     '',
-    `Exported${exportedOn ? ` on ${exportedOn}` : ''} from Identity Lab Coach: ${items.length} published ${items.length === 1 ? 'item' : 'items'}, oldest first. `
-      + 'Maturity is what the author recorded (Implemented, Simulated, Conceptual or Future phase); "Not set" means it was not recorded.',
+    `Exported${exportedOn ? ` on ${exportedOn}` : ''} from Identity Lab Coach: ${items.length} shared ${items.length === 1 ? 'piece' : 'pieces'}, oldest first. `
+      + '"How real" is what the author recorded (Built and working, Simulated, Concept only or Planned for later); "Not set" means it was not recorded.',
     '',
   ];
-  if (!items.length) lines.push('No published evidence yet.', '');
+  if (!items.length) lines.push('No shared pieces yet.', '');
 
   for (const a of items) {
     lines.push(`## ${oneLine(a.title)}`, '');
     lines.push(`- **Type:** ${escapeMd(ARTIFACT_TYPES[a.type] ?? a.type)}`);
     lines.push(`- **Project:** ${a.project ? escapeMd(PROJECTS[a.project] ?? a.project) : 'Not set'}`);
-    lines.push(`- **Maturity:** ${a.maturity ? escapeMd(MATURITIES[a.maturity] ?? a.maturity) : 'Not set'}`);
-    lines.push(`- **Published:** ${a.publishedDate}`);
+    lines.push(`- **How real:** ${a.maturity ? escapeMd(MATURITIES[a.maturity] ?? a.maturity) : 'Not set'}`);
+    lines.push(`- **Shared:** ${a.publishedDate}`);
     lines.push(`- **Skills:** ${a.tags?.length ? a.tags.map(oneLine).join(', ') : 'None recorded'}`);
     if (a.url) {
       let href = null;
@@ -51,7 +51,7 @@ export function evidenceToMarkdown(artifacts, { exportedOn } = {}) {
     }
     lines.push('');
     if (String(a.reflection ?? '').trim()) {
-      lines.push(`**Reflection.** ${escapeMd(String(a.reflection).trim()).replace(/\n/g, '  \n')}`, '');
+      lines.push(`**What I learned.** ${escapeMd(String(a.reflection).trim()).replace(/\n/g, '  \n')}`, '');
     }
   }
   return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;

@@ -2,8 +2,8 @@
 // of which step you are on (so a reload resumes it); the screens are drawn in main.js.
 export const STEPS = [
   { id: 'warmup', label: 'Warm-up', title: 'Warm-up: recall first' },
-  { id: 'focus', label: 'Focus', title: 'Focus: do this next' },
-  { id: 'wrapup', label: 'Wrap up', title: 'Wrap up: log your session' },
+  { id: 'focus', label: 'Study', title: 'Study: today’s lesson' },
+  { id: 'wrapup', label: 'Log time', title: 'Log time: save today’s session' },
 ];
 const KEY = 'identity-lab-coach:session-flow';
 

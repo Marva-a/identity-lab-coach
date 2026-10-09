@@ -9,15 +9,15 @@ import {
 } from './srs.js';
 
 export const RETRIEVAL_SIZE = 3;
-const TYPE_LABELS = { recall: 'Recall', explain: 'Explain it' };
+const TYPE_LABELS = { recall: 'Quick recall', explain: 'Explain it' };
 const FILTERS = {
-  unlocked: 'Unlocked (not retired)',
+  unlocked: 'Taught so far',
   due: 'Due today',
   shaky: 'Needs another look',
-  unverified: 'Unverified',
-  verified: 'Verified',
+  unverified: 'Not checked yet',
+  verified: 'Checked by you',
   locked: 'Not taught yet',
-  retired: 'Retired',
+  retired: 'Archived',
   all: 'All cards',
 };
 
@@ -40,19 +40,19 @@ function currentSchedule() {
 }
 
 function verificationBadge(card) {
-  if (card.verified) return '<span class="tag tag--verified">Verified by you</span>';
-  if (card.source === 'seed') return '<span class="tag tag--unverified">Written by Claude, not yet checked by you</span>';
-  if (card.source === 'pack') return '<span class="tag tag--unverified">Unverified: from a content pack</span>';
-  return '<span class="tag tag--unverified">Unverified</span>';
+  if (card.verified) return '<span class="tag tag--verified">Checked by you</span>';
+  if (card.source === 'seed') return '<span class="tag tag--unverified">Written by Claude, not checked by you yet</span>';
+  if (card.source === 'pack') return '<span class="tag tag--unverified">From a course update, not checked by you yet</span>';
+  return '<span class="tag tag--unverified">Not checked yet</span>';
 }
 
 function boxLabel(state) {
-  return state.box === 0 ? 'New' : `Box ${state.box} of 5`;
+  return state.box === 0 ? 'New' : `Level ${state.box} of 5`;
 }
 
 function ratingHint(state, rating, date) {
   const next = nextState(state, rating, date);
-  return next.due === date ? 'see again today' : `next due ${formatShort(next.due)}`;
+  return next.due === date ? 'back later today' : `back ${formatShort(next.due)}`;
 }
 
 // ─── Card face (shared by the retrieval check and the study queue) ───────────
@@ -85,7 +85,7 @@ function cardFaceHtml(card, sched, context, positionLabel) {
       <div class="answers">
         ${yours}
         <div class="answer">
-          <h4 id="card-answer-${context}" tabindex="-1">${card.type === 'explain' ? 'Reference answer' : 'Answer'}</h4>
+          <h4 id="card-answer-${context}" tabindex="-1">${card.type === 'explain' ? 'A good answer' : 'Answer'}</h4>
           <p>${esc(card.back)}</p>
         </div>
       </div>
@@ -107,7 +107,7 @@ function cardFaceHtml(card, sched, context, positionLabel) {
       <ul class="tags" aria-label="Card status"><li>${verificationBadge(card)}</li></ul>
       <h3 class="flashcard__front" id="${headingId}" tabindex="-1">${esc(card.front)}</h3>
       ${body}
-      <p class="meta reference">Check against: ${esc(card.reference || 'no reference given')}</p>
+      <p class="meta reference">Source to check: ${esc(card.reference || 'none given')}</p>
     </article>`;
 }
 
@@ -146,15 +146,15 @@ export function retrievalHtml() {
     const counts = RATINGS.map((r) => [r, ratings.filter((x) => x.rating === r).length]).filter(([, n]) => n);
     const more = due.length;
     body = `
-      <p class="status-ok" id="retrieval-done" tabindex="-1">Warm-up done: ${plural(doneToday.size, 'question', 'questions')} (${counts.map(([r, n]) => `${RATING_LABELS[r]} ${n}`).join(', ')}).</p>
-      ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#learn/cards">Study them in Flashcards</a>.</p>` : ''}`;
+      <p class="status-ok" id="retrieval-done" tabindex="-1">Warm-up done: ${plural(doneToday.size, 'question', 'questions')} (${counts.map(([r, n]) => `${RATING_LABELS[r]}: ${n}`).join(', ')}).</p>
+      ${more ? `<p class="meta">${plural(more, 'more card is', 'more cards are')} due. <a href="#learn/cards">Review them in Flashcards</a>.</p>` : ''}`;
   } else {
     const next = nextDueAfter(d.cards, sched, date);
     body = `<p class="meta">No warm-up questions today.${next ? ` The next ones come up ${esc(formatShort(next))}. A card first comes up the day after the plan teaches its topic.` : ''}</p>`;
   }
 
   return `
-    <section class="card" aria-labelledby="retrieval-heading">
+    <section class="section" aria-labelledby="retrieval-heading">
       <h2 id="retrieval-heading" tabindex="-1">Warm-up</h2>
       <p class="meta">Try to answer from memory first, then read. Getting it wrong still helps.</p>
       ${body}
@@ -205,30 +205,30 @@ function cardFormHtml(card) {
         <textarea id="card-front" name="front" rows="2" maxlength="${store.CARD_TEXT_MAX}">${esc(f.front)}</textarea>
       </div>
       <div class="field">
-        <label for="card-back">Reference answer</label>
+        <label for="card-back">Answer</label>
         <textarea id="card-back" name="back" rows="4" maxlength="${store.CARD_TEXT_MAX}">${esc(f.back)}</textarea>
       </div>
       <div class="field">
-        <label for="card-week">Unlocks in week</label>
+        <label for="card-week">First shows up in week</label>
         <select id="card-week" name="week" aria-describedby="card-week-hint">
-          <option value="" ${f.week === '' ? 'selected' : ''}>No week (always unlocked)</option>
+          <option value="" ${f.week === '' ? 'selected' : ''}>Any time (no week)</option>
           ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((w) => `<option value="${w}" ${String(f.week) === String(w) ? 'selected' : ''}>Week ${w}</option>`).join('')}
         </select>
-        <span class="hint" id="card-week-hint">The card stays hidden until that week starts, then mixes with earlier weeks.</span>
+        <span class="hint" id="card-week-hint">It stays out of your reviews until that week starts, then mixes in with earlier weeks.</span>
       </div>
       <div class="field">
         <label for="card-topic">Topic (optional)</label>
         <input type="text" id="card-topic" name="topic" value="${esc(f.topic)}" maxlength="120">
       </div>
       <div class="field">
-        <label for="card-reference">Reference</label>
+        <label for="card-reference">Source to check against</label>
         <input type="text" id="card-reference" name="reference" value="${esc(f.reference)}" maxlength="${store.REFERENCE_MAX}" aria-describedby="card-reference-hint">
         <span class="hint" id="card-reference-hint">Where to check it, for example "RFC 7636" or "NIST SP 800-63B-4".</span>
       </div>
       ${isNew ? `
         <label class="check" for="card-verified">
           <input type="checkbox" id="card-verified" name="verified" ${f.verified ? 'checked' : ''}>
-          <span>I've checked this against the reference (mark verified)</span>
+          <span>I've checked this against the source</span>
         </label>` : ''}
       <div class="button-row">
         <button type="submit" class="button--primary">${isNew ? 'Add card' : 'Save changes'}</button>
@@ -247,7 +247,7 @@ function defaultWeek() {
 function historyHtml(card, sched) {
   const reviews = [...sched.reviews].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   if (!reviews.length) return '';
-  const label = card.type === 'explain' ? 'Your explanations and ratings' : 'Your ratings';
+  const label = card.type === 'explain' ? 'Your explanations and answers' : 'Your answers';
   return `
     <details>
       <summary>${esc(label)} (${reviews.length})</summary>
@@ -265,8 +265,8 @@ function cardRowHtml(card, sched) {
   if (ui.editing === card.id) return `<li class="card-row">${cardFormHtml(card)}</li>`;
   const date = today();
   let when;
-  if (card.retired) when = 'Retired';
-  else if (!sched.unlocked) when = `Unlocks ${formatShort(sched.unlock)}`;
+  if (card.retired) when = 'Archived';
+  else if (!sched.unlocked) when = `First shows ${formatShort(sched.unlock)}`;
   else if (sched.isDue) when = 'Due today';
   else when = `Next due ${formatShort(sched.due)}`;
   const shortFront = card.front.length > 70 ? `${card.front.slice(0, 67)}…` : card.front;
@@ -275,15 +275,15 @@ function cardRowHtml(card, sched) {
       <p class="card-row__front">${esc(card.front)}</p>
       <p class="meta">Week ${card.week ?? '–'} · ${TYPE_LABELS[card.type]} · ${boxLabel(sched.state)} · <strong>${esc(when)}</strong>${sched.due && when.startsWith('Due') && sched.due < date ? ` (since ${esc(formatShort(sched.due))})` : ''}</p>
       <ul class="tags" aria-label="Card status"><li>${verificationBadge(card)}</li></ul>
-      <p class="meta reference">Check against: ${esc(card.reference || 'no reference given')}</p>
+      <p class="meta reference">Source to check: ${esc(card.reference || 'none given')}</p>
       <div class="button-row">
         <button type="button" class="button--small" data-action="card-edit" data-id="${esc(card.id)}" aria-label="Edit: ${esc(shortFront)}">Edit</button>
         ${card.verified
-          ? `<button type="button" class="button--small" data-action="card-unverify" data-id="${esc(card.id)}" aria-label="Mark unverified: ${esc(shortFront)}">Mark unverified</button>`
-          : `<button type="button" class="button--small" data-action="card-verify" data-id="${esc(card.id)}" aria-label="Mark verified: ${esc(shortFront)}">Mark verified</button>`}
+          ? `<button type="button" class="button--small" data-action="card-unverify" data-id="${esc(card.id)}" aria-label="Mark as not checked: ${esc(shortFront)}">Mark as not checked</button>`
+          : `<button type="button" class="button--small" data-action="card-verify" data-id="${esc(card.id)}" aria-label="Mark as checked: ${esc(shortFront)}">Mark as checked</button>`}
         ${card.retired
           ? `<button type="button" class="button--small" data-action="card-restore" data-id="${esc(card.id)}" aria-label="Restore: ${esc(shortFront)}">Restore</button>`
-          : `<button type="button" class="button--small button--danger" data-action="card-retire" data-id="${esc(card.id)}" aria-label="Retire: ${esc(shortFront)}">Retire</button>`}
+          : `<button type="button" class="button--small button--danger" data-action="card-retire" data-id="${esc(card.id)}" aria-label="Archive: ${esc(shortFront)}">Archive</button>`}
       </div>
       ${historyHtml(card, sched)}
     </li>`;
@@ -340,20 +340,20 @@ export function flashcardsView() {
   return `
     <h1 id="day-heading" tabindex="-1">Flashcards</h1>
 
-    <section class="card" aria-labelledby="study-heading">
-      <h2 id="study-heading">Study</h2>
+    <section class="section" aria-labelledby="study-heading">
+      <h2 id="study-heading">Due today</h2>
       ${study}
     </section>
 
     <details class="card card--quiet" data-cards-group="how" ${ui.open.has('how') ? 'open' : ''}>
       <summary id="rule-heading">How it works</summary>
       <p>${esc(SRS_RULE[0])} ${esc(SRS_RULE[1])}</p>
-      <p class="meta">Boxes: ${BOX_DAYS.map((days, i) => `${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. A new card first comes up the day after the plan day that teaches it, so you are never asked about something you have not met yet. Cards you add come up from the first day of their week.</p>
+      <p class="meta">Gaps: ${BOX_DAYS.map((days, i) => `level ${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. A new card first comes up the day after the plan day that teaches it, so you are never asked about something you have not met yet. Cards you add come up from the first day of their week.</p>
     </details>
 
     <details class="card" data-cards-group="manage" ${ui.open.has('manage') || ui.message || ui.editing ? 'open' : ''}>
       <summary id="cards-heading">Browse and edit your cards (${active.length})</summary>
-      <p class="meta">${plural(active.length, 'active card', 'active cards')}: ${unlocked} unlocked, ${active.length - unlocked} not taught yet, ${unverified} unverified${retired ? `, ${retired} retired` : ''}.</p>
+      <p class="meta">${plural(active.length, 'card', 'cards')}: ${unlocked} taught so far, ${active.length - unlocked} not taught yet, ${unverified} not checked by you yet${retired ? `, ${retired} archived` : ''}.</p>
       ${ui.message ? `<p class="status-ok" id="cards-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <div class="filters">
         <div class="field">
@@ -399,17 +399,20 @@ export function recallProgressHtml() {
     const next = nextDueAfter(d.cards, currentSchedule(), date);
     body = `<p>Nothing to show yet. Once the plan has taught a topic, its flashcards come up in the warm-up${next ? ` (the first ones on ${esc(formatShort(next))})` : ''}, and this shows what you can recall and what needs another look.</p>`;
   } else {
-    const parts = (row) => ['held', 'recent', 'shaky', 'new'].filter((k) => row[k]).map((k) => `${row[k]} ${RECALL_WORDS[k]}`).join(' · ');
+    const order = ['held', 'recent', 'shaky', 'new'];
+    const parts = (row) => order.filter((k) => row[k]).map((k) => `<span class="recall-key"><span class="swatch swatch--${k}" aria-hidden="true"></span>${row[k]} ${esc(RECALL_WORDS[k])}</span>`).join(' ');
+    // Decorative: the words beside it say the same.
+    const bar = (row) => `<div class="recall-bar" aria-hidden="true">${order.filter((k) => row[k]).map((k) => `<span class="swatch--${k}" style="flex-grow:${row[k]}"></span>`).join('')}</div>`;
     const weekName = (w) => (w ? `Week ${w}: ${getWeek(w)?.title ?? ''}` : 'No week');
     const shaky = r.shaky.slice(0, 5);
     body = `
       <p><strong>${t.held} of ${plural(t.total, 'card', 'cards')}</strong> you have met so far ${t.held === 1 ? 'is' : 'are'} held: you recalled ${t.held === 1 ? 'it' : 'them'} after a gap of ${HELD_GAP_DAYS} days or more.${t.shaky ? ` ${plural(t.shaky, 'card needs', 'cards need')} another look.` : ''}</p>
       <ul class="recall-weeks">
-        ${r.rows.map((row) => `<li><strong>${esc(weekName(row.week))}</strong><br><span class="meta">${plural(row.total, 'card', 'cards')}: ${esc(parts(row))}</span></li>`).join('')}
+        ${r.rows.map((row) => `<li><p class="recall-weeks__name"><strong>${esc(weekName(row.week))}</strong> <span class="meta">${plural(row.total, 'card', 'cards')}</span></p>${bar(row)}<p class="recall-weeks__keys meta">${parts(row)}</p></li>`).join('')}
       </ul>
       ${shaky.length ? `
         <h3>Needs another look</h3>
-        <p class="meta">Your last rating was Again or Hard. That is normal: these come back sooner, and each try makes them stick.</p>
+        <p class="meta">Your last answer was "Not yet" or "Hard". That is normal: these come back sooner, and each try makes them stick.</p>
         <ul class="recall-shaky">
           ${shaky.map(({ card, last, due }) => `<li>${esc(card.front)}<br><span class="meta">Last: ${RATING_LABELS[last.rating]} on ${esc(formatShort(last.date))} · ${due <= date ? 'due now' : `back ${esc(formatShort(due))}`}</span></li>`).join('')}
         </ul>
@@ -417,12 +420,12 @@ export function recallProgressHtml() {
       <details>
         <summary>What these words mean</summary>
         <ul>
-          <li><strong>Held</strong>: you rated it Good or Easy after not seeing it for ${HELD_GAP_DAYS} days or more. This is the best sign the app has that you will remember it.</li>
+          <li><strong>Held</strong>: you answered "Got it" or "Easy" after not seeing it for ${HELD_GAP_DAYS} days or more. This is the best sign the app has that you will remember it.</li>
           <li><strong>Recalled, short gap</strong>: you got it last time, but not yet after a week's gap.</li>
-          <li><strong>Needs another look</strong>: your last rating was Again or Hard.</li>
+          <li><strong>Needs another look</strong>: your last answer was "Not yet" or "Hard".</li>
           <li><strong>Not tried yet</strong>: the plan has taught it, but you have not answered it yet.</li>
         </ul>
-        <p class="meta">These come from your own ratings, so they are only as honest as the ratings. Retired cards and cards for topics not taught yet are not counted.</p>
+        <p class="meta">These come from your own ratings, so they are only as honest as the ratings. Archived cards and cards for topics not taught yet are not counted.</p>
       </details>`;
   }
   return `
@@ -469,7 +472,7 @@ export const cardActions = {
     delete ui.drafts[`${context}:${id}`];
     if (!result.ok) return null;
     const after = currentSchedule().get(id);
-    announce(`Rated ${RATING_LABELS[rating]}. ${after.due === today() ? 'You will see it again today.' : `Next due ${formatShort(after.due)}.`}${result.saved ? '' : ' Warning: this browser blocked saving.'}`);
+    announce(`Saved: ${RATING_LABELS[rating]}. ${after.due === today() ? 'You will see it again today.' : `Next due ${formatShort(after.due)}.`}${result.saved ? '' : ' Warning: this browser blocked saving.'}`);
     // Focus the next card, or the completion message.
     if (context === 'retrieval') return `#card-front-retrieval, #retrieval-done, #retrieval-heading`;
     return '#card-front-study, #study-done';
@@ -504,22 +507,22 @@ export const cardActions = {
   },
   'card-verify': (el) => {
     store.setCardVerified(el.dataset.id, true);
-    announce('Card marked verified.');
+    announce('Marked as checked.');
     return `[data-action="card-unverify"][data-id="${el.dataset.id}"], #cards-heading`;
   },
   'card-unverify': (el) => {
     store.setCardVerified(el.dataset.id, false);
-    announce('Card marked unverified.');
+    announce('Marked as not checked.');
     return `[data-action="card-verify"][data-id="${el.dataset.id}"], #cards-heading`;
   },
   'card-retire': (el) => {
     store.setCardRetired(el.dataset.id, true);
-    announce('Card retired. It will not come up for review.');
+    announce('Card archived. It will not come up for review.');
     return `[data-action="card-restore"][data-id="${el.dataset.id}"], #cards-heading`;
   },
   'card-restore': (el) => {
     store.setCardRetired(el.dataset.id, false);
-    announce('Card restored.');
+    announce('Card back in your reviews.');
     return `[data-action="card-retire"][data-id="${el.dataset.id}"], #cards-heading`;
   },
 };

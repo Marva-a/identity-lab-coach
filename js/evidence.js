@@ -59,10 +59,10 @@ function options(map, selected, emptyLabel) {
 
 /** The maturity choices in plain words (the saved values and the export keep their original names). */
 const MATURITY_PLAIN = {
-  implemented: 'Implemented: built and working',
-  simulated: 'Simulated: mocked up and labelled as such',
-  conceptual: 'Conceptual: designed, not built',
-  future: 'Future phase: planned for later',
+  implemented: 'Built and working',
+  simulated: 'Simulated: mocked up, and labelled that way',
+  conceptual: 'Concept only: designed, not built',
+  future: 'Planned for later',
 };
 
 function formHtml(artifact) {
@@ -72,7 +72,7 @@ function formHtml(artifact) {
   const datalist = `<datalist id="skill-suggestions">${store.suggestedSkillTags().map((t) => `<option value="${esc(t)}"></option>`).join('')}</datalist>`;
   return `
     <form id="evidence-form" class="card-form" data-id="${esc(artifact?.id ?? 'new')}" novalidate>
-      <h3 id="evidence-form-heading" tabindex="-1">${isNew ? 'Add evidence' : 'Edit evidence'}</h3>
+      <h3 id="evidence-form-heading" tabindex="-1">${isNew ? 'Add a portfolio piece' : 'Edit portfolio piece'}</h3>
       ${errorSummaryHtml('evidence-errors', ui.errors)}
       <div class="field">
         <label for="ev-title">Title</label>
@@ -87,7 +87,7 @@ function formHtml(artifact) {
         <select id="ev-category" name="category" aria-describedby="ev-category-hint">${f.category === UNCATEGORISED
           ? `<option value="${UNCATEGORISED}" selected>Uncategorised</option>${options(ARTIFACT_CATEGORIES, '')}`
           : options(ARTIFACT_CATEGORIES, f.category, 'Choose…')}</select>
-        <span class="hint" id="ev-category-hint">What kind of work it shows: Research, Systems, Interaction, Security or Product. It never changes the scorecard counts.</span>
+        <span class="hint" id="ev-category-hint">What kind of work it shows: Research, Systems, Interaction, Security or Product. It does not change your Progress numbers.</span>
       </div>
       <div class="field">
         <label for="ev-tag-0">What does this show you can do? (one skill is enough to start)</label>
@@ -100,29 +100,29 @@ function formHtml(artifact) {
           <legend>Status</legend>
           <div class="choice-group">
             <label class="choice"><input type="radio" name="status" value="draft" ${f.status === 'draft' ? 'checked' : ''}> Draft</label>
-            <label class="choice"><input type="radio" name="status" value="published" ${f.status === 'published' ? 'checked' : ''}> Published</label>
+            <label class="choice"><input type="radio" name="status" value="published" ${f.status === 'published' ? 'checked' : ''}> Shared</label>
           </div>
-        </fieldset>` : `<p class="meta">Status: <strong>${esc(ARTIFACT_STATUSES[artifact.status])}</strong>${artifact.status === 'draft' ? '. Use "Publish" on the list when it is ready.' : ''}</p>`}
+        </fieldset>` : `<p class="meta">Status: <strong>${esc(ARTIFACT_STATUSES[artifact.status])}</strong>${artifact.status === 'draft' ? '. When it is posted where others can see it, use "Mark as shared" on the list.' : ''}</p>`}
       <details class="form-more" ${!isNew || showPublished || ui.errors.length ? 'open' : ''}>
-        <summary>More details${showPublished ? ' (maturity is needed to publish)' : ''}</summary>
+        <summary>More details${showPublished ? ' (“How real is this?” is needed)' : ''}</summary>
         <div class="field">
           <label for="ev-project">Project (optional)</label>
           <select id="ev-project" name="project">${options(PROJECTS, f.project, 'Not set')}</select>
         </div>
         <div class="field">
-          <label for="ev-maturity">How real is this?${showPublished ? ' (needed to publish)' : ' (needed before you publish)'}</label>
+          <label for="ev-maturity">How real is this?${showPublished ? ' (needed)' : ' (needed before you mark it as shared)'}</label>
           <select id="ev-maturity" name="maturity" aria-describedby="ev-maturity-hint">${options(MATURITY_PLAIN, f.maturity, 'Choose…')}</select>
-          <span class="hint" id="ev-maturity-hint">Be honest: a mocked-up design is still good evidence if it is labelled as one.</span>
+          <span class="hint" id="ev-maturity-hint">Be honest: a mocked-up design is still a strong piece when it is labelled as one.</span>
         </div>
         <div class="field">
-          <label for="ev-created">Date created</label>
+          <label for="ev-created">Date you made it</label>
           <input type="date" id="ev-created" name="createdDate" value="${esc(f.createdDate)}">
         </div>
         ${showPublished ? `
           <div class="field">
-            <label for="ev-published">Date published</label>
+            <label for="ev-published">Date you shared it</label>
             <input type="date" id="ev-published" name="publishedDate" value="${esc(f.publishedDate)}" aria-describedby="ev-published-hint">
-            <span class="hint" id="ev-published-hint">The scorecard counts it on this date.</span>
+            <span class="hint" id="ev-published-hint">Progress counts it on this date.</span>
           </div>` : ''}
         <div class="field">
           <label for="ev-url">Link (optional)</label>
@@ -135,13 +135,13 @@ function formHtml(artifact) {
             <input type="text" id="ev-tag-${i}" name="tag" list="skill-suggestions" maxlength="40" value="${esc(f.tags[i] ?? '')}" autocomplete="off">
           </div>`).join('')}
         <div class="field">
-          <label for="ev-reflection">Reflection (optional)</label>
+          <label for="ev-reflection">What you learned (optional)</label>
           <textarea id="ev-reflection" name="reflection" rows="3" maxlength="${LIMITS.reflection}" aria-describedby="ev-reflection-hint">${esc(f.reflection)}</textarea>
           <span class="hint" id="ev-reflection-hint">What went wrong, what you would change, what you learned.</span>
         </div>
       </details>
       <div class="button-row">
-        <button type="submit" class="button--primary">${isNew ? 'Add evidence' : 'Save changes'}</button>
+        <button type="submit" class="button--primary">${isNew ? 'Add piece' : 'Save changes'}</button>
         <button type="button" data-action="evidence-cancel">Cancel</button>
       </div>
     </form>`;
@@ -151,20 +151,20 @@ function publishFormHtml(artifact) {
   const maturity = ui.publishMaturity || artifact.maturity || '';
   return `
     <form id="publish-form" class="card-form" data-id="${esc(artifact.id)}" novalidate>
-      <h3 id="publish-heading" tabindex="-1">Publish "${esc(artifact.title)}"</h3>
+      <h3 id="publish-heading" tabindex="-1">Mark "${esc(artifact.title)}" as shared</h3>
       ${errorSummaryHtml('publish-errors', ui.publishErrors)}
       <div class="field">
-        <label for="publish-maturity">How real is this? (needed to publish)</label>
+        <label for="publish-maturity">How real is this? (needed)</label>
         <select id="publish-maturity" name="maturity" aria-describedby="publish-maturity-hint">${options(MATURITY_PLAIN, maturity, 'Choose…')}</select>
-        <span class="hint" id="publish-maturity-hint">Implemented, Simulated, Conceptual or Future phase. Be honest about depth: it is shown wherever the evidence appears.</span>
+        <span class="hint" id="publish-maturity-hint">Be honest about depth: it is shown wherever this piece appears, including the export.</span>
       </div>
       <div class="field">
-        <label for="publish-date">Date published</label>
+        <label for="publish-date">Date you shared it</label>
         <input type="date" id="publish-date" name="publishedDate" value="${esc(ui.publishDate || today())}" aria-describedby="publish-hint">
-        <span class="hint" id="publish-hint">The scorecard counts it on this date. It was created ${esc(formatShort(artifact.createdDate))}.</span>
+        <span class="hint" id="publish-hint">Progress counts it on this date. You made it on ${esc(formatShort(artifact.createdDate))}.</span>
       </div>
       <div class="button-row">
-        <button type="submit" class="button--primary">Publish</button>
+        <button type="submit" class="button--primary">Mark as shared</button>
         <button type="button" data-action="evidence-publish-cancel">Cancel</button>
       </div>
     </form>`;
@@ -176,8 +176,8 @@ function rowHtml(a) {
   const published = a.status === 'published';
   const title = a.url ? linkHtml(a.url, a.title) : esc(a.title);
   const counts = published
-    ? `Counts toward the scorecard on ${esc(formatShort(a.publishedDate))}.`
-    : 'Does not count toward the scorecard until it is published.';
+    ? `Counts toward your goals on ${esc(formatShort(a.publishedDate))}.`
+    : 'Counts toward your goals once you mark it as shared.';
   const maturity = a.maturity
     ? `<strong>${esc(MATURITIES[a.maturity])}</strong>`
     : `not set${published ? ' (edit to choose)' : ''}`;
@@ -186,22 +186,22 @@ function rowHtml(a) {
       <h3 class="card-row__front">${title}</h3>
       <p class="meta">${esc(ARTIFACT_TYPES[a.type])} ·
         <span class="tag ${published ? 'tag--verified' : ''}">${esc(ARTIFACT_STATUSES[a.status])}</span> ·
-        Created ${esc(formatShort(a.createdDate))}${published ? ` · Published ${esc(formatShort(a.publishedDate))}` : ''}
+        Made ${esc(formatShort(a.createdDate))}${published ? ` · Shared ${esc(formatShort(a.publishedDate))}` : ''}
         ${a.testMode ? '<span class="tag tag--test">Test</span>' : ''}</p>
-      <p class="meta">Category: <strong>${esc(categoryLabel(a.category))}</strong> · Project: ${a.project ? `<strong>${esc(PROJECTS[a.project])}</strong>` : 'not set'} · Maturity: ${maturity}</p>
+      <p class="meta">Category: <strong>${esc(categoryLabel(a.category))}</strong> · Project: ${a.project ? `<strong>${esc(PROJECTS[a.project])}</strong>` : 'not set'} · How real: ${maturity}</p>
       ${a.tags?.length
-        ? `<ul class="tags" aria-label="What this proves">${a.tags.map((t) => `<li class="tag">${esc(t)}</li>`).join('')}</ul>`
+        ? `<ul class="tags" aria-label="Skills it shows">${a.tags.map((t) => `<li class="tag">${esc(t)}</li>`).join('')}</ul>`
         : `<p class="meta">${a.migrated ? 'Converted from a quick entry: edit it to add what it proves.' : 'No skill tags yet.'}</p>`}
       ${a.reflection ? `<p class="reflection">${esc(a.reflection)}</p>` : ''}
       <p class="meta">${counts}</p>
       ${published ? `
         <label class="check" for="sel-${esc(a.id)}">
           <input type="checkbox" id="sel-${esc(a.id)}" data-export-select="${esc(a.id)}" ${ui.selected.has(a.id) ? 'checked' : ''}>
-          <span>Include in the Markdown export<span class="visually-hidden">: ${esc(a.title)}</span></span>
+          <span>Include in the export<span class="visually-hidden">: ${esc(a.title)}</span></span>
         </label>` : ''}
       <div class="button-row">
         <button type="button" class="button--small" data-action="evidence-edit" data-id="${esc(a.id)}" aria-label="Edit ${esc(a.title)}">Edit</button>
-        ${published ? '' : `<button type="button" class="button--small button--primary" data-action="evidence-publish" data-id="${esc(a.id)}" aria-label="Publish ${esc(a.title)}">Publish…</button>`}
+        ${published ? '' : `<button type="button" class="button--small button--primary" data-action="evidence-publish" data-id="${esc(a.id)}" aria-label="Mark ${esc(a.title)} as shared">Mark as shared…</button>`}
         <button type="button" class="button--small button--danger" data-action="evidence-delete" data-id="${esc(a.id)}" aria-label="Delete ${esc(a.title)}">Delete</button>
       </div>
     </li>`;
@@ -226,26 +226,29 @@ export function evidenceView() {
       || b.createdAt.localeCompare(a.createdAt));
   const { published, items, usingSelection } = exportItems();
   const exportLabel = published.length === 0
-    ? 'Export to Markdown'
+    ? 'Download for a case study'
     : usingSelection
-      ? `Export ${plural(items.length, 'selected item', 'selected items')} (Markdown)`
-      : `Export all ${plural(items.length, 'published item', 'published items')} (Markdown)`;
+      ? `Download ${plural(items.length, 'selected piece', 'selected pieces')} (.md)`
+      : items.length === 1 ? 'Download your shared piece (.md)' : `Download all ${items.length} shared pieces (.md)`;
 
-  return `
-    <h1 id="day-heading" tabindex="-1">Evidence log</h1>
-
-    <section class="card" aria-labelledby="evidence-heading">
-      <h2 id="evidence-heading" tabindex="-1">Your artifacts</h2>
-      <p class="meta">${plural(published.length, 'published artifact', 'published artifacts')} and ${plural(all.length - published.length, 'draft', 'drafts')}. The scorecard counts an artifact only when it is published, on its published date.</p>
-      ${ui.message ? `<p class="status-ok" id="evidence-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
-      ${coverageHtml(all)}
+  const exportBox = `
+      <div class="export-box" role="group" aria-labelledby="export-heading">
+        <h3 id="export-heading">Export for a case study</h3>
+        <p class="meta">Downloads a Markdown (.md) file with each shared piece: title, type, project, how real it is, date shared, skills, link and what you learned. Drafts are left out. Tick "Include in the export" to pick pieces; with none ticked, every shared piece is included.</p>
+        <div class="button-row">
+          <button type="button" data-action="evidence-export" ${published.length ? '' : 'disabled'}>${esc(exportLabel)}</button>
+          ${ui.selected.size ? '<button type="button" class="button--small" data-action="evidence-clear-selection">Clear selection</button>' : ''}
+        </div>
+        ${published.length ? '' : '<p class="meta">Share a piece first: only shared pieces are exported.</p>'}
+      </div>`;
+  const filters = `
       <div class="filters">
         <div class="field">
           <label for="ev-filter-status">Status</label>
           <select id="ev-filter-status">
             <option value="all" ${ui.status === 'all' ? 'selected' : ''}>All</option>
             <option value="draft" ${ui.status === 'draft' ? 'selected' : ''}>Drafts</option>
-            <option value="published" ${ui.status === 'published' ? 'selected' : ''}>Published</option>
+            <option value="published" ${ui.status === 'published' ? 'selected' : ''}>Shared</option>
           </select>
         </div>
         <div class="field">
@@ -263,21 +266,25 @@ export function evidenceView() {
             ${tags.map((t) => `<option value="${esc(t.toLowerCase())}" ${ui.tag === t.toLowerCase() ? 'selected' : ''}>${esc(t)}</option>`).join('')}
           </select>
         </div>
-      </div>
+      </div>`;
 
-      <div class="export-box" role="group" aria-labelledby="export-heading">
-        <h3 id="export-heading">Markdown export</h3>
-        <p class="meta">Creates a case-study-ready .md file on your device with each published item's title, type, project, maturity, date published, skills, link and reflection. Drafts are never included. Tick "Include in the Markdown export" on items to export only those; with none ticked it exports all published evidence.</p>
-        <div class="button-row">
-          <button type="button" data-action="evidence-export" ${published.length ? '' : 'disabled'}>${esc(exportLabel)}</button>
-          ${ui.selected.size ? '<button type="button" class="button--small" data-action="evidence-clear-selection">Clear selection</button>' : ''}
-        </div>
-        ${published.length ? '' : '<p class="meta">Publish something first: only published evidence is exported.</p>'}
-      </div>
+  // One clear action at the top; filters and export only once there is something to filter or export.
+  return `
+    <h1 id="day-heading" tabindex="-1">Portfolio</h1>
+    <p class="meta page-intro">The pieces you make along the way: write-ups, diagrams, threat models, code. A piece counts toward your goals once you have shared it where others can see it (GitHub, LinkedIn, your site).</p>
 
-      ${ui.editing === 'new' ? formHtml(null) : '<div class="button-row"><button type="button" data-action="evidence-add">Add evidence</button></div>'}
-      <p class="meta" aria-live="polite">${plural(shown.length, 'item', 'items')} shown.</p>
-      <ul class="card-list">${shown.map(rowHtml).join('')}</ul>
+    <section class="card" aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading" tabindex="-1">Your pieces</h2>
+      ${ui.message ? `<p class="status-ok" id="evidence-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
+      ${ui.editing === 'new' ? formHtml(null) : '<div class="button-row"><button type="button" class="button--primary" data-action="evidence-add">Add a piece</button></div>'}
+      ${all.length ? `
+        <p class="meta">${plural(published.length, 'shared piece', 'shared pieces')} and ${plural(all.length - published.length, 'draft', 'drafts')}.</p>
+        ${coverageHtml(all)}
+        ${filters}
+        <p class="meta" aria-live="polite">${plural(shown.length, 'item', 'items')} shown.</p>
+        <ul class="card-list">${shown.map(rowHtml).join('')}</ul>
+        ${exportBox}` : `
+        <p class="empty-state">Nothing here yet. On Saturdays (write up and share days), add what you made, even as a draft. Once you have shared it, it counts toward your goals and can go straight into a case study.</p>`}
     </section>`;
 }
 
@@ -336,23 +343,23 @@ export const evidenceActions = {
   'evidence-delete': (el) => {
     const a = store.getArtifact(el.dataset.id);
     if (!a) return null;
-    if (!window.confirm(`Delete "${a.title}"?${a.status === 'published' ? ' It will no longer count toward the scorecard.' : ''}`)) return null;
+    if (!window.confirm(`Delete "${a.title}"?${a.status === 'published' ? ' It will no longer count toward your goals.' : ''}`)) return null;
     store.deleteArtifact(a.id);
     ui.selected.delete(a.id);
-    ui.message = 'Evidence deleted.';
+    ui.message = 'Piece deleted.';
     announce(ui.message);
     return '#evidence-message';
   },
   'evidence-clear-selection': () => {
     ui.selected.clear();
-    announce('Selection cleared. The export will include all published evidence.');
+    announce('Selection cleared. The export will include every shared piece.');
     return '[data-action="evidence-export"]';
   },
   'evidence-export': () => {
     const { items } = exportItems();
     if (!items.length) return null;
     const exportedOn = vancouverDate();
-    const fileName = `identity-lab-evidence-${exportedOn}.md`;
+    const fileName = `identity-lab-portfolio-${exportedOn}.md`;
     downloadFile(fileName, evidenceToMarkdown(items, { exportedOn }), 'text/markdown');
     ui.message = `Created ${fileName} with ${plural(items.length, 'item', 'items')}. It was saved on this device only.`;
     announce(ui.message);
@@ -385,7 +392,7 @@ export function submitEvidenceForm(form) {
   ui.editing = null; ui.form = null; ui.errors = [];
   const a = result.artifact;
   ui.message = id === 'new'
-    ? (a.status === 'published' ? `Added and published. It counts on ${formatShort(a.publishedDate)}.` : 'Added as a draft. It does not count until you publish it.')
+    ? (a.status === 'published' ? `Added as shared. It counts on ${formatShort(a.publishedDate)}.` : 'Added as a draft. It counts once you mark it as shared.')
     : 'Changes saved.';
   announce(ui.message);
   return '#evidence-message';
@@ -402,7 +409,7 @@ export function submitPublishForm(form) {
     return '#publish-errors';
   }
   ui.publishing = null; ui.publishErrors = [];
-  ui.message = `Published. It now counts toward the scorecard on ${formatShort(result.artifact.publishedDate)}.`
+  ui.message = `Marked as shared. It counts toward your goals on ${formatShort(result.artifact.publishedDate)}.`
     + (result.saved ? '' : ' Warning: this browser blocked saving.');
   announce(ui.message);
   return '#evidence-message';

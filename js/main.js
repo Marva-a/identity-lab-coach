@@ -117,9 +117,11 @@ function headerHtml(ctx, { log = true } = {}) {
     case 'before': {
       const p = ctx.preview;
       return `
-        <section class="card" aria-labelledby="day-heading">
-          <h1 id="day-heading" tabindex="-1">Starts ${esc(formatMonthDay(PLAN_START))} (in ${plural(ctx.daysUntilStart, 'day', 'days')})</h1>
-          <p class="meta">Day 1 · ${p.hours} h planned${p.holiday ? ` · ${esc(p.holiday)}` : ''}</p>
+        <section class="day-hero" aria-labelledby="day-heading">
+          <p class="eyebrow">Before Day 1</p>
+          <h1 id="day-heading" tabindex="-1">Starts ${esc(formatMonthDay(PLAN_START))} <span class="day-hero__of">(in ${plural(ctx.daysUntilStart, 'day', 'days')})</span></h1>
+          ${planRailHtml(0)}
+          <p class="meta">Day 1 · ${p.hours}&nbsp;h planned${p.holiday ? ` · ${esc(p.holiday)}` : ''}</p>
           <p class="focus-line">${esc(p.focus)}</p>
           <h2>Before you start</h2>
           <ul class="before-list">
@@ -132,35 +134,32 @@ function headerHtml(ctx, { log = true } = {}) {
     case 'study': {
       const swapNote = ctx.swapped ? ` <span class="meta">(swapped: week ${ctx.week.number} content)</span>` : '';
       return `
-        <section class="card" aria-labelledby="day-heading">
-          <p class="eyebrow">Week ${ctx.calendarWeek}: ${esc(ctx.week.title)}${swapNote}</p>
-          <h1 id="day-heading" tabindex="-1">Day ${ctx.dayNumber} of 60</h1>
-          <p class="meta">${esc(formatLong(ctx.date))}</p>
-          <ul class="tags" aria-label="Today's block">
-            <li class="tag tag--block">${esc(ctx.blockLabel)}</li>
-            <li class="tag">${ctx.hours} h planned</li>
-            ${ctx.holiday ? `<li class="tag">${esc(ctx.holiday)}</li>` : ''}
-          </ul>
+        <section class="day-hero" aria-labelledby="day-heading">
+          <p class="eyebrow">Week ${ctx.calendarWeek} · ${esc(ctx.week.title)}${swapNote}</p>
+          <h1 id="day-heading" tabindex="-1">Day ${ctx.dayNumber} <span class="day-hero__of">of 60</span></h1>
+          ${planRailHtml(ctx.dayNumber)}
+          <p class="meta day-hero__facts">${esc(formatLong(ctx.date))} · <strong>${esc(ctx.blockLabel)}</strong> · ${ctx.hours}&nbsp;h planned${ctx.holiday ? ` · ${esc(ctx.holiday)}` : ''}</p>
           <p class="focus-line"><span class="visually-hidden">Focus: </span>${esc(ctx.focus)}</p>
           ${ctx.conditional ? `<p class="meta">Optional: ${esc(ctx.conditional)}.</p>` : ''}
-          ${ctx.gate ? `<p class="note note--gate"><strong>Gate:</strong> ${esc(ctx.gate)}</p>` : ''}
+          ${ctx.gate ? `<p class="note note--gate"><strong>Checkpoint:</strong> ${esc(ctx.gate)}</p>` : ''}
           ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     }
     case 'rest': {
       const next = ctx.next;
       return `
-        <section class="card" aria-labelledby="day-heading">
+        <section class="day-hero" aria-labelledby="day-heading">
           <p class="eyebrow">${esc(formatLong(ctx.date))}${ctx.dayNumber ? ` · Day ${ctx.dayNumber} of 60` : ''}</p>
           <h1 id="day-heading" tabindex="-1">Rest day</h1>
+          ${ctx.dayNumber ? planRailHtml(ctx.dayNumber) : ''}
           <p>Sundays are planned rest.</p>
           ${next ? `<p class="meta">Next: ${esc(formatShort(next.date))}, Day ${next.dayNumber}, ${esc(next.blockLabel)}: ${esc(next.focus)}</p>` : ''}
         </section>`;
     }
     case 'bridge':
       return `
-        <section class="card" aria-labelledby="day-heading">
-          <p class="eyebrow">Bridge period (Dec 11 – Jan 17) · ${esc(formatLong(ctx.date))}</p>
+        <section class="day-hero" aria-labelledby="day-heading">
+          <p class="eyebrow">Bridge: between the plan and the job search (Dec 11 – Jan 17) · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">${esc(ctx.phase.title)}</h1>
           <ul class="tags"><li class="tag tag--block">Block: ${esc(BLOCK_LABELS.bridge)}</li></ul>
           <p class="focus-line">${esc(ctx.phase.focus)}</p>
@@ -169,29 +168,49 @@ function headerHtml(ctx, { log = true } = {}) {
         </section>`;
     case 'bridge-rest':
       return `
-        <section class="card" aria-labelledby="day-heading">
-          <p class="eyebrow">Bridge period · ${esc(formatLong(ctx.date))}</p>
+        <section class="day-hero" aria-labelledby="day-heading">
+          <p class="eyebrow">Bridge · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">Rest</h1>
           <p>${ctx.sunday ? 'Sundays are planned rest.' : 'Dec 24 – Jan 1 is planned rest. Optional reading only.'}</p>
         </section>`;
     case 'applications':
       return `
-        <section class="card" aria-labelledby="day-heading">
-          <p class="eyebrow">Application system (Jan 5 – Mar 31) · ${esc(formatLong(ctx.date))}</p>
+        <section class="day-hero" aria-labelledby="day-heading">
+          <p class="eyebrow">Job search (Jan 5 – Mar 31) · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">${esc(ctx.application.focus)}</h1>
           <p class="meta">Output: ${esc(ctx.application.output)}</p>
           ${ctx.interviewPrep ? `<p class="note"><strong>Interview prep:</strong> ${esc(ctx.interviewPrep)}</p>` : ''}
-          ${ctx.febReview ? '<p class="note note--gate"><strong>Gate:</strong> this is the application review week (week of Feb 15).</p>' : ''}
+          ${ctx.febReview ? '<p class="note note--gate"><strong>Checkpoint:</strong> this is the week to review your applications (week of Feb 15).</p>' : ''}
           ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     default:
       return `
-        <section class="card" aria-labelledby="day-heading">
+        <section class="day-hero" aria-labelledby="day-heading">
           <p class="eyebrow">${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">Beyond the plan</h1>
           <p>The dated roadmap ends on Mar 31, 2027.</p>
         </section>`;
   }
+}
+
+/**
+ * The whole 60-day plan as a row of ticks, one per study day and grouped by week: days behind you, today, and
+ * days ahead. It only shows where you are, never which days you logged, so it can never feel like a
+ * record of missed days. Decorative: the heading beside it says the same in words.
+ */
+function planRailHtml(dayNumber) {
+  const weeks = [];
+  for (let start = 1; start <= 60; start += 7) {
+    const days = [];
+    for (let d = start; d < Math.min(start + 7, 61); d += 1) {
+      // Sundays are rest: a rest day that is today still gets its tick, so you can see where you are.
+      if (d % 7 === 0 && d !== dayNumber) continue;
+      const state = d === dayNumber ? 'is-today' : d < dayNumber ? 'is-past' : '';
+      days.push(`<i class="${state}"></i>`);
+    }
+    weeks.push(`<span>${days.join('')}</span>`);
+  }
+  return `<div class="plan-rail" aria-hidden="true">${weeks.join('')}</div>`;
 }
 
 /** "June 3" style, for the line that says when the plan starts: "Monday, October 12". */
@@ -212,7 +231,7 @@ function logTimeHtml(ctx) {
         <button type="button" class="button--primary" data-action="flow-start">${started ? 'Start another session' : 'Start today’s session'}</button>
         <button type="button" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>
       </div>
-      ${started ? '' : '<p class="meta">One step at a time: a short warm-up from memory, then today’s study with the timer, then log your time. Or use the whole page below.</p>'}
+      ${started ? '' : '<p class="meta">Three steps: a short warm-up from memory, then today’s lesson with a timer, then log your time. Or work from the full day below.</p>'}
       <div id="log-time-panel" ${open ? '' : 'hidden'}>${open ? flowWrapUpHtml(ctx, { heading: false }) : ''}</div>
     </div>`;
 }
@@ -231,7 +250,7 @@ function networkHtml(ctx) {
   if (ctx.kind !== 'study' || !ctx.networkItems.length) return '';
   return `
     <details class="card card--quiet">
-      <summary>This week's networking (evenings, outside the 12 h)</summary>
+      <summary>This week's networking (evenings, not study time)</summary>
       <ul class="items">${ctx.networkItems.map((i) => itemHtml(i, false)).join('')}</ul>
     </details>`;
 }
@@ -250,7 +269,7 @@ function noLessonHtml(ctx) {
         <li>Skip the Reference group unless you are curious.</li>
         <li>Before you stop, write two sentences in your own words about what you learned.</li>
       </ol>
-      ${days.length ? '' : '<p class="meta">Check for course updates in <a href="#learn/library">Learn</a> to add lessons.</p>'}
+      ${days.length ? '' : '<p class="meta">Check for course updates in <a href="#learn/library">Learn → Library</a> to add lessons.</p>'}
     </section>`;
 }
 
@@ -417,7 +436,7 @@ function logHtml(ctx) {
     // Log time (at the top) covers today. This is for earlier sessions and other dates.
     return `
       <details class="card card--quiet" ${ui.flash || ui.logErrors.length ? 'open' : ''}>
-        <summary id="log-heading">Recent sessions and other dates</summary>
+        <summary id="log-heading">Past sessions, or log a missed day</summary>
         ${flash}
         ${recentSessionsHtml()}
         <h3 class="small-heading">Log time for another date</h3>
@@ -435,7 +454,7 @@ function logHtml(ctx) {
 
 // ─── Guided daily session ────────────────────────────────────────────────────
 // Warm-up (flashcards), focus (do this next + timer), wrap-up (one-tap log). It only
-// reuses the sections the full Today page already has; "Show the whole page" leaves it.
+// reuses the sections the full Today page already has; "See the full day" leaves it.
 
 const isStudyish = (ctx) => ['study', 'bridge', 'applications'].includes(ctx.kind);
 
@@ -516,10 +535,10 @@ function flowView(ctx, f) {
   const next = idx < STEPS.length - 1 ? `<button type="button" class="button--primary" data-action="flow-next">Next: ${esc(STEPS[idx + 1].label)} →</button>` : '';
   return [
     headerHtml(ctx, { log: false }),
-    `<section class="card card--flow" aria-labelledby="flow-step-heading">
+    `<section class="flow-bar" aria-labelledby="flow-step-heading">
        ${stepper}
        <h2 id="flow-step-heading" tabindex="-1">${esc(STEPS[idx].title)}</h2>
-       <div class="button-row">${back}${next}<button type="button" class="button--small" data-action="flow-exit">Show the whole page</button></div>
+       <div class="button-row">${back}${next}<button type="button" class="button--small" data-action="flow-exit">See the full day</button></div>
      </section>`,
     body,
   ].join('');
@@ -604,7 +623,7 @@ function learnView() {
 
 function proofView() {
   const body = section === 'people' ? peopleView() : section === 'applications' ? applicationsView() : evidenceView();
-  return subnavHtml('proof', 'Proof sections', [['evidence', 'Evidence'], ['people', 'People'], ['applications', 'Applications']]) + body;
+  return subnavHtml('proof', 'Career sections', [['evidence', 'Portfolio'], ['people', 'People'], ['applications', 'Job applications']]) + body;
 }
 
 // ─── Settings view ───────────────────────────────────────────────────────────
@@ -677,10 +696,9 @@ function settingsView() {
   const backup = store.getBackupInfo();
   const summaryText = (sum) =>
     [plural(sum.sessions, 'session', 'sessions'), plural(sum.cards, 'card', 'cards'),
-      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'quick entry', 'quick entries'),
-      plural(sum.artifacts, 'evidence item', 'evidence items'), plural(sum.people, 'person', 'people'),
-      plural(sum.interactions ?? 0, 'interaction', 'interactions'), plural(sum.resources ?? 0, 'resource', 'resources'),
-      plural(sum.reviews, 'review', 'reviews')].join(', ');
+      plural(sum.cardReviews, 'card rating', 'card ratings'), plural(sum.tallies, 'job application', 'job applications'),
+      plural(sum.artifacts, 'portfolio piece', 'portfolio pieces'), plural(sum.people, 'person', 'people'),
+      plural(sum.interactions ?? 0, 'conversation', 'conversations'), plural(sum.resources ?? 0, 'resource', 'resources')].join(', ');
   const migrationBackups = store.getMigrationBackups();
   const reasonText = { update: 'Converted when the app updated', import: 'Older file imported', restore: 'Older backup restored' };
   const tzInfo = timeZoneInfo();
@@ -707,7 +725,7 @@ function settingsView() {
     ? `
       <div class="note note--gate" id="import-preview" tabindex="-1" role="region" aria-label="Import preview">
         <p><strong>Ready to import.</strong> The file contains ${esc(summaryText(ui.importPreview.summary))}${ui.importPreview.summary.exportedAt ? ` (exported ${esc(when(ui.importPreview.summary.exportedAt))})` : ''}.</p>
-        ${ui.importPreview.migration ? `<p><strong>This is an older file (schema ${esc(ui.importPreview.migration.fromVersion)}).</strong> It will be converted to the current format first${ui.importPreview.migration.notice ? `: ${esc(ui.importPreview.migration.notice.replace(/\.$/, ''))}` : '. It has no quick entries to convert'}. The scorecard numbers were checked and are unchanged.</p>` : ''}
+        ${ui.importPreview.migration ? `<p><strong>This is an older file (schema ${esc(ui.importPreview.migration.fromVersion)}).</strong> It will be converted to the current format first${ui.importPreview.migration.notice ? `: ${esc(ui.importPreview.migration.notice.replace(/\.$/, ''))}` : '. Nothing in it needs converting'}. Your Progress numbers were checked and are unchanged.</p>` : ''}
         <p><strong>Importing replaces all your current data</strong> (${esc(summaryText(store.summarize(store.getData())))}). A copy of your current data is kept in this browser, and you can restore it below.</p>
         <div class="button-row">
           <button type="button" class="button--danger" data-action="import-confirm">Replace my data with this file</button>
@@ -732,16 +750,16 @@ function settingsView() {
     <section class="card" aria-labelledby="data-heading">
       <h2 id="data-heading">Your data</h2>
       <p><strong>Local only.</strong> Your data is saved in this browser only, and nothing is sent anywhere. Clearing site data, or opening the app in another browser or at a different address, starts empty, so export now and then.</p>
-      <p><strong>Do not put passwords, keys or confidential employer details in notes, evidence or people.</strong> Browser storage is not a password vault and is not encrypted.</p>
+      <p><strong>Do not put passwords, keys or confidential employer details in notes, your portfolio or People.</strong> Browser storage is not a password vault and is not encrypted.</p>
       <p class="meta">Currently saved: ${esc(summaryText(store.summarize(store.getData())))}. Last export: ${s.lastExportedAt ? esc(when(s.lastExportedAt)) : 'never'}.</p>
       ${ui.dataMessage ? `<p class="status-ok" id="data-message" tabindex="-1">${esc(ui.dataMessage)}</p>` : ''}
       <div class="button-row">
-        <button type="button" class="button--primary" data-action="export">Export all data (JSON)</button>
+        <button type="button" class="button--primary" data-action="export">Download a backup file (.json)</button>
       </div>
 
-      <h3>Import</h3>
+      <h3>Restore from a backup file</h3>
       <div class="field">
-        <label for="import-file">Choose an exported JSON file</label>
+        <label for="import-file">Choose a backup file (.json)</label>
         <input type="file" id="import-file" accept="application/json,.json" aria-describedby="import-hint">
         <span class="hint" id="import-hint">You'll see what's in the file and confirm before anything is replaced.</span>
       </div>
@@ -789,9 +807,9 @@ function settingsView() {
     </section>
 
     <details class="card" id="test-section" ${testsOpen || s.testDate.enabled ? 'open' : ''}>
-      <summary id="test-heading">Testing (for testing only)</summary>
+      <summary id="test-heading">Testing</summary>
       <h2 class="visually-hidden">Test date</h2>
-      <p class="meta">Off by default. While it's on, the app shows the plan, due flashcards and scorecard for the date you choose, a banner appears at the top of every page, and anything you log, rate or tick is marked as test data. The timer still runs on the real clock.</p>
+      <p class="meta">Off by default. While it's on, the app shows the plan, due flashcards and Progress for the date you choose, a banner appears at the top of every page, and anything you log, rate or tick is marked as test data. The timer still runs on the real clock.</p>
       <label class="check" for="test-enabled">
         <input type="checkbox" id="test-enabled" ${s.testDate.enabled ? 'checked' : ''}>
         <span>Use a test date instead of today</span>
@@ -804,9 +822,9 @@ function settingsView() {
       ${testCount ? `
         <p>Test data saved: ${esc(describeTestData(testData))}.</p>
         <button type="button" class="button--danger" data-action="delete-test-data">Delete test data</button>` : ''}
-      <h3>Date and scheduling checks</h3>
-      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, scorecard pacing, the evidence, people and library rules, the Markdown export and the data migration. Nothing is changed.</p>
-      <button type="button" data-action="run-checks">Run date checks</button>
+      <h3>App self-checks</h3>
+      <p class="meta">Checks that the date changes at midnight Vancouver time, every plan date, the weekly hour budgets, flashcard scheduling, Progress pacing, the portfolio, people and library rules, the Markdown export and the data migration. Nothing is changed.</p>
+      <button type="button" data-action="run-checks">Run the checks</button>
       ${checks}
     </details>
     `;
@@ -817,10 +835,10 @@ function describeTestData(n) {
   const parts = [
     n.sessions && plural(n.sessions, 'session', 'sessions'),
     n.cardReviews && plural(n.cardReviews, 'card rating', 'card ratings'),
-    n.tallies && plural(n.tallies, 'quick entry', 'quick entries'),
+    n.tallies && plural(n.tallies, 'job application', 'job applications'),
     n.artifacts && plural(n.artifacts, 'evidence item', 'evidence items'),
     n.people && plural(n.people, 'person', 'people'),
-    n.interactions && plural(n.interactions, 'interaction', 'interactions'),
+    n.interactions && plural(n.interactions, 'conversation', 'conversations'),
     n.resources && plural(n.resources, 'resource changed or added', 'resources changed or added'),
     n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
     n.optionalOverrides && plural(n.optionalOverrides, 'Optional/Required choice', 'Optional/Required choices'),
@@ -1010,6 +1028,7 @@ const actions = {
     startFlow();
     announce('Session started.');
     render({ focus: '#flow-step-heading' });
+    playEntrance();
   },
   'flow-start-from-home': () => {
     startFlow();
@@ -1019,14 +1038,16 @@ const actions = {
   'flow-next': () => {
     setFlow({ ...flow, step: nextStep(flow.step) });
     render({ focus: '#flow-step-heading' });
+    playEntrance();
   },
   'flow-back': () => {
     setFlow({ ...flow, step: previousStep(flow.step) });
     render({ focus: '#flow-step-heading' });
+    playEntrance();
   },
   'flow-exit': () => {
     setFlow(null);
-    announce('Showing the whole page. Your timer and progress are kept.');
+    announce('Showing the full day. Your timer and progress are kept.');
     render({ focus: '#flow-heading, #day-heading' });
   },
   'backup-choose-folder': async () => {
@@ -1345,7 +1366,16 @@ window.addEventListener('hashchange', () => {
   const focus = nav.focus ?? '#day-heading';
   nav.focus = null;
   render({ focus });
+  playEntrance();
 });
+
+/** A short fade-in of the new page (switched off when you ask for reduced motion). */
+function playEntrance() {
+  mainEl.classList.remove('is-entering');
+  void mainEl.offsetWidth; // restart the animation
+  mainEl.classList.add('is-entering');
+}
+mainEl.addEventListener('animationend', (e) => { if (e.target === mainEl) mainEl.classList.remove('is-entering'); });
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { flushResourceNotes(); flushLessonAnswers(); AB.backupNow().catch(() => {}); }

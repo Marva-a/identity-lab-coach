@@ -115,7 +115,7 @@ function interactionFormHtml(existing, person) {
   const people = [...store.getData().people].sort((a, b) => a.name.localeCompare(b.name));
   return `
     <form id="interaction-form" class="card-form" data-id="${esc(existing?.id ?? 'new')}" data-person="${esc(person.id)}" novalidate>
-      <h3 id="interaction-form-heading" tabindex="-1">${isNew ? `Add an interaction with ${esc(person.name)}` : 'Edit interaction'}</h3>
+      <h3 id="interaction-form-heading" tabindex="-1">${isNew ? `Log a conversation with ${esc(person.name)}` : 'Edit conversation'}</h3>
       ${errorSummaryHtml('interaction-errors', ui.interactionErrors)}
       <fieldset>
         <legend>What happened</legend>
@@ -136,7 +136,7 @@ function interactionFormHtml(existing, person) {
           </select>
         </div>`}
       <div class="field">
-        <label for="if-outcome">Outcome note (optional)</label>
+        <label for="if-outcome">What came of it (optional)</label>
         <textarea id="if-outcome" name="outcome" rows="3" maxlength="${LIMITS.outcome}">${esc(f.outcome)}</textarea>
       </div>
       <div class="field">
@@ -145,7 +145,7 @@ function interactionFormHtml(existing, person) {
         <span class="hint" id="if-follow-hint">It appears on Today from this date until you mark it done.</span>
       </div>
       <div class="button-row">
-        <button type="submit" class="button--primary">${isNew ? 'Add interaction' : 'Save changes'}</button>
+        <button type="submit" class="button--primary">${isNew ? 'Save' : 'Save changes'}</button>
         <button type="button" data-action="interaction-cancel">Cancel</button>
       </div>
     </form>`;
@@ -202,16 +202,16 @@ function personPageHtml(person) {
           ${person.link ? `<div><dt>Link</dt><dd>${linkHtml(person.link)}</dd></div>` : ''}
         </dl>
         ${person.notes ? `<p>${esc(person.notes)}</p>` : ''}
-        ${person.migrated ? '<p class="note">This is a placeholder for conversations and referral asks you logged as quick entries before the People log existed. Edit each interaction to move it to the right person.</p>' : ''}
+        ${person.migrated ? '<p class="note">This holds conversations and referral requests you logged before People existed. Edit each one to move it to the right person.</p>' : ''}
         <div class="button-row">
           <button type="button" class="button--small" data-action="person-edit">Edit person</button>
           <button type="button" class="button--small button--danger" data-action="person-delete">Delete person</button>
         </div>`}
     </section>
     <section class="card" aria-labelledby="interactions-heading">
-      <h2 id="interactions-heading" tabindex="-1">Interactions</h2>
-      <p class="meta">${plural(talks, 'conversation', 'conversations')} and ${plural(refs, 'referral ask', 'referral asks')}. Each counts on the scorecard on its date.</p>
-      ${ui.interaction === 'new' ? interactionFormHtml(null, person) : '<div class="button-row"><button type="button" data-action="interaction-add">Add an interaction</button></div>'}
+      <h2 id="interactions-heading" tabindex="-1">Conversations</h2>
+      <p class="meta">${plural(talks, 'conversation', 'conversations')} and ${plural(refs, 'referral request', 'referral requests')}. Each counts toward your goals on its date.</p>
+      ${ui.interaction === 'new' ? interactionFormHtml(null, person) : '<div class="button-row"><button type="button" data-action="interaction-add">Log a conversation</button></div>'}
       <ul class="card-list">${interactions.map((i) => interactionRowHtml(i, person, date)).join('')}</ul>
     </section>
     <p class="meta">${esc(PRIVACY)}</p>`;
@@ -229,7 +229,7 @@ export function peopleView() {
   const interactions = store.getData().interactions;
 
   return `
-    <h1 id="day-heading" tabindex="-1">People log</h1>
+    <h1 id="day-heading" tabindex="-1">People</h1>
     <p class="meta">${esc(PRIVACY)}</p>
 
     ${pending.length ? `
@@ -241,7 +241,7 @@ export function peopleView() {
     <section class="card" aria-labelledby="people-heading">
       <h2 id="people-heading" tabindex="-1">People</h2>
       ${ui.message ? `<p class="status-ok" id="people-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
-      ${ui.personForm === 'new' ? personFormHtml(null) : '<div class="button-row"><button type="button" data-action="person-add">Add a person</button></div>'}
+      ${ui.personForm === 'new' ? personFormHtml(null) : '<div class="button-row"><button type="button" class="button--primary" data-action="person-add">Add a person</button></div>'}
       ${people.length ? `<ul class="card-list">
         ${people.map((p) => {
           const mine = interactions.filter((i) => i.personId === p.id);
@@ -252,11 +252,11 @@ export function peopleView() {
             <li class="card-row">
               <p class="card-row__front">${esc(p.name)}${p.testMode ? ' <span class="tag tag--test">Test</span>' : ''}</p>
               <p class="meta">${[p.role, p.organization].filter(Boolean).map(esc).join(' at ') || 'No role or organization'} · ${esc(CONNECTIONS[p.connection])}</p>
-              <p class="meta">${plural(talks, 'conversation', 'conversations')}, ${plural(refs, 'referral ask', 'referral asks')}${last ? `, last ${esc(formatShort(last))}` : ''}</p>
+              <p class="meta">${plural(talks, 'conversation', 'conversations')}, ${plural(refs, 'referral request', 'referral requests')}${last ? `, last ${esc(formatShort(last))}` : ''}</p>
               <div class="button-row"><button type="button" class="button--small" data-action="person-open" data-id="${esc(p.id)}" aria-label="Open ${esc(p.name)}">Open</button></div>
             </li>`;
         }).join('')}
-      </ul>` : '<p class="meta">No one yet. Add a person, then log each conversation or referral ask under them.</p>'}
+      </ul>` : '<p class="meta">No one yet. Add someone you have talked to or plan to, then log each conversation or referral request with them.</p>'}
     </section>`;
 }
 
@@ -313,7 +313,7 @@ export const peopleActions = {
     const person = store.getPerson(ui.selected);
     if (!person) return null;
     const n = store.interactionsFor(person.id).length;
-    if (!window.confirm(`Delete ${person.name}${n ? ` and their ${plural(n, 'interaction', 'interactions')}` : ''}? Those interactions will no longer count toward the scorecard.`)) return null;
+    if (!window.confirm(`Delete ${person.name}${n ? ` and ${plural(n, 'conversation', 'conversations')} with them` : ''}? They will no longer count toward your goals.`)) return null;
     store.deletePerson(person.id);
     ui.selected = null;
     ui.message = `Deleted ${person.name}.`;
@@ -336,9 +336,9 @@ export const peopleActions = {
   'interaction-delete': (el) => {
     const i = store.getData().interactions.find((x) => x.id === el.dataset.id);
     if (!i) return null;
-    if (!window.confirm(`Delete this ${INTERACTION_TYPES[i.type].toLowerCase()} on ${formatShort(i.date)}? It will no longer count toward the scorecard.`)) return null;
+    if (!window.confirm(`Delete this ${INTERACTION_TYPES[i.type].toLowerCase()} on ${formatShort(i.date)}? It will no longer count toward your goals.`)) return null;
     store.deleteInteraction(i.id);
-    ui.message = 'Interaction deleted.';
+    ui.message = 'Deleted.';
     announce(ui.message);
     return '#people-message, #interactions-heading';
   },
@@ -383,7 +383,7 @@ export function submitInteractionForm(form) {
   if (moved) ui.selected = values.personId;
   const i = result.interaction;
   ui.message = id === 'new'
-    ? `Added. It counts toward the scorecard on ${formatShort(i.date)}.${i.followUpDue ? ` Follow-up shows on Today from ${formatShort(i.followUpDue)}.` : ''}`
+    ? `Saved. It counts toward your goals on ${formatShort(i.date)}.${i.followUpDue ? ` Follow-up shows on Today from ${formatShort(i.followUpDue)}.` : ''}`
     : `Changes saved${moved ? ` and moved to ${store.getPerson(values.personId).name}` : ''}.`;
   announce(ui.message);
   return '#people-message';

@@ -20,10 +20,10 @@ const SEED_WEEK = new Map(SEED_CARDS.map((c) => [c.seedId, c.week]));
 
 export const BOX_DAYS = [1, 3, 7, 14, 30]; // waiting time for boxes 1–5
 export const RATINGS = ['again', 'hard', 'good', 'easy'];
-export const RATING_LABELS = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
+export const RATING_LABELS = { again: 'Not yet', hard: 'Hard', good: 'Got it', easy: 'Easy' };
 export const SRS_RULE = [
-  'Every card sits in one of five boxes, and each box has a waiting time of 1, 3, 7, 14 or 30 days.',
-  '"Again" sends a card back to box 1 to see again today, "Hard" keeps it in its box, "Good" moves it up one box and "Easy" moves it up two; the card then comes back after its new box\'s waiting time.',
+  'Each card has a level from 1 to 5. The higher the level, the longer the gap before you see it again: 1, 3, 7, 14 or 30 days.',
+  '"Not yet" brings it back later today at level 1. "Hard" keeps its level. "Got it" moves it up one level and "Easy" up two.',
 ];
 
 /** A new card: box 0, due on the day its week unlocks. */

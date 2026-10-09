@@ -1,7 +1,7 @@
 // Week view: the week's checklist, its days, and hours logged against the budget.
 import * as store from './store.js';
 import { esc, announce, today, testMode, plural } from './ui.js';
-import { addDays, formatShort } from './dates.js';
+import { addDays, formatShort, formatLong } from './dates.js';
 import { getWeek, getDayContext, contentWeekNumber } from './plan.js';
 import { BLOCK_LABELS, PLAN_END, WEEKS, extraTimeLabel } from './plan-data.js';
 import { weekDayResourcesHtml } from './resources.js';
@@ -10,7 +10,7 @@ import { lessonLinkHtml } from './lessons.js';
 const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence', 'design'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
 
-const ui = { week: null, pendingWeek: null, editPlan: false, openOptional: new Set() }; // week shown (null = the current week); pendingWeek is set by another screen
+const ui = { week: null, pendingWeek: null, editPlan: false, openOptional: new Set(), day: null }; // week shown (null = the current week); pendingWeek is set by another screen; day = the day picked in the week calendar
 
 /** The calendar week (1–9) that contains a date, clamped to the plan. */
 export function weekForDate(date) {
@@ -21,7 +21,7 @@ export function weekForDate(date) {
 }
 
 function formatHours(h) {
-  return `${Number.isInteger(h) ? h : h.toFixed(1)} h`;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)}\u00a0h`; // a no-break space keeps "11 h" together
 }
 
 const capitalFirst = (t) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -42,8 +42,8 @@ export function itemFlagsHtml(item) {
 
 /** Short names for the kind of work, shown on each checklist row. */
 const SHORT_KIND = {
-  learn: 'Learn', read: 'Read', practice: 'Practice', build: 'Build', apply: 'Apply',
-  network: 'Network (evenings)', evidence: 'Evidence', design: 'Design',
+  learn: 'Learn', read: 'Read', practice: 'Lab', build: 'Project 1', apply: 'Product study',
+  network: 'Networking (evenings)', evidence: 'Portfolio piece', design: 'Design exercise',
 };
 
 function itemRowHtml(item) {
@@ -57,6 +57,81 @@ function itemRowHtml(item) {
       </label>
       ${ui.editPlan ? `<button type="button" class="button--small" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="${optional ? 'Mark as required' : 'Mark as optional'}: ${esc(item.text)}">${optional ? 'Mark as required' : 'Mark as optional'}</button>` : ''}
     </li>`;
+}
+
+/** Short names for the kind of day, on the calendar tiles (the full name is in the day's details). */
+const SHORT_BLOCK = { learn: 'Learn', practice: 'Lab', build: 'Project', publish: 'Share', capstone: 'Final' };
+
+/**
+ * The week as a calendar: one tile per day, Monday to Sunday, coloured and named by the kind of day, with
+ * what you logged. Picking a tile shows that day's focus, lesson and resources underneath. The colour is
+ * never the only cue: every tile also says its kind of day in words, and its full description is its label.
+ */
+function weekCalendarHtml({ n, weekStart, date, sessions, settings }) {
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const studyDates = dates.filter((d) => getDayContext(d, settings).kind === 'study');
+  const picked = studyDates.includes(ui.day) ? ui.day : studyDates.includes(date) ? date : studyDates[0];
+  const minutesOn = (d) => sessions.filter((s) => s.date === d).reduce((a, s) => a + s.minutes, 0);
+
+  const tiles = dates.map((d) => {
+    const ctx = getDayContext(d, settings);
+    const [dow] = formatShort(d).split(',');
+    const dayOfMonth = Number(d.slice(8, 10));
+    const isToday = d === date;
+    if (ctx.kind !== 'study') {
+      // After Day 60 comes the bridge period (Dec 11 – Jan 17), with its own rest days.
+      const label = ctx.kind === 'rest' || ctx.kind === 'bridge-rest' ? 'Rest' : ctx.kind === 'bridge' ? 'Bridge' : 'After the plan';
+      return `
+        <li class="day-tile day-tile--off ${isToday ? 'is-today' : ''}" ${isToday ? 'aria-current="date"' : ''}>
+          <span class="day-tile__dow">${esc(dow)}</span>
+          <span class="day-tile__date">${dayOfMonth}</span>
+          <span class="day-tile__block">${label}</span>
+          <span class="visually-hidden">: ${esc(formatLong(d))}${isToday ? ', today' : ''}</span>
+        </li>`;
+    }
+    const minutes = minutesOn(d);
+    const state = minutes ? `✓ ${minutes} min` : isToday ? 'Today' : `${ctx.hours} h`;
+    const said = `${formatLong(d)}, Day ${ctx.dayNumber}, ${ctx.blockLabel}, ${ctx.hours} hours planned${isToday ? ', today' : ''}, ${minutes ? `logged ${minutes} minutes` : d < date ? 'not logged' : isToday ? 'not logged yet' : 'coming up'}`;
+    return `
+      <li class="${isToday ? 'is-today' : ''}" ${isToday ? 'aria-current="date"' : ''}>
+        <button type="button" class="day-tile day-tile--${esc(ctx.block)} ${minutes ? 'is-logged' : ''} ${d < date ? 'is-past' : ''}"
+          data-action="day-select" data-date="${d}" aria-pressed="${d === picked}" aria-controls="day-detail" aria-label="${esc(said)}">
+          <span class="day-tile__dow">${esc(dow)}</span>
+          <span class="day-tile__date">${dayOfMonth}</span>
+          <span class="day-tile__block">${esc(SHORT_BLOCK[ctx.block] ?? ctx.blockLabel)}</span>
+          <span class="day-tile__state">${esc(state)}</span>
+        </button>
+      </li>`;
+  }).join('');
+
+  let detail = '';
+  if (picked) {
+    const ctx = getDayContext(picked, settings);
+    const minutes = minutesOn(picked);
+    const status = minutes ? `Logged ${minutes} min` : picked < date ? 'Not logged' : picked === date ? 'Not logged yet' : 'Coming up';
+    detail = `
+      <div class="day-detail day-detail--${esc(ctx.block)}" id="day-detail">
+        <p class="eyebrow">${esc(formatLong(picked).replace(/,\s*\d{4}$/, ''))} · Day ${ctx.dayNumber}${picked === date ? ' · Today' : ''}</p>
+        <h3 class="day-detail__focus" id="day-detail-heading" tabindex="-1">${esc(ctx.focus)}</h3>
+        <p class="meta"><span class="block-key block-key--${esc(ctx.block)}" aria-hidden="true"></span>${esc(ctx.blockLabel)} · ${ctx.hours}&nbsp;h planned · <span class="${minutes ? 'status-ok' : ''}">${esc(status)}</span></p>
+        <div class="day-row__actions">${lessonLinkHtml(ctx.contentDay)}${weekDayResourcesHtml(ctx.contentDay)}</div>
+      </div>`;
+  }
+
+  // A key for the kinds of day in this week, in the order they appear.
+  const blocks = [...new Set(studyDates.map((d) => getDayContext(d, settings).block))];
+  const key = blocks.map((b) => `<span class="cal-key"><span class="block-key block-key--${esc(b)}" aria-hidden="true"></span>${esc(SHORT_BLOCK[b] ?? b)}</span>`).join('');
+
+  return `
+    <section class="card week-calendar" aria-labelledby="days-heading">
+      <div class="section-head">
+        <h2 id="days-heading">Days</h2>
+        <p class="meta cal-keys">${key}</p>
+      </div>
+      <ol class="week-cal" aria-label="Days of week ${n}">${tiles}</ol>
+      ${detail}
+      <p class="meta week-calendar__note">Pick a day to see what it covers. Today is where you log time; Sunday is rest.</p>
+    </section>`;
 }
 
 /** `top` and `next` are the title block and the "Next up" card, built by Plan; `next` is a function of the week shown. */
@@ -92,24 +167,8 @@ export function weekView({ top = '', next = () => '' } = {}) {
     ? `<tr><th scope="row">Other days (Sunday or outside the plan)</th><td>${formatHours(loggedByBlock.other)}</td><td>–</td></tr>`
     : '';
 
-  // Days of the week: what each covers and what you logged, with the details folded away.
-  const weekDays = calWeek.days.map((seed) => {
-    const ctx = getDayContext(seed.date, settings);
-    const minutes = sessions.filter((s) => s.date === seed.date).reduce((a, s) => a + s.minutes, 0);
-    const isToday = seed.date === date;
-    const status = minutes ? `Logged ${minutes} min` : seed.date < date ? 'Not logged' : isToday ? 'Not logged yet' : 'Coming up';
-    return `
-      <li ${isToday ? 'aria-current="date"' : ''} class="day-row ${isToday ? 'is-today' : ''}">
-        <div class="day-row__head">
-          <strong>${esc(formatShort(seed.date))}</strong>
-          ${isToday ? '<span class="tag tag--block">Today</span>' : ''}
-          <span class="day-row__status ${minutes ? 'is-logged' : ''}">${esc(status)}</span>
-        </div>
-        <p class="meta">Day ${ctx.dayNumber} · ${esc(ctx.blockLabel)} · ${ctx.hours} h planned</p>
-        <p class="day-row__focus">${esc(ctx.focus)}</p>
-        <div class="day-row__actions">${lessonLinkHtml(ctx.contentDay)}${weekDayResourcesHtml(ctx.contentDay)}</div>
-      </li>`;
-  }).join('');
+  // Days as a week calendar: seven tiles (Monday to Sunday) and the picked day's details below them.
+  const days = weekCalendarHtml({ n, weekStart, date, sessions, settings });
 
   // Checklist: required items first, in plan order; optional ones are folded away.
   const required = content.items.filter((i) => !store.isOptionalItem(i) && !i.conditional);
@@ -131,9 +190,9 @@ export function weekView({ top = '', next = () => '' } = {}) {
 
   const nav = `
     <nav class="week-nav" aria-label="Weeks">
-      <button type="button" data-action="week-prev" ${n <= 1 ? 'disabled' : ''}>← Week ${Math.max(1, n - 1)}</button>
-      ${n !== current ? `<button type="button" data-action="week-current">This week (${current})</button>` : ''}
-      <button type="button" data-action="week-next" ${n >= 9 ? 'disabled' : ''}>Week ${Math.min(9, n + 1)} →</button>
+      <button type="button" class="button--small" data-action="week-prev" ${n <= 1 ? 'disabled' : ''}>← Week ${Math.max(1, n - 1)}</button>
+      ${n !== current ? `<button type="button" class="button--small" data-action="week-current">Back to this week (${current})</button>` : ''}
+      <button type="button" class="button--small" data-action="week-next" ${n >= 9 ? 'disabled' : ''}>Week ${Math.min(9, n + 1)} →</button>
     </nav>`;
 
   return `
@@ -144,22 +203,18 @@ export function weekView({ top = '', next = () => '' } = {}) {
     ${content.number !== n ? `<p class="meta">Showing week ${content.number}'s content (weeks 2 and 5 are swapped in Settings).</p>` : ''}
     <p class="week-summary" id="checklist-progress"><strong>${done} of ${required.length}</strong> required items done · <strong>${esc(hoursText)}</strong> logged${over > 0 ? ` (${formatHours(over)} over)` : ''}</p>
     <div class="progress" role="img" aria-label="${done} of ${required.length} required items done"><span style="width:${required.length ? Math.round((done / required.length) * 100) : 0}%"></span></div>
+    ${days}
+
     ${nav}
 
     ${next(n)}
 
-    <section class="card" aria-labelledby="days-heading">
-      <h2 id="days-heading">Days</h2>
-      <p class="meta">What each day covers. Open a day's lesson or resources from here; Today is where you log time. Sunday is a rest day.</p>
-      <ol class="day-list day-rows">${weekDays}</ol>
-    </section>
-
     <section class="card" aria-labelledby="checklist-heading">
       <div class="section-head">
         <h2 id="checklist-heading">What to finish this week</h2>
-        <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">Change required items: ${ui.editPlan ? 'on' : 'off'}</button>
+        <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">${ui.editPlan ? 'Done editing' : 'Edit what’s required'}</button>
       </div>
-      ${ui.editPlan ? '<p class="meta">Each item has a button to mark it Required or Optional.</p>' : ''}
+      ${ui.editPlan ? '<p class="meta">Each item now has a button to make it required or optional. Your choice is kept when the plan is updated.</p>' : ''}
       ${content.items.length
         ? `<ul class="items checklist">${inOrder(required).map(itemRowHtml).join('')}</ul>
            ${optionalItems.length ? `
@@ -172,17 +227,21 @@ export function weekView({ top = '', next = () => '' } = {}) {
     </section>
 
     <details class="card" id="hours-details">
-      <summary>Hours by block (${esc(hoursText)})</summary>
+      <summary>Hours by type of day (${esc(hoursText)})</summary>
       <table class="hours-table">
-        <caption class="visually-hidden">Hours logged and planned by block</caption>
-        <thead><tr><th scope="col">Block</th><th scope="col">Logged</th><th scope="col">Planned</th></tr></thead>
+        <caption class="visually-hidden">Hours logged and planned by type of day</caption>
+        <thead><tr><th scope="col">Type of day</th><th scope="col">Logged</th><th scope="col">Planned</th></tr></thead>
         <tbody>${blockRows}${otherRow}</tbody>
       </table>
-      <p class="meta">Counts sessions dated Mon–Sun this week. Networking happens in the evenings, outside the budget.${includesTest ? ' Includes test sessions.' : ''}</p>
+      <p class="meta">Counts sessions dated Mon–Sun this week. Networking happens in the evenings and is not counted as study time.${includesTest ? ' Includes test sessions.' : ''}</p>
     </details>`;
 }
 
 export const weekActions = {
+  'day-select': (el) => {
+    ui.day = el.dataset.date;
+    return `[data-action="day-select"][data-date="${ui.day}"]`;
+  },
   'week-prev': () => {
     ui.week = Math.max(1, (ui.week ?? weekForDate(today())) - 1);
     return '[data-action="week-prev"]:not([disabled]), #week-heading';
@@ -201,7 +260,7 @@ export const weekActions = {
   },
   'plan-edit-toggle': () => {
     ui.editPlan = !ui.editPlan;
-    announce(`Edit plan is ${ui.editPlan ? 'on' : 'off'}.`);
+    announce(ui.editPlan ? 'Editing what is required. Each item now has a button.' : 'Done editing.');
     return '[data-action="plan-edit-toggle"]';
   },
   'item-toggle-optional': (el) => {
@@ -235,6 +294,7 @@ export function handleWeekChange(target) {
 
 /** Called when the date changes or the view is opened from the nav, to show the current week. */
 export function resetWeekView() {
+  ui.day = null;
   ui.week = ui.pendingWeek;
   ui.pendingWeek = null;
 }

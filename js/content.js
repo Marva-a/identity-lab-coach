@@ -238,16 +238,18 @@ export function planContent(content, data) {
   return plan;
 }
 
-/** A readable summary line: "Ready to add 71 resources and 2 cards from 4 packs". */
+/** A readable summary line, naming only what is new: "Ready to add 71 resources, 6 lessons and 71 reading tips". */
 export function summarizePlan(plan) {
-  const r = plan.resources.length;
-  const c = plan.cards.length;
-  const g = plan.guidance?.length ?? 0;
-  const l = plan.lessons?.length ?? 0;
-  const packs = plan.packs.filter((p) => p.newCount > 0).length;
-  const part = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-  const more = [g ? part(g, 'guidance note', 'guidance notes') : '', l ? part(l, 'lesson', 'lessons') : ''].filter(Boolean);
-  return `Ready to add ${part(r, 'resource', 'resources')} and ${part(c, 'card', 'cards')}${more.length ? `, ${more.join(' and ')}` : ''} from ${part(packs, 'pack', 'packs')}`;
+  const part = (n, one, many) => (n ? `${n} ${n === 1 ? one : many}` : '');
+  const parts = [
+    part(plan.resources.length, 'resource', 'resources'),
+    part(plan.lessons?.length ?? 0, 'lesson', 'lessons'),
+    part(plan.cards.length, 'flashcard', 'flashcards'),
+    part(plan.guidance?.length ?? 0, 'reading tip', 'reading tips'),
+  ].filter(Boolean);
+  if (!parts.length) return 'Nothing new to add';
+  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `Ready to add ${list}`;
 }
 
 /** How many things a plan would add or update (zero means you are up to date). */

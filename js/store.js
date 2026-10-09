@@ -839,14 +839,14 @@ export function validateCard(c) {
   const problems = [];
   if (!CARD_TYPES.includes(c.type)) problems.push('Choose a card type.');
   if (!String(c.front ?? '').trim()) problems.push('Add a question or prompt.');
-  if (!String(c.back ?? '').trim()) problems.push('Add a reference answer.');
+  if (!String(c.back ?? '').trim()) problems.push('Add the answer.');
   if (String(c.front ?? '').length > CARD_TEXT_MAX || String(c.back ?? '').length > CARD_TEXT_MAX) {
     problems.push(`Keep each side under ${CARD_TEXT_MAX} characters.`);
   }
   if (c.week !== null && !(Number.isInteger(c.week) && c.week >= 1 && c.week <= 9)) {
     problems.push('The week must be from 1 to 9, or none.');
   }
-  if (String(c.reference ?? '').length > REFERENCE_MAX) problems.push(`Keep the reference under ${REFERENCE_MAX} characters.`);
+  if (String(c.reference ?? '').length > REFERENCE_MAX) problems.push(`Keep the source under ${REFERENCE_MAX} characters.`);
   return problems;
 }
 
@@ -1350,12 +1350,12 @@ export function parseImport(text) {
   (doc.tallies ?? []).forEach((t, i) => {
     const p = validateTally(t ?? {});
     if (!t?.id) p.push('missing id');
-    if (p.length) problems.push(`Quick entry ${i + 1}: ${p.join(' ')}`);
+    if (p.length) problems.push(`Job application ${i + 1}: ${p.join(' ')}`);
   });
   (doc.artifacts ?? []).forEach((a, i) => {
     const p = validateArtifact(a ?? {});
     if (!a?.id) p.push('missing id');
-    if (p.length) problems.push(`Evidence ${i + 1}: ${p.join(' ')}`);
+    if (p.length) problems.push(`Portfolio piece ${i + 1}: ${p.join(' ')}`);
   });
   (doc.people ?? []).forEach((person, i) => {
     const p = validatePerson(person ?? {});
@@ -1372,7 +1372,7 @@ export function parseImport(text) {
     const p = validateInteraction(it ?? {});
     if (!it?.id) p.push('missing id');
     if (it?.personId && !personIds.has(it.personId)) p.push('that person is not in the file');
-    if (p.length) problems.push(`Interaction ${i + 1}: ${p.join(' ')}`);
+    if (p.length) problems.push(`Conversation ${i + 1}: ${p.join(' ')}`);
   });
   if (problems.length) return { ok: false, problems: problems.slice(0, 8) };
 

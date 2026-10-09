@@ -26,10 +26,10 @@ export const PERIOD_2 = { id: 'jan31', start: addDays(PLAN_END, 1), end: SCORECA
 
 export const MEASURES = [
   { id: 'hours', label: 'Study hours', unit: 'h' },
-  { id: 'artifact', label: 'Published artifacts' },
+  { id: 'artifact', label: 'Portfolio pieces shared' },
   { id: 'conversation', label: 'Conversations' },
-  { id: 'application', label: 'Targeted applications' },
-  { id: 'referral', label: 'Referral asks' },
+  { id: 'application', label: 'Job applications' },
+  { id: 'referral', label: 'Referral requests' },
 ];
 
 export const STATUS_RULE = 'On track means you are at 90% or more of what the plan expects by today; A bit behind means 70–89%, or a count that is just one short; Well behind means below 70%.';

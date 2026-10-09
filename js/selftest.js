@@ -316,8 +316,8 @@ export function runDateChecks() {
   check('Markdown: drafts are never included', md.includes('## D'), false);
   check('Markdown: oldest published item comes first', md.indexOf('Older entry') < md.indexOf('## T'), true);
   check('Markdown: it names title, type, project, maturity, date, skills, link and reflection',
-    ['## T', '**Type:** Threat model', '**Project:** Project 1', '**Maturity:** Implemented', '**Published:** 2026-10-17', '**Skills:** PKCE', '<https://example.com/x>', '**Reflection.** It worked.'].every((x) => md.includes(x)), true);
-  check('Markdown: missing maturity and project say "Not set"', md.includes('**Maturity:** Not set') && md.includes('**Project:** Not set'), true);
+    ['## T', '**Type:** Threat model', '**Project:** Project 1', '**How real:** Built and working', '**Shared:** 2026-10-17', '**Skills:** PKCE', '<https://example.com/x>', '**What I learned.** It worked.'].every((x) => md.includes(x)), true);
+  check('Markdown: missing maturity and project say "Not set"', md.includes('**How real:** Not set') && md.includes('**Project:** Not set'), true);
   check('Markdown: text is escaped so it shows as written', escapeMd('a *b* _c_ [d]') === 'a \\*b\\* \\_c\\_ \\[d\\]' && escapeMd('# not a heading') === '\\# not a heading', true);
   check('Markdown: a link that is not http(s) is left out', evidenceToMarkdown([{ ...richPub, url: 'javascript:alert(1)' }]).includes('javascript'), false);
 
@@ -416,7 +416,7 @@ export function runDateChecks() {
   // Plan text version 2 (revised roadmap): nothing you ticked or logged can be lost.
   const itemIds = new Set(WEEKS.flatMap((w) => w.items.map((i) => i.id)));
   const item = (id) => WEEKS.flatMap((w) => w.items).find((i) => i.id === id);
-  check('Plan: the plan text is version 3', PLAN_VERSION, 3);
+  check('Plan: the plan text is version 4', PLAN_VERSION, 4);
   check('Plan: every item id from version 1 still exists (so every saved tick still matches)',
     PLAN_ID_HISTORY[1].filter((id) => !itemIds.has(id)).length, 0);
   check('Plan: item ids are unique', itemIds.size, WEEKS.reduce((n, w) => n + w.items.length, 0));
@@ -527,7 +527,7 @@ export function runDateChecks() {
   const nothing = { resources: [], cards: [] };
   const firstPlan = planContent(packs.content, nothing);
   check('Content: with nothing yet, everything in the packs is new', `${firstPlan.resources.length} ${firstPlan.cards.length}`, '3 2');
-  check('Content: the summary says what is ready', summarizePlan(firstPlan), 'Ready to add 3 resources and 2 cards from 2 packs');
+  check('Content: the summary says what is ready', summarizePlan(firstPlan), 'Ready to add 3 resources and 2 flashcards');
   check('Content: pack cards are always unverified, even if the file says true', firstPlan.cards.every((c) => c.verified === false), true);
   const haveSome = { resources: [{ id: 'a', title: 'MY EDITED TITLE', url: '', status: 'done', notes: 'mine' }], cards: [{ id: 'uuid-1', seedId: 'k1' }] };
   const secondPlan = planContent(packs.content, haveSome);
@@ -537,7 +537,7 @@ export function runDateChecks() {
   const again = planContent(packs.content, everything2);
   check('Content: checking again after adding everything plans nothing (safe to click twice)', `${again.resources.length} ${again.cards.length}`, '0 0');
   check('Content: a retired resource stays retired (its id still counts as yours)', planContent(packs.content, { resources: [{ id: 'a', retired: true, title: 'x', url: '' }], cards: [] }).resources.some((r) => r.id === 'a'), false);
-  check('Content: with nothing new it says so', summarizePlan(again), 'Ready to add 0 resources and 0 cards from 0 packs');
+  check('Content: with nothing new it says so', summarizePlan(again), 'Nothing new to add');
   const brokenRes = { content: { ...packs.content, packTexts: { ...packs.content.packTexts, 'res-one': resFile([resRow('a', { planDays: [14] })]) } } };
   const partial = planContent(brokenRes.content, nothing);
   check('Content: a pack with a wrong row adds nothing from that pack', partial.resources.length, 0);
@@ -717,7 +717,7 @@ export function runDateChecks() {
   const p1 = planContent(cContent, { resources: [], cards: [], contentPacks: {}, lessons: [] });
   check('Plan: a guidance pack adds its notes and day changes', [p1.guidance.length, p1.dayChanges.length].join(), '3,1');
   check('Plan: a lessons pack adds its lessons', p1.lessons.length, 1);
-  check('Plan: the summary names guidance and lessons', summarizePlan(p1), 'Ready to add 0 resources and 0 cards, 3 guidance notes and 1 lesson from 2 packs');
+  check('Plan: the summary names lessons and reading tips', summarizePlan(p1), 'Ready to add 1 lesson and 3 reading tips');
   check('Plan: the size counts them', planSize(p1), 4);
   const p2 = planContent(cContent, { resources: [], cards: [], contentPacks: { guid: { version: 1 } }, lessons: [{ id: 'w1-d1', packVersion: 2 }] });
   check('Plan: guidance already applied at this version is not applied again', p2.guidance.length, 0);
@@ -728,7 +728,7 @@ export function runDateChecks() {
     { resources: [], cards: [], contentPacks: {}, lessons: [{ id: 'w1-d1', packVersion: 2 }] }).lessons.length, 1);
   check('Plan: a broken guidance pack adds nothing and says why', planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).guidance.length
     + (planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).problems.length > 0 ? 100 : 0), 100);
-  check('Plan: the summary is unchanged when there is no guidance or lesson', summarizePlan({ resources: [1], cards: [], packs: [{ newCount: 1 }] }), 'Ready to add 1 resource and 0 cards from 1 pack');
+  check('Plan: the summary names only what is new', summarizePlan({ resources: [1], cards: [], packs: [{ newCount: 1 }] }), 'Ready to add 1 resource');
   const rs = [
     { id: 'd', level: 'deep', position: 1, status: 'not-started' }, { id: 'c', level: 'core', position: 2, status: 'not-started' },
     { id: 'f', level: 'foundation', position: 3, status: 'not-started' }, { id: 'n', position: 4, status: 'not-started' },
