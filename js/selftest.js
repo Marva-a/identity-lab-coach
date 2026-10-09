@@ -538,6 +538,14 @@ export function runDateChecks() {
   check('Content: checking again after adding everything plans nothing (safe to click twice)', `${again.resources.length} ${again.cards.length}`, '0 0');
   check('Content: a retired resource stays retired (its id still counts as yours)', planContent(packs.content, { resources: [{ id: 'a', retired: true, title: 'x', url: '' }], cards: [] }).resources.some((r) => r.id === 'a'), false);
   check('Content: with nothing new it says so', summarizePlan(again), 'Nothing new to add');
+  // A pack may fill in a link that was missing, and nothing else, on a resource you have not touched.
+  const missing = (over = {}) => ({ id: 'a', title: 'Old title', url: '', urlStatus: 'needs-your-search', editedByMe: false, why: 'old', ...over });
+  const fillPlan = planContent(packs.content, { resources: [missing()], cards: [] });
+  check('Content: a missing link on an untouched resource is filled from the pack', `${fillPlan.linkFills.length} ${fillPlan.linkFills[0]?.url}`, '1 https://oauth.net/a');
+  check('Content: the summary names the missing links', summarizePlan({ resources: [], cards: [], linkFills: [1, 2] }), 'Ready to add 2 missing links');
+  check('Content: a resource you edited keeps its empty link', planContent(packs.content, { resources: [missing({ editedByMe: true })], cards: [] }).linkFills.length, 0);
+  check('Content: a link you added yourself is never replaced', planContent(packs.content, { resources: [missing({ url: 'https://mine.example/x', urlStatus: 'added-by-you' })], cards: [] }).linkFills.length, 0);
+  check('Content: a resource with no "needs your search" mark is left alone', planContent(packs.content, { resources: [missing({ urlStatus: 'unchecked' })], cards: [] }).linkFills.length, 0);
   const brokenRes = { content: { ...packs.content, packTexts: { ...packs.content.packTexts, 'res-one': resFile([resRow('a', { planDays: [14] })]) } } };
   const partial = planContent(brokenRes.content, nothing);
   check('Content: a pack with a wrong row adds nothing from that pack', partial.resources.length, 0);

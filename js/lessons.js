@@ -111,7 +111,7 @@ function lookForHtml(lesson, i) {
   const k = key(lesson.id, i);
   return `
     <details class="lesson-check" data-lesson-check="${esc(k)}" ${openChecks.has(k) ? 'open' : ''}>
-      <summary><span>Compare with a good answer <span class="lesson-check__when">(after you try)</span></span></summary>
+      <summary><span>Compare with an example answer <span class="lesson-check__when">(after you try)</span></span></summary>
       <p class="meta">Check what you wrote against this. Missing a part is normal: add it to your answer in your own words.</p>
       <p class="lesson-check__answer">${esc(text)}</p>
       <button type="button" class="button--small" data-action="lesson-card" data-lesson="${esc(lesson.id)}" data-q="${i}">Make it a flashcard<span class="visually-hidden">: ${esc(lesson.checkYourself[i])}</span></button>

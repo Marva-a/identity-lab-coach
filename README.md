@@ -13,7 +13,7 @@ don't share it). Use Export and Import in Settings to move data between them.
 
 Resources and flashcards come to the app as **content packs** in the `content/` folder,
 so you never paste or type them in. In the app, **Learn → Library → Check for course updates** shows
-what is new ("Ready to add 71 resources and 2 cards from 4 packs") and adds it only after you
+what is new (for example "Ready to add 6 lessons and 2 missing links") and adds it only after you
 confirm. It asks only this app's own site for the files and sends none of your data. It adds
 **new ids only**: anything you already have (links, statuses, notes, edits, ratings,
 retirements) is never changed, and checking twice adds nothing the second time. Cards from a
@@ -45,7 +45,7 @@ Two more pack types teach rather than list:
   its week, day and the plan's date for that day. Today shows the day's lesson, and the Week view has a
   Lesson button on each day. Your answers to the check-yourself questions are stored apart, so a newer
   lesson version (a higher pack `version`) replaces the text and keeps your answers. An optional `lookFor` list (one line per
-  question) says what a good answer includes; it stays folded under each answer box until you open it, and can be turned into a flashcard.
+  question) is an example answer; it stays folded under each answer box until you open it, and can be turned into a flashcard.
 
 A resource or card whose id you already have is skipped, even if the pack file has changed since:
 changes to existing items are not applied, so your edits are safe. Give a changed resource a new id.
@@ -65,9 +65,9 @@ Safari too. Use Export and Import in Settings to move data between them.
 - **Flashcards follow the lessons**: a seed card first comes up the day after the plan day that teaches
   its topic (`SEED_TEACH_DAYS` in `js/cards-data.js`), so the warm-up never asks about something you
   have not met. Cards you add, and pack cards, come up from the first day of their week.
-- **What you can recall** (top of Progress): by week, how many cards are held (recalled after a gap of
-  7 days or more), recalled with a short gap, need another look, or not tried yet. It comes only from
-  your ratings, never from time spent.
+- **What you can recall** (top of Progress): by week, how many cards you recalled after a gap of 7 days or
+  more, recalled with a short gap, need another look, or have not tried yet. It comes only from your own
+  ratings, never from time spent, so it shows recall, not whether you can apply it.
 
 - **Guided daily session** (Today → "Start today's session"): warm-up flashcards,
   then "do this next" with the timer, then one tap to log. It reuses the same

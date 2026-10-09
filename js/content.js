@@ -13,7 +13,7 @@
 // The parts that do not touch the page (checking and planning) are pure functions.
 import { parseResourceImport } from './resource-import.js';
 import {
-  RESOURCE_ID_RE, CARD_TEXT_MAX, REFERENCE_MAX, RESOURCE_LEVELS, HOW_TO_USE_MAX, isPlanStudyDay, isDate,
+  RESOURCE_ID_RE, CARD_TEXT_MAX, REFERENCE_MAX, RESOURCE_LEVELS, HOW_TO_USE_MAX, isPlanStudyDay, isDate, validateResourceUrl,
 } from './records.js';
 import { PLAN_START } from './plan-data.js';
 import { addDays } from './dates.js';
@@ -162,7 +162,7 @@ export function parseCardPack(text, { strictVerified = false } = {}) {
  * }
  */
 export function planContent(content, data) {
-  const plan = { packs: [], resources: [], cards: [], guidance: [], dayChanges: [], lessons: [], warnings: [], problems: [] };
+  const plan = { packs: [], resources: [], cards: [], guidance: [], dayChanges: [], lessons: [], linkFills: [], warnings: [], problems: [] };
   const manifest = validateManifest(content?.manifest);
   if (!manifest.ok) {
     plan.problems.push(...manifest.problems);
@@ -189,6 +189,22 @@ export function planContent(content, data) {
       entry.existingCount = parsed.skipped.length;
       entry.newCount = parsed.rows.length;
       plan.resources.push(...parsed.rows);
+      // The one change a pack may make to a resource you already have: fill in a link that was missing
+      // ("needs your search"), and only if you have not edited the resource or added a link yourself.
+      const mine = new Map((data.resources ?? []).map((r) => [r.id, r]));
+      for (const row of JSON.parse(text).resources ?? []) {
+        const have = mine.get(row?.id);
+        const url = typeof row?.url === 'string' ? row.url.trim() : '';
+        if (!have || have.url || have.editedByMe || have.urlStatus !== 'needs-your-search') continue;
+        if (!url || validateResourceUrl(url).length || plan.linkFills.some((f) => f.id === row.id)) continue;
+        plan.linkFills.push({
+          id: row.id, url, urlStatus: row.urlStatus === 'verified' ? 'verified' : 'unchecked',
+          title: typeof row.title === 'string' && row.title.trim() ? row.title.trim().slice(0, 150) : have.title,
+          verifiedNote: typeof row.verifiedNote === 'string' ? row.verifiedNote.slice(0, 500) : '',
+          why: typeof row.why === 'string' ? row.why.slice(0, 600) : have.why,
+        });
+        entry.newCount += 1;
+      }
       for (const row of parsed.rows) haveResources.set(row.id, { id: row.id, title: row.title, url: row.url });
       plan.warnings.push(...parsed.warnings.map((w) => `${pack.title}: ${w.id}: ${w.message}`));
     } else if (pack.type === 'guidance') {
@@ -246,6 +262,7 @@ export function summarizePlan(plan) {
     part(plan.lessons?.length ?? 0, 'lesson', 'lessons'),
     part(plan.cards.length, 'flashcard', 'flashcards'),
     part(plan.guidance?.length ?? 0, 'reading tip', 'reading tips'),
+    part(plan.linkFills?.length ?? 0, 'missing link', 'missing links'),
   ].filter(Boolean);
   if (!parts.length) return 'Nothing new to add';
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
@@ -253,7 +270,8 @@ export function summarizePlan(plan) {
 }
 
 /** How many things a plan would add or update (zero means you are up to date). */
-export const planSize = (plan) => plan.resources.length + plan.cards.length + (plan.guidance?.length ?? 0) + (plan.lessons?.length ?? 0);
+export const planSize = (plan) => plan.resources.length + plan.cards.length + (plan.guidance?.length ?? 0) + (plan.lessons?.length ?? 0)
+  + (plan.linkFills?.length ?? 0);
 
 
 // ─── Guidance packs (a level and a how-to-use line for each resource) ─────────

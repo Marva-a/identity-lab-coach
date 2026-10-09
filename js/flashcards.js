@@ -85,7 +85,7 @@ function cardFaceHtml(card, sched, context, positionLabel) {
       <div class="answers">
         ${yours}
         <div class="answer">
-          <h4 id="card-answer-${context}" tabindex="-1">${card.type === 'explain' ? 'A good answer' : 'Answer'}</h4>
+          <h4 id="card-answer-${context}" tabindex="-1">${card.type === 'explain' ? 'An example answer' : 'Answer'}</h4>
           <p>${esc(card.back)}</p>
         </div>
       </div>
@@ -373,16 +373,31 @@ export function flashcardsView() {
         ? cardFormHtml(null)
         : '<div class="button-row"><button type="button" data-action="card-add">Add a card</button></div>'}
       <p class="meta" aria-live="polite">${plural(shown.length, 'card', 'cards')} shown.</p>
+      ${emptyListHtml(shown.length, unlocked, active.length - unlocked, d.cards, sched, date)}
       <ul class="card-list">
         ${shown.map((c) => cardRowHtml(c, sched.get(c.id))).join('')}
       </ul>
     </details>`;
 }
 
+/**
+ * Why the list is empty, when the filter that is on has nothing in it. Before the plan has taught anything,
+ * "Taught so far" is empty on purpose, so say when cards start and offer a look at what is coming.
+ */
+function emptyListHtml(count, taught, upcoming, cards, sched, date) {
+  if (count || ui.filter !== 'unlocked' || taught || !upcoming) return '';
+  const next = nextDueAfter(cards, sched, date);
+  return `
+    <div class="empty-state">
+      <p>None yet. A card first comes up the day after the plan teaches its topic${next ? `; your first ones come up ${esc(formatShort(next))}` : ''}.</p>
+      <div class="button-row"><button type="button" class="button--small" data-action="cards-show-upcoming">Preview upcoming cards (${upcoming})</button></div>
+    </div>`;
+}
+
 // ─── What you can recall (on Progress) ───────────────────────────────────────
 
 const RECALL_WORDS = {
-  held: 'held',
+  held: 'recalled after 7+ days',
   recent: 'recalled, short gap',
   shaky: 'needs another look',
   new: 'not tried yet',
@@ -406,7 +421,7 @@ export function recallProgressHtml() {
     const weekName = (w) => (w ? `Week ${w}: ${getWeek(w)?.title ?? ''}` : 'No week');
     const shaky = r.shaky.slice(0, 5);
     body = `
-      <p><strong>${t.held} of ${plural(t.total, 'card', 'cards')}</strong> you have met so far ${t.held === 1 ? 'is' : 'are'} held: you recalled ${t.held === 1 ? 'it' : 'them'} after a gap of ${HELD_GAP_DAYS} days or more.${t.shaky ? ` ${plural(t.shaky, 'card needs', 'cards need')} another look.` : ''}</p>
+      <p><strong>${t.held} of ${plural(t.total, 'card', 'cards')}</strong> you have met so far ${t.held === 1 ? 'was' : 'were'} recalled after a gap of ${HELD_GAP_DAYS} days or more.${t.shaky ? ` ${plural(t.shaky, 'card needs', 'cards need')} another look.` : ''}</p>
       <ul class="recall-weeks">
         ${r.rows.map((row) => `<li><p class="recall-weeks__name"><strong>${esc(weekName(row.week))}</strong> <span class="meta">${plural(row.total, 'card', 'cards')}</span></p>${bar(row)}<p class="recall-weeks__keys meta">${parts(row)}</p></li>`).join('')}
       </ul>
@@ -420,7 +435,7 @@ export function recallProgressHtml() {
       <details>
         <summary>What these words mean</summary>
         <ul>
-          <li><strong>Held</strong>: you answered "Got it" or "Easy" after not seeing it for ${HELD_GAP_DAYS} days or more. This is the best sign the app has that you will remember it.</li>
+          <li><strong>Recalled after 7+ days</strong>: you answered "Got it" or "Easy" after not seeing it for ${HELD_GAP_DAYS} days or more. It is the best sign this app has that you will remember it, but it is still your own rating, not a test of whether you can use it.</li>
           <li><strong>Recalled, short gap</strong>: you got it last time, but not yet after a week's gap.</li>
           <li><strong>Needs another look</strong>: your last answer was "Not yet" or "Hard".</li>
           <li><strong>Not tried yet</strong>: the plan has taught it, but you have not answered it yet.</li>
@@ -431,7 +446,7 @@ export function recallProgressHtml() {
   return `
     <section class="card" aria-labelledby="recall-heading">
       <h2 id="recall-heading">What you can recall</h2>
-      <p class="meta">From your flashcard answers, not from time spent.${r.anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
+      <p class="meta">From your own flashcard ratings, not from time spent.${r.anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
       ${body}
     </section>`;
 }
@@ -476,6 +491,10 @@ export const cardActions = {
     // Focus the next card, or the completion message.
     if (context === 'retrieval') return `#card-front-retrieval, #retrieval-done, #retrieval-heading`;
     return '#card-front-study, #study-done';
+  },
+  'cards-show-upcoming': () => {
+    ui.filter = 'locked';
+    return '#card-filter';
   },
   /** From Progress: open Flashcards with the cards that need another look listed. */
   'cards-show-shaky': () => {

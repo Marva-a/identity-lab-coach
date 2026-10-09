@@ -636,8 +636,8 @@ export const resourceActions = {
     const done = store.applyContentPlan(plan);
     ui.content = {
       ...blankContent(),
-      message: done.resources + done.cards + done.guidance + done.lessons + done.newerVersions
-        ? `${summarizePlan({ resources: Array(done.resources), lessons: Array(done.lessons), cards: Array(done.cards), guidance: Array(done.guidance) }).replace(/^Ready to add/, 'Added').replace(/^Nothing new to add/, 'Nothing new was added')}.`
+      message: done.resources + done.cards + done.guidance + done.lessons + (done.links ?? 0) + done.newerVersions
+        ? `${summarizePlan({ resources: Array(done.resources), lessons: Array(done.lessons), cards: Array(done.cards), guidance: Array(done.guidance), linkFills: Array(done.links ?? 0) }).replace(/^Ready to add/, 'Added').replace(/^Nothing new to add/, 'Nothing new was added')}.`
           + `${done.newerVersions ? ` ${plural(done.newerVersions, 'resource you changed has', 'resources you changed have')} a newer version waiting; yours is kept until you choose.` : ''}${done.saved ? '' : ' Warning: this browser blocked saving.'}`
         : 'Nothing new to add: it is already all here.',
     };

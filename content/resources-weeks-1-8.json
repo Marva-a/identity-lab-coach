@@ -103,33 +103,33 @@
   },
   {
    "id": "w1-1password-admin",
-   "title": "1Password Business: admin getting-started guide",
+   "title": "1Password Business: Administrators, get started",
    "source": "1Password",
    "type": "article",
    "estimatedMinutes": 30,
-   "url": null,
+   "url": "https://support.1password.com/explore/team-admin/",
    "planDays": [
     6
    ],
-   "why": "Apply task: list what an admin must do on day one. The link I tried returned an access error.",
+   "why": "Product study: list what an admin must do on day one (account owner, policies, vaults, inviting and confirming people).",
    "optional": false,
-   "urlStatus": "needs-your-search",
-   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+   "urlStatus": "verified",
+   "verifiedNote": "Checked on Oct 9, 2026: official 1Password Support page \"Administrators: Get started with 1Password\"."
   },
   {
    "id": "w1-okta-admin",
-   "title": "Okta: admin getting-started documentation",
+   "title": "Okta: Get started (Identity Engine admin setup order)",
    "source": "Okta",
    "type": "article",
    "estimatedMinutes": 30,
-   "url": null,
+   "url": "https://help.okta.com/oie/en-us/content/topics/identity-engine/oie-get-started.htm",
    "planDays": [
     6
    ],
-   "why": "Apply task: list what an admin must do on day one. The link I tried returned not found.",
+   "why": "Product study: Okta lists the order an admin sets things up in (users and groups, directories, admin roles, apps, sign-on policies, MFA). Compare it with 1Password and Tailscale.",
    "optional": false,
-   "urlStatus": "needs-your-search",
-   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+   "urlStatus": "verified",
+   "verifiedNote": "Checked on Oct 9, 2026: official Okta Help Center page \"Get started\" for Identity Engine. Check the Admin Console footer says Identity Engine."
   },
   {
    "id": "w2-oauthcom",
@@ -706,18 +706,18 @@
   },
   {
    "id": "w8-postings",
-   "title": "Okta agentic-security and SailPoint non-human-identity job postings",
+   "title": "Find live job postings: Okta (agentic security) and SailPoint (non-human identity)",
    "source": "Employers",
    "type": "article",
    "estimatedMinutes": 45,
-   "url": null,
+   "url": "https://www.okta.com/company/careers/",
    "planDays": [
     53
    ],
-   "why": "Postings change; find the live ones yourself.",
+   "why": "A research task, on purpose: postings change, so search the live careers pages for agentic-security and non-human-identity roles, then compare their requirements with your evidence. SailPoint careers: https://www.sailpoint.com/company/careers",
    "optional": false,
-   "urlStatus": "needs-your-search",
-   "verifiedNote": "No link confirmed; search for it yourself and add the URL in the app"
+   "urlStatus": "verified",
+   "verifiedNote": "Checked on Oct 9, 2026: these are the official careers pages, not specific postings."
   }
  ]
 }

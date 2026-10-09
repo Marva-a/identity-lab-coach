@@ -1151,12 +1151,13 @@ export function applyContentPlan(plan) {
   const cards = plan.cards.length ? addPackCards(plan.cards) : 0;
   const guidance = applyGuidance(plan.guidance ?? [], plan.dayChanges ?? []);
   const lessons = applyLessons(plan.lessons ?? []);
+  const links = applyLinkFills(plan.linkFills ?? []);
   const appliedAt = new Date().toISOString();
   for (const pack of plan.packs) {
     if (!pack.problems.length) data.contentPacks[pack.id] = { version: pack.version, appliedAt };
   }
   const saved = persist();
-  return { resources, cards, guidance: guidance.applied, newerVersions: guidance.newer, skipped: guidance.skipped, lessons, saved };
+  return { resources, cards, guidance: guidance.applied, newerVersions: guidance.newer, skipped: guidance.skipped, lessons, links, saved };
 }
 
 /**
@@ -1190,6 +1191,19 @@ function applyGuidance(guidance, dayChanges) {
     else r.days = c.planDays;
   }
   return result;
+}
+
+/** Fills in links that were missing, on resources you have not edited (checked again here, not only when planned). */
+function applyLinkFills(fills) {
+  let count = 0;
+  const now = new Date().toISOString();
+  for (const f of fills) {
+    const r = getResource(f.id);
+    if (!r || r.url || r.editedByMe || r.urlStatus !== 'needs-your-search') continue;
+    Object.assign(r, { url: f.url, title: f.title || r.title, urlStatus: f.urlStatus, verifiedNote: f.verifiedNote, why: f.why, updatedAt: now });
+    count += 1;
+  }
+  return count;
 }
 
 /** Adds lessons, or replaces one from an older pack version. Your answers are kept (they are stored apart). */

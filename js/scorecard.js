@@ -55,32 +55,33 @@ function expectedNote(row, period) {
   return 'Spread over the study days so far (Mon–Sat).';
 }
 
-function tableHtml(rows, period) {
+/** The number a goal's bar is measured against (the low end of a range). */
+const targetNumber = (row) => (row.target ? row.target.low : null);
+
+/**
+ * Goals as a short list: name and status, one line of numbers, a slim bar with a tick where the plan
+ * expects you to be, and how it is counted folded away. The bar is decorative; the line says it in words.
+ */
+function goalsHtml(rows, period) {
   return `
-    <div class="table-scroll">
-      <table class="score-table">
-        <caption class="visually-hidden">${esc(period.label)}: so far, expected by today, target and status</caption>
-        <thead>
-          <tr>
-            <th scope="col">Goal</th>
-            <th scope="col">So far</th>
-            <th scope="col">Expected by today</th>
-            <th scope="col">Target</th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((r) => `
-            <tr>
-              <th scope="row">${esc(r.label)}<span class="cell-note">${SOURCES[r.id]}</span></th>
-              <td>${esc(formatValue(r, r.actual))}</td>
-              <td>${esc(formatValue(r, r.expected))}<span class="cell-note">${esc(expectedNote(r, period))}</span></td>
-              <td>${esc(formatTarget(r.target, r.unit, r, period))}</td>
-              <td>${statusHtml(r)}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
+    <ul class="goals">
+      ${rows.map((r) => {
+        const goal = targetNumber(r);
+        const pct = (v) => (goal && v != null ? Math.min(100, Math.round((v / goal) * 100)) : 0);
+        const numbers = [
+          `<strong>${esc(formatValue(r, r.actual))}</strong> so far`,
+          r.expected ? `${esc(formatValue(r, r.expected))} expected by today` : '', // nothing expected yet: say nothing
+          r.target ? `target ${esc(formatTarget(r.target, r.unit, r, period).replace(/ planned$/, ''))}` : 'no target',
+        ].filter(Boolean).join(' · ');
+        return `
+        <li class="goal">
+          <div class="goal__head"><h3>${esc(r.label)}</h3>${statusHtml(r)}</div>
+          <p class="goal__numbers">${numbers}</p>
+          ${goal ? `<div class="goal__bar" aria-hidden="true"><span style="width:${pct(r.actual)}%"></span>${r.expected ? `<i style="left:${pct(r.expected)}%"></i>` : ''}</div>` : ''}
+          <details class="goal__how"><summary>How this is counted</summary><p class="meta">${SOURCES[r.id]} ${esc(expectedNote(r, period))}</p></details>
+        </li>`;
+      }).join('')}
+    </ul>`;
 }
 
 function otherPeriodHtml(period) {
@@ -89,7 +90,7 @@ function otherPeriodHtml(period) {
   const items = MEASURES
     .filter((m) => t[m.id])
     .map((m) => `${m.label}: ${formatTarget(t[m.id], m.unit)}`);
-  return `<p class="meta"><strong>${esc(other.label)}${other.id === 'jan31' ? ' (cumulative)' : ''}:</strong> ${esc(items.join('; '))}.</p>`;
+  return `<p class="meta"><strong>${esc(other.label)}${other.id === 'jan31' ? ' (cumulative)' : ''}:</strong> ${esc(items.join('; '))}.${other.id === 'jan31' ? ' These are the last targets in your roadmap; the job search goes on to Mar 31 without targets.' : ''}</p>`;
 }
 
 function logFormHtml() {
@@ -144,7 +145,7 @@ export function scorecardView({ before = '' } = {}) {
 
   let context;
   if (date < PLAN_START) context = `The plan starts ${formatShort(PLAN_START)}; nothing is expected yet.`;
-  else if (date > PERIOD_2.end) context = 'The Jan 31 targets have passed; these are your final numbers.';
+  else if (date > PERIOD_2.end) context = 'Your roadmap sets targets up to Jan 31, so these are your final numbers. The job search goes on to Mar 31; keep logging, it just has no targets.';
   else context = 'Worked out only from what you log. A day that has not ended never counts against you.';
 
   return `
@@ -154,7 +155,7 @@ export function scorecardView({ before = '' } = {}) {
     <section class="card" aria-labelledby="period-heading">
       <h2 id="period-heading">${esc(period.label.replace(/^By\s+/, 'Targets for '))}${period.id === 'jan31' ? ' (everything since Oct 12)' : ''}</h2>
       <p class="meta">${esc(context)}</p>
-      ${tableHtml(rows, period)}
+      ${goalsHtml(rows, period)}
       <p class="rule"><strong>Status:</strong> ${esc(STATUS_RULE)}</p>
       ${otherPeriodHtml(period)}
       <p class="meta">Counted from what you log; you never type in totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
