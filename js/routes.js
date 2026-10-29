@@ -7,8 +7,9 @@ export const ROUTES = ['today', 'plan', 'learn', 'proof', 'progress', 'settings'
 
 /** The sections inside a place, first one is the default. */
 export const SECTIONS = {
-  learn: ['library', 'cards'],
+  learn: ['library', 'lessons', 'cards'],
   proof: ['evidence', 'people', 'applications'],
+  settings: ['data', 'content', 'general'],
 };
 
 /** The first screens of the app and the new place of each. */

@@ -76,3 +76,11 @@ export function nextUp(data, weeks, settings, today) {
   }
   return null;
 }
+
+/**
+ * Lessons are self-paced: the next lesson is the first one, in course order, that you have not completed.
+ * `isDone(lesson)` says whether a lesson is complete. Returns null when every written lesson is done.
+ */
+export function nextLessonOf(lessons, isDone) {
+  return [...lessons].sort((a, b) => a.day - b.day).find((l) => !isDone(l)) ?? null;
+}

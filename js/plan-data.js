@@ -6,10 +6,10 @@
 // Corrections from the plan review are applied here:
 // - Exercise 14 sits in Week 7's Apply block (not Practice).
 // - Exercise 10 is Optional in Week 6; exercises 2, 13, 19 and 20 are unscheduled.
-// - Week 1 is 11 h: Day 1 is 1 h (Thanksgiving) and Day 4 is a Learn day.
+// - Week 1 is 11 h: Day 1 is 1 h (it was a Thanksgiving Monday before the start moved to Nov 2) and Day 4 is a Learn day.
 // - Conditional items ("if you attend", "if confirmed") are marked `conditional`,
 //   which is different from `optional`.
-// - The bridge says "finish and publish Project 2" by Jan 17.
+// - The bridge says "finish and publish Project 2" by its last day (Feb 7).
 
 /** @typedef {'learn'|'practice'|'build'|'publish'|'capstone'} BlockType */
 
@@ -95,16 +95,16 @@ export function renameChecks(weekChecks, renames = PLAN_ID_RENAMES) {
   return out;
 }
 
-export const PLAN_START = '2026-10-12'; // Day 1, Monday
-export const PLAN_END = '2026-12-10'; // Day 60, Thursday
-export const BRIDGE_START = '2026-12-11';
-export const BRIDGE_REST_START = '2026-12-24';
-export const BRIDGE_REST_END = '2027-01-01';
-export const BRIDGE_END = '2027-01-17';
-export const APPLICATIONS_START = '2027-01-05'; // a Tuesday
-export const APPLICATIONS_END = '2027-03-31';
-export const PROJECT1_GATE = '2026-11-21'; // Day 41, Saturday
-export const FEB_REVIEW_WEEK = '2027-02-15'; // Monday of the review week
+export const PLAN_START = '2026-11-02'; // Day 1, Monday
+export const PLAN_END = '2026-12-31'; // Day 60, Thursday
+export const BRIDGE_START = '2027-01-01';
+export const BRIDGE_REST_START = '2027-01-14';
+export const BRIDGE_REST_END = '2027-01-22';
+export const BRIDGE_END = '2027-02-07';
+export const APPLICATIONS_START = '2027-01-26'; // a Tuesday
+export const APPLICATIONS_END = '2027-04-21';
+export const PROJECT1_GATE = '2026-12-12'; // Day 41, Saturday
+export const FEB_REVIEW_WEEK = '2027-03-08'; // Monday of the review week
 
 export const BLOCK_LABELS = {
   learn: 'Learn',
@@ -153,7 +153,7 @@ export const WEEKS = [
   {
     number: 1,
     title: 'Identity foundations and your lab',
-    start: '2026-10-12',
+    start: '2026-11-02',
     budget: { learn: 5, practice: 2, build: 2, publish: 2 },
     items: [
       { id: 'w1-learn-1', kind: 'learn', text: 'Authentication vs authorization vs accounting; identity lifecycle (joiner, mover, leaver); credentials, sessions, tokens; threat-model vocabulary' },
@@ -170,19 +170,19 @@ export const WEEKS = [
       { id: 'w1-design-1', kind: 'design', text: 'Enterprise identity mental model', extraMinutes: 120, optional: true },
     ],
     days: [
-      { day: 1, date: '2026-10-12', block: 'learn', focus: 'Docker check; start an identity glossary', hours: 1, holiday: 'Thanksgiving: 1 hour' },
-      { day: 2, date: '2026-10-13', block: 'learn', focus: 'AuthN, AuthZ, accounting; Messer videos', hours: 2 },
-      { day: 3, date: '2026-10-14', block: 'practice', focus: 'Exercise 1: Keycloak realm, users, roles', hours: 2 },
-      { day: 4, date: '2026-10-15', block: 'learn', focus: 'Lifecycle and threat-model vocabulary', hours: 2 },
-      { day: 5, date: '2026-10-16', block: 'build', focus: 'Project 1: seed script', hours: 2 },
-      { day: 6, date: '2026-10-17', block: 'publish', focus: 'README and credential diagram; write up and share', hours: 2 },
+      { day: 1, date: '2026-11-02', block: 'learn', focus: 'Docker check; start an identity glossary', hours: 1 },
+      { day: 2, date: '2026-11-03', block: 'learn', focus: 'AuthN, AuthZ, accounting; Messer videos', hours: 2 },
+      { day: 3, date: '2026-11-04', block: 'practice', focus: 'Exercise 1: Keycloak realm, users, roles', hours: 2 },
+      { day: 4, date: '2026-11-05', block: 'learn', focus: 'Lifecycle and threat-model vocabulary', hours: 2 },
+      { day: 5, date: '2026-11-06', block: 'build', focus: 'Project 1: seed script', hours: 2 },
+      { day: 6, date: '2026-11-07', block: 'publish', focus: 'README and credential diagram; write up and share', hours: 2 },
     ],
     notes: [],
   },
   {
     number: 2,
     title: 'OAuth 2.0 and OpenID Connect',
-    start: '2026-10-19',
+    start: '2026-11-09',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w2-learn-1', kind: 'learn', text: 'Grant types, authorization code with PKCE, scopes, refresh tokens, access vs ID tokens, JWT anatomy, token storage' },
@@ -199,19 +199,19 @@ export const WEEKS = [
       { id: 'w2-design-1', kind: 'design', text: 'Consent screen and scopes', extraMinutes: 120, optional: true },
     ],
     days: [
-      { day: 8, date: '2026-10-19', block: 'learn', focus: 'Grant types; auth code and PKCE', hours: 2 },
-      { day: 9, date: '2026-10-20', block: 'learn', focus: 'Tokens and JWTs; OpenID Connect basics (RFC 9700 comes on Day 13)', hours: 2 },
-      { day: 10, date: '2026-10-21', block: 'practice', focus: 'Exercise 4: PKCE flow in dev tools', hours: 2 },
-      { day: 11, date: '2026-10-22', block: 'practice', focus: 'Exercise 5 and PortSwigger OAuth labs', hours: 2 },
-      { day: 12, date: '2026-10-23', block: 'build', focus: 'Project 1: App A with OIDC login', hours: 2 },
-      { day: 13, date: '2026-10-24', block: 'publish', focus: 'Sequence diagram and consent audit; write up and share', hours: 2 },
+      { day: 8, date: '2026-11-09', block: 'learn', focus: 'Grant types; auth code and PKCE', hours: 2 },
+      { day: 9, date: '2026-11-10', block: 'learn', focus: 'Tokens and JWTs; OpenID Connect basics (RFC 9700 comes on Day 13)', hours: 2 },
+      { day: 10, date: '2026-11-11', block: 'practice', focus: 'Exercise 4: PKCE flow in dev tools', hours: 2 },
+      { day: 11, date: '2026-11-12', block: 'practice', focus: 'Exercise 5 and PortSwigger OAuth labs', hours: 2 },
+      { day: 12, date: '2026-11-13', block: 'build', focus: 'Project 1: App A with OIDC login', hours: 2 },
+      { day: 13, date: '2026-11-14', block: 'publish', focus: 'Sequence diagram and consent audit; write up and share', hours: 2 },
     ],
     notes: [],
   },
   {
     number: 3,
     title: 'SAML, SSO, SCIM and authorization models',
-    start: '2026-10-26',
+    start: '2026-11-16',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w3-learn-1', kind: 'learn', text: 'SAML assertions, SP- vs IdP-initiated SSO, SCIM provisioning, RBAC vs ABAC vs relationship-based access' },
@@ -229,19 +229,19 @@ export const WEEKS = [
       { id: 'w3-design-1', kind: 'design', text: 'Admin provisioning flow', extraMinutes: 180, optional: true },
     ],
     days: [
-      { day: 15, date: '2026-10-26', block: 'learn', focus: 'SAML flows; SCIM concepts', hours: 2 },
-      { day: 16, date: '2026-10-27', block: 'learn', focus: 'Authorization models; IDPro reading', hours: 2 },
-      { day: 17, date: '2026-10-28', block: 'practice', focus: 'Exercise 6: SAML SSO', hours: 2 },
-      { day: 18, date: '2026-10-29', block: 'practice', focus: 'Exercise 7 (light): Cedar policies', hours: 2 },
-      { day: 19, date: '2026-10-30', block: 'build', focus: 'Project 1: SCIM deprovisioning', hours: 2 },
-      { day: 20, date: '2026-10-31', block: 'publish', focus: 'Admin journey map; write up and share', hours: 2 },
+      { day: 15, date: '2026-11-16', block: 'learn', focus: 'SAML flows; SCIM concepts', hours: 2 },
+      { day: 16, date: '2026-11-17', block: 'learn', focus: 'Authorization models; IDPro reading', hours: 2 },
+      { day: 17, date: '2026-11-18', block: 'practice', focus: 'Exercise 6: SAML SSO', hours: 2 },
+      { day: 18, date: '2026-11-19', block: 'practice', focus: 'Exercise 7 (light): Cedar policies', hours: 2 },
+      { day: 19, date: '2026-11-20', block: 'build', focus: 'Project 1: SCIM deprovisioning', hours: 2 },
+      { day: 20, date: '2026-11-21', block: 'publish', focus: 'Admin journey map; write up and share', hours: 2 },
     ],
     notes: [],
   },
   {
     number: 4,
     title: 'MFA, passkeys, recovery and accessible authentication',
-    start: '2026-11-02',
+    start: '2026-11-23',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w4-learn-1', kind: 'learn', text: 'Factor types, TOTP, push fatigue, WebAuthn and passkeys (synced vs device-bound), phishing resistance, step-up, account-recovery attacks, and WCAG 2.2 success criterion 3.3.8, Accessible Authentication' },
@@ -257,19 +257,19 @@ export const WEEKS = [
       { id: 'w4-design-1', kind: 'design', text: 'Redesign account recovery', extraMinutes: 180, flagship: true },
     ],
     days: [
-      { day: 22, date: '2026-11-02', block: 'learn', focus: 'Factors, passkeys, phishing resistance', hours: 2 },
-      { day: 23, date: '2026-11-03', block: 'learn', focus: 'NIST 800-63B-4 sections; WCAG 3.3.8', hours: 2 },
-      { day: 24, date: '2026-11-04', block: 'practice', focus: 'Exercise 3: TOTP and passkeys', hours: 2 },
-      { day: 25, date: '2026-11-05', block: 'practice', focus: 'Exercise 11: STRIDE model of recovery', hours: 2 },
-      { day: 26, date: '2026-11-06', block: 'build', focus: 'Project 1: session revocation and audit log', hours: 2 },
-      { day: 27, date: '2026-11-07', block: 'publish', focus: 'Score three recovery flows; write up and share', hours: 2 },
+      { day: 22, date: '2026-11-23', block: 'learn', focus: 'Factors, passkeys, phishing resistance', hours: 2 },
+      { day: 23, date: '2026-11-24', block: 'learn', focus: 'NIST 800-63B-4 sections; WCAG 3.3.8', hours: 2 },
+      { day: 24, date: '2026-11-25', block: 'practice', focus: 'Exercise 3: TOTP and passkeys', hours: 2 },
+      { day: 25, date: '2026-11-26', block: 'practice', focus: 'Exercise 11: STRIDE model of recovery', hours: 2 },
+      { day: 26, date: '2026-11-27', block: 'build', focus: 'Project 1: session revocation and audit log', hours: 2 },
+      { day: 27, date: '2026-11-28', block: 'publish', focus: 'Score three recovery flows; write up and share', hours: 2 },
     ],
     notes: [],
   },
   {
     number: 5,
     title: 'Zero Trust and network security foundations',
-    start: '2026-11-09',
+    start: '2026-11-30',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w5-learn-1', kind: 'learn', text: 'TCP/IP layers, DNS and TLS basics, mutual TLS, firewalls and segmentation, VPN vs zero-trust network access, WireGuard at concept level, NIST SP 800-207, policy decision and enforcement points, device posture, access policy as code' },
@@ -286,12 +286,12 @@ export const WEEKS = [
       { id: 'w5-design-1', kind: 'design', text: 'Device posture failure experience', extraMinutes: 120, optional: true },
     ],
     days: [
-      { day: 29, date: '2026-11-09', block: 'learn', focus: 'TLS, DNS, VPN vs ZTNA', hours: 2 },
-      { day: 30, date: '2026-11-10', block: 'learn', focus: 'NIST 800-207; Tailscale docs', hours: 2 },
-      { day: 31, date: '2026-11-11', block: 'practice', focus: 'Tailnet setup and access rules', hours: 2, holiday: 'Remembrance Day' },
-      { day: 32, date: '2026-11-12', block: 'practice', focus: 'Identity sign-in, device posture, logs', hours: 2 },
-      { day: 33, date: '2026-11-13', block: 'build', focus: 'Project 1: access requests with expiry', hours: 2 },
-      { day: 34, date: '2026-11-14', block: 'publish', focus: 'Policy design and observations; write up and share', hours: 2 },
+      { day: 29, date: '2026-11-30', block: 'learn', focus: 'TLS, DNS, VPN vs ZTNA', hours: 2 },
+      { day: 30, date: '2026-12-01', block: 'learn', focus: 'NIST 800-207; Tailscale docs', hours: 2 },
+      { day: 31, date: '2026-12-02', block: 'practice', focus: 'Tailnet setup and access rules', hours: 2 },
+      { day: 32, date: '2026-12-03', block: 'practice', focus: 'Identity sign-in, device posture, logs', hours: 2 },
+      { day: 33, date: '2026-12-04', block: 'build', focus: 'Project 1: access requests with expiry', hours: 2 },
+      { day: 34, date: '2026-12-05', block: 'publish', focus: 'Policy design and observations; write up and share', hours: 2 },
     ],
     notes: [
       'If your Tailscale process is active, swap this week with week 2 so the networking knowledge arrives before your interviews (Settings → Swap weeks 2 and 5).',
@@ -300,7 +300,7 @@ export const WEEKS = [
   {
     number: 6,
     title: 'Cloud security foundations, IAM and secrets',
-    start: '2026-11-16',
+    start: '2026-12-07',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w6-learn-1', kind: 'learn', text: 'AWS IAM users, roles and policies; STS and short-lived credentials; least privilege; Microsoft Entra basics; workload identity; secrets management' },
@@ -321,21 +321,21 @@ export const WEEKS = [
       { id: 'w6-design-1', kind: 'design', text: 'Permission management for a non-security admin', extraMinutes: 180, flagship: true },
     ],
     days: [
-      { day: 36, date: '2026-11-16', block: 'learn', focus: 'AWS IAM fundamentals; STS', hours: 2 },
-      { day: 37, date: '2026-11-17', block: 'learn', focus: 'Entra basics; SC-300 modules', hours: 2 },
-      { day: 38, date: '2026-11-18', block: 'practice', focus: 'Exercise 9: role, STS, Access Analyzer', hours: 2 },
-      { day: 39, date: '2026-11-19', block: 'practice', focus: 'Exercise 15: secrets and gitleaks', hours: 2 },
-      { day: 40, date: '2026-11-20', block: 'build', focus: 'Project 1: UI', hours: 2 },
-      { day: 41, date: '2026-11-21', block: 'publish', focus: 'Policy pair and agent-identity note; write up and share', hours: 2 },
+      { day: 36, date: '2026-12-07', block: 'learn', focus: 'AWS IAM fundamentals; STS', hours: 2 },
+      { day: 37, date: '2026-12-08', block: 'learn', focus: 'Entra basics; SC-300 modules', hours: 2 },
+      { day: 38, date: '2026-12-09', block: 'practice', focus: 'Exercise 9: role, STS, Access Analyzer', hours: 2 },
+      { day: 39, date: '2026-12-10', block: 'practice', focus: 'Exercise 15: secrets and gitleaks', hours: 2 },
+      { day: 40, date: '2026-12-11', block: 'build', focus: 'Project 1: UI', hours: 2 },
+      { day: 41, date: '2026-12-12', block: 'publish', focus: 'Policy pair and agent-identity note; write up and share', hours: 2 },
     ],
     notes: [
-      'Gate on Sat Nov 21: Project 1 must work end to end, or you freeze its scope.',
+      'Checkpoint on Sat Dec 12: Project 1 must work end to end, or you freeze its scope.',
     ],
   },
   {
     number: 7,
     title: 'Logging, detection and attack surface',
-    start: '2026-11-23',
+    start: '2026-12-14',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w7-learn-1', kind: 'learn', text: 'Which identity events matter; identity threat detection concepts; MITRE ATT&CK credential-access techniques; OWASP Top 10 and API Security Top 10; the incident-response lifecycle (NIST SP 800-61)' },
@@ -351,19 +351,19 @@ export const WEEKS = [
       { id: 'w7-design-1', kind: 'design', text: 'Account-takeover investigation console', extraMinutes: 120, optional: true },
     ],
     days: [
-      { day: 43, date: '2026-11-23', block: 'learn', focus: 'Identity events; ATT&CK credential access', hours: 2 },
-      { day: 44, date: '2026-11-24', block: 'learn', focus: 'OWASP Top 10 and API Top 10', hours: 2 },
-      { day: 45, date: '2026-11-25', block: 'practice', focus: 'Exercise 8: PortSwigger access-control labs', hours: 2 },
-      { day: 46, date: '2026-11-26', block: 'practice', focus: 'Exercise 12: Keycloak events', hours: 2 },
-      { day: 47, date: '2026-11-27', block: 'build', focus: 'Project 1: threat model and fixes', hours: 2 },
-      { day: 48, date: '2026-11-28', block: 'publish', focus: 'Tabletop exercise; write up and share', hours: 2 },
+      { day: 43, date: '2026-12-14', block: 'learn', focus: 'Identity events; ATT&CK credential access', hours: 2 },
+      { day: 44, date: '2026-12-15', block: 'learn', focus: 'OWASP Top 10 and API Top 10', hours: 2 },
+      { day: 45, date: '2026-12-16', block: 'practice', focus: 'Exercise 8: PortSwigger access-control labs', hours: 2 },
+      { day: 46, date: '2026-12-17', block: 'practice', focus: 'Exercise 12: Keycloak events', hours: 2 },
+      { day: 47, date: '2026-12-18', block: 'build', focus: 'Project 1: threat model and fixes', hours: 2 },
+      { day: 48, date: '2026-12-19', block: 'publish', focus: 'Tabletop exercise; write up and share', hours: 2 },
     ],
     notes: [],
   },
   {
     number: 8,
     title: 'AI and agent security',
-    start: '2026-11-30',
+    start: '2026-12-21',
     budget: { learn: 4, practice: 4, build: 2, publish: 2 },
     items: [
       { id: 'w8-learn-1', kind: 'learn', text: 'LLM risks (prompt injection, sensitive data disclosure, excessive agency); agentic risks; MCP architecture and its OAuth 2.1 authorization model; delegation and token exchange; human approval patterns' },
@@ -381,12 +381,12 @@ export const WEEKS = [
       { id: 'w8-design-1', kind: 'design', text: 'Agent authorization case-study outline', extraMinutes: 180, flagship: true },
     ],
     days: [
-      { day: 50, date: '2026-11-30', block: 'learn', focus: 'OWASP LLM and Agentic lists', hours: 2 },
-      { day: 51, date: '2026-12-01', block: 'learn', focus: 'MCP architecture and authorization', hours: 2 },
-      { day: 52, date: '2026-12-02', block: 'practice', focus: 'Exercise 16: prompt-injection tests', hours: 2 },
-      { day: 53, date: '2026-12-03', block: 'practice', focus: 'Exercise 17: agent permission model', hours: 2 },
-      { day: 54, date: '2026-12-04', block: 'build', focus: 'Project 1: usability fixes', hours: 2 },
-      { day: 55, date: '2026-12-05', block: 'publish', focus: 'Job-posting gap analysis; write up and share', hours: 2 },
+      { day: 50, date: '2026-12-21', block: 'learn', focus: 'OWASP LLM and Agentic lists', hours: 2 },
+      { day: 51, date: '2026-12-22', block: 'learn', focus: 'MCP architecture and authorization', hours: 2 },
+      { day: 52, date: '2026-12-23', block: 'practice', focus: 'Exercise 16: prompt-injection tests', hours: 2 },
+      { day: 53, date: '2026-12-24', block: 'practice', focus: 'Exercise 17: agent permission model', hours: 2 },
+      { day: 54, date: '2026-12-25', block: 'build', focus: 'Project 1: usability fixes', hours: 2 },
+      { day: 55, date: '2026-12-26', block: 'publish', focus: 'Job-posting gap analysis; write up and share', hours: 2 },
     ],
     notes: [
       "Moved to the bridge: exercise 18 (MCP broker), NIST's agent identity concept paper, MITRE ATLAS.",
@@ -395,14 +395,14 @@ export const WEEKS = [
   {
     number: 9,
     title: 'Capstone',
-    start: '2026-12-07',
+    start: '2026-12-28',
     budget: { capstone: 8 },
     items: [],
     days: [
-      { day: 57, date: '2026-12-07', block: 'capstone', focus: 'Project 1 README, diagrams, implemented/simulated/conceptual table', hours: 2 },
-      { day: 58, date: '2026-12-08', block: 'capstone', focus: 'Demo recording; case-study draft', hours: 2 },
-      { day: 59, date: '2026-12-09', block: 'capstone', focus: 'LinkedIn, GitHub and resume refresh (Part 11)', hours: 2 },
-      { day: 60, date: '2026-12-10', block: 'capstone', focus: 'Retrospective and scorecard review; two outreach messages with your case study', hours: 2, conditional: 'VanCitySec, if confirmed' },
+      { day: 57, date: '2026-12-28', block: 'capstone', focus: 'Project 1 README, diagrams, implemented/simulated/conceptual table', hours: 2 },
+      { day: 58, date: '2026-12-29', block: 'capstone', focus: 'Demo recording; case-study draft', hours: 2 },
+      { day: 59, date: '2026-12-30', block: 'capstone', focus: 'LinkedIn, GitHub and resume refresh (Part 11)', hours: 2 },
+      { day: 60, date: '2026-12-31', block: 'capstone', focus: 'Retrospective and scorecard review; two outreach messages with your case study', hours: 2, conditional: 'VanCitySec, if confirmed' },
     ],
     notes: [],
   },
@@ -438,46 +438,46 @@ export const EXERCISES = [
   { n: 22, title: 'A VPC with one public and one private subnet, and a tight security group', tool: 'AWS: VPC, security group, flow logs', learn: 'Segmentation; reading flow logs', hours: 1.5, artifact: '', schedule: 'optional', week: 6, note: 'Extra. 60–90 minutes. Turn on flow logs, read them, then delete everything. The revised roadmap names no artifact.' },
 ];
 
-/** Bridge period (Dec 11 – Jan 17). Sundays are rest days here too. */
+/** Bridge period (Jan 1 – Feb 7). Sundays are rest days here too. */
 export const BRIDGE_PHASES = [
   {
-    start: '2026-12-11',
-    end: '2026-12-23',
+    start: '2027-01-01',
+    end: '2027-01-13',
     rest: false,
     title: 'Project 2 MVP (exercise 18)',
     focus: 'The broker with two tools, one approval flow and eight injection scenarios. About 16 hours across these two weeks.',
   },
   {
-    start: '2026-12-24',
-    end: '2027-01-01',
+    start: '2027-01-14',
+    end: '2027-01-22',
     rest: true,
     title: 'Rest',
     focus: 'Optional reading only.',
   },
   {
-    start: '2027-01-02',
-    end: '2027-01-17',
+    start: '2027-01-23',
+    end: '2027-02-07',
     rest: false,
     title: 'Finish and publish Project 2',
-    focus: 'Finish and publish Project 2 by Jan 17; finalize the tracker and target list. The full application system starts Tue Jan 5.',
+    focus: 'Finish and publish Project 2 by Feb 7; finalize the tracker and target list. The full application system starts Tue Jan 26.',
   },
 ];
 
-/** Part 12 weekly system, from Jan 5 (keyed by weekday, 1 = Monday). */
+/** Part 12 weekly system, from Jan 26 (keyed by weekday, 1 = Monday). */
 export const APPLICATION_WEEK = {
   1: { focus: 'Radar (1 h): scan alerts, score postings, pick 4–6. Learning (1 h).', output: 'Shortlist in the tracker' },
   2: { focus: 'Tailor and submit 2–3 applications', output: 'Resume and note per role' },
   3: { focus: 'Outreach (1 h): 3 messages to practitioners, hiring managers or recruiters. Project work (1 h).', output: '3 messages sent' },
   4: { focus: 'Tailor and submit 2–3 applications; send referral asks', output: '1–2 referral asks' },
   5: { focus: 'Interview preparation, plus a 20-minute weekly review of the scorecard', output: 'Updated tracker and prep notes' },
-  6: { focus: 'Project or learning (Project 2 finish in January, Project 3 light version by Jan 31)', output: 'One improvement published' },
+  6: { focus: 'Project or learning (Project 2 finish in early February, Project 3 light version by Feb 21)', output: 'One improvement published' },
 };
 
 /** Part 12 interview-preparation timeline (shown alongside the weekly system). */
 export const INTERVIEW_PREP = [
-  { start: '2027-01-05', end: '2027-01-11', text: 'Write 8 STAR stories; polish the Project 1 and Project 2 case-study walk-throughs.' },
-  { start: '2027-01-12', end: '2027-01-25', text: 'Practise concept explanations aloud, recorded; run two mock interviews with practitioners from your network.' },
-  { start: '2027-01-26', end: '2027-03-31', text: 'One mock per week; update stories from real interview feedback.' },
+  { start: '2027-01-26', end: '2027-02-01', text: 'Write 8 STAR stories; polish the Project 1 and Project 2 case-study walk-throughs.' },
+  { start: '2027-02-02', end: '2027-02-15', text: 'Practise concept explanations aloud, recorded; run two mock interviews with practitioners from your network.' },
+  { start: '2027-02-16', end: '2027-04-21', text: 'One mock per week; update stories from real interview feedback.' },
 ];
 
 /**
@@ -485,6 +485,6 @@ export const INTERVIEW_PREP = [
  * pacing uses the low end, as agreed in the plan review.
  */
 export const SCORECARD_TARGETS = [
-  { by: '2026-12-10', hours: 100, artifacts: 9, conversations: 15, applications: [3, 6], referralAsks: [2, 3] },
-  { by: '2027-01-31', artifacts: 12, conversations: 25, applications: [20, 30], referralAsks: [10, 10] },
+  { by: '2026-12-31', hours: 100, artifacts: 9, conversations: 15, applications: [3, 6], referralAsks: [2, 3] },
+  { by: '2027-02-21', artifacts: 12, conversations: 25, applications: [20, 30], referralAsks: [10, 10] },
 ];

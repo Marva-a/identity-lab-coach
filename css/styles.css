@@ -422,6 +422,9 @@ textarea { max-width: 100%; line-height: 1.55; resize: vertical; }
   padding: var(--s-4) var(--s-5); margin: var(--s-5) 0;
 }
 .banner-inline h2 { font-size: var(--text-md); margin: 0 0 var(--s-1); }
+.banner-inline p { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.banner-inline .button-row { margin: var(--s-3) 0 0; }
+h1 + nav > .subnav { margin-top: var(--s-1); }
 
 /* Thin progress bar. */
 .progress { height: 6px; background: var(--surface-3); border-radius: 999px; overflow: hidden; margin: var(--s-2) 0 var(--s-4); }
@@ -533,6 +536,48 @@ tbody th { font-weight: 650; }
 .steps li[aria-current="step"] { color: var(--text); font-weight: 650; }
 .steps li.is-done::after { content: " ✓" / ""; }
 
+/* Today's steps: three rows that open the guided session at that step. */
+.small-label { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 0 0 var(--s-2); }
+.today-steps { margin: 0 0 var(--s-6); }
+.steps-list { list-style: none; margin: 0; padding: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-1); overflow: hidden; }
+.step + .step { border-top: 1px solid var(--line); }
+.step__row {
+  display: flex; align-items: center; gap: var(--s-4); width: 100%; min-height: 72px; margin: 0; padding: var(--s-3) var(--s-5);
+  border: 0; border-radius: 0; background: transparent; text-align: left; font-weight: inherit; color: var(--text);
+}
+button.step__row:hover { background: var(--surface-2); }
+.step__mark {
+  flex: none; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%;
+  font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 600; color: var(--accent); background: var(--accent-soft);
+}
+.step--done .step__mark { background: var(--success); color: var(--surface); font-family: var(--font-sans); }
+.step--none .step__mark { background: var(--surface-2); color: var(--muted); }
+.step__body { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.step__title { font-weight: 650; line-height: 1.3; }
+.step--done .step__title { color: var(--muted); }
+.step--none .step__title { color: var(--muted); }
+.step__meta { font-size: var(--text-sm); color: var(--muted); }
+.step__go { flex: none; font-size: 1.5rem; line-height: 1; color: var(--muted); transition: transform var(--dur) var(--ease); }
+button.step__row:hover .step__go { transform: translateX(2px); color: var(--accent); }
+@media (max-width: 40rem) { .step__row { padding: var(--s-3) var(--s-4); gap: var(--s-3); } }
+
+/* Lessons: complete one, then start the next. */
+.lesson-complete { margin-top: var(--s-6); padding-top: var(--s-5); border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); }
+.lesson-complete .button--primary { min-height: 48px; padding-inline: var(--s-5); }
+.lesson-complete__status { display: flex; align-items: center; gap: var(--s-2); margin: 0; font-weight: 650; color: var(--success); }
+.lesson-complete__mark { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--success); color: var(--surface); font-size: var(--text-sm); }
+.lesson-complete .meta { margin: 0; }
+.lesson-complete__undo { margin-top: var(--s-2); background: transparent; border-color: transparent; color: var(--muted); padding-inline: 0; }
+.lesson-complete__undo:hover { background: transparent; border-color: transparent; color: var(--text); text-decoration: underline; }
+.lessons-week { margin: var(--s-6) 0 var(--s-2); }
+.lessons-list { margin-bottom: var(--s-2); }
+a.step__row { text-decoration: none; }
+a.step__row:hover { background: var(--surface-2); }
+a.step__row:hover .step__go { transform: translateX(2px); color: var(--accent); }
+.step--next .step__mark { background: var(--accent); color: var(--accent-text); }
+.step--next .step__title { color: var(--text); }
+.learn-tile .meta a { color: inherit; }
+
 /* People follow-ups on Today and in People. */
 .followup {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-4);
@@ -621,7 +666,14 @@ tbody th { font-weight: 650; }
 .filters { display: flex; flex-wrap: wrap; gap: 0 var(--s-4); }
 .filters .field { flex: 1 1 10rem; margin-bottom: var(--s-2); }
 .card-row { padding: var(--s-4) 0; }
-.card-row__front { font-family: var(--font-serif); font-size: var(--text-read); font-weight: 600; margin-bottom: var(--s-1); }
+.card-row--card { display: grid; grid-template-columns: 1fr auto; column-gap: var(--s-3); align-items: start; }
+.card-row--card > * { grid-column: 1 / -1; }
+.card-row--card > .card-row__front { grid-column: 1; }
+.card-row--card > .flag { grid-column: 2; grid-row: 1; margin: 0.2rem 0 0; }
+.card-row--card > .meta { margin-bottom: 0; }
+.card-row__more > summary { min-height: 36px; font-size: var(--text-sm); color: var(--accent); font-weight: 500; }
+.flag--ok { background: var(--success-soft); color: var(--success); }
+.card-row__front { font-family: var(--font-sans); font-size: var(--text-md); font-weight: 600; line-height: 1.4; margin-bottom: var(--s-1); }
 .card-form { background: var(--surface-2); border-radius: var(--radius-lg); padding: var(--s-5); margin: var(--s-2) 0 var(--s-4); }
 .card-form textarea, .card-form input, .card-form select { background: var(--surface); }
 .history { margin: var(--s-2) 0 0; padding-left: 1.2rem; font-size: var(--text-sm); }
@@ -668,6 +720,17 @@ tbody th { font-weight: 650; }
 .checklist .check { margin: 0; }
 .checklist input:checked + span .item-text { color: var(--muted); }
 .checklist input:checked + span .item-kind::after { content: " · done"; text-transform: none; letter-spacing: 0; }
+.req-items li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-4); }
+.req-items li > span { flex: 1 1 18rem; }
+/* A switch: on = "In my plan". The label changes too, so state is never colour alone. */
+.switch { min-height: 44px; padding: 0 var(--s-2); gap: var(--s-2); border-color: transparent; background: transparent; font-weight: 500; font-size: var(--text-sm); color: var(--text); }
+.switch:hover { background: var(--surface-2); border-color: transparent; }
+.switch__track { position: relative; flex: none; width: 2.5rem; height: 1.5rem; border-radius: 999px; background: var(--surface-3); box-shadow: inset 0 0 0 1.5px var(--control-border); transition: background-color var(--dur) var(--ease); }
+.switch__thumb { position: absolute; top: 3px; left: 3px; width: calc(1.5rem - 6px); height: calc(1.5rem - 6px); border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: transform var(--dur) var(--ease); }
+.switch[aria-checked="true"] .switch__track { background: var(--accent); box-shadow: none; }
+.switch[aria-checked="true"] .switch__thumb { transform: translateX(1rem); }
+.switch__label { min-width: 5.5rem; text-align: left; }
+.optional-group > summary .meta { font-weight: 400; margin-left: 0.25rem; }
 .optional-group, .deep-group { margin-top: var(--s-4); border-top: 1px solid var(--line); padding-top: var(--s-2); }
 .coverage { list-style: none; padding: 0; margin: var(--s-1) 0; display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-5); }
 .course-week { padding: var(--s-3) 0; }
@@ -763,11 +826,52 @@ button.day-tile:hover { background: var(--tone-soft); border-color: var(--tone);
 .manage-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin: var(--s-2) 0; }
 .manage-import { margin-top: var(--s-3); }
 
+/* Learn: two big starting points, then this week's reading as a checklist. */
+.learn-tiles { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--s-4); margin-bottom: var(--s-5); }
+@media (max-width: 40rem) { .learn-tiles { grid-template-columns: 1fr; } }
+.learn-tile { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-1); padding: var(--s-5); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-1); }
+.learn-tile h2 { font-family: var(--font-serif); font-size: var(--text-xl); font-weight: 600; line-height: 1.25; margin: 0; }
+.learn-tile p { margin: 0; max-width: 34rem; }
+.learn-tile .eyebrow { margin-bottom: var(--s-1); }
+.learn-tile .button { margin-top: auto; }
+.learn-tile p + .button, .learn-tile .meta + .button { margin-top: var(--s-3); }
+.learn-tile--lesson { background: var(--accent-soft); box-shadow: none; }
+.learn-tile--lesson .button--primary { box-shadow: none; }
+.learn-tile--cards { box-shadow: var(--shadow-2); }
+.week-arrows { display: flex; gap: var(--s-1); }
+.resource--row, .resource { }
+.resource__row { display: flex; gap: var(--s-3); align-items: flex-start; }
+.resource__body { flex: 1 1 auto; min-width: 0; }
+.tick {
+  flex: none; width: 2rem; height: 2rem; min-height: 44px; min-width: 44px; margin: -0.5rem -0.5rem -0.5rem -0.65rem; padding: 0; border: 0; background: transparent; color: transparent;
+}
+.tick::before {
+  content: ""; position: absolute; width: 1.6rem; height: 1.6rem; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--control-border); background: var(--surface);
+  transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.tick { position: relative; display: inline-grid; place-items: center; }
+.tick svg { position: relative; opacity: 0; transform: scale(0.6); transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.tick:hover { background: transparent; }
+.tick:hover::before { box-shadow: inset 0 0 0 2px var(--accent); }
+.tick[aria-pressed="true"]::before { background: var(--success); box-shadow: none; }
+.tick[aria-pressed="true"] svg { opacity: 1; transform: none; color: var(--surface); }
+.resource__row .resource__title::before { content: none; }  /* the tick already says it */
+.resource--done .resource__row .resource__title, .resource--done .resource__row .resource__title a { color: var(--muted); }
+
 /* ─── 13. Proof ───────────────────────────────────────────────────────────── */
 /* Evidence and People use the shared sheets, lists, tags and forms above. */
 .page-intro { max-width: var(--measure); margin: calc(-1 * var(--s-1)) 0 var(--s-5); }
 .empty-state { color: var(--muted); max-width: 34rem; margin: var(--s-3) 0 0; }
 .export-box { margin-top: var(--s-5); }
+
+/* Progress at a glance: four quiet tiles. */
+.glance { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); margin: 0 0 var(--s-5); }
+@media (max-width: 40rem) { .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.glance__tile { padding: var(--s-4); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-1); min-width: 0; }
+.glance__tile:first-child { background: var(--accent-soft); box-shadow: none; }
+.glance__label { margin: 0; font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.glance__big { margin: var(--s-1) 0 0; font-family: var(--font-serif); font-size: 2rem; font-weight: 600; line-height: 1.05; font-variant-numeric: lining-nums tabular-nums; }
+.glance__small { margin: var(--s-1) 0 0; font-size: var(--text-xs); color: var(--muted); }
 
 /* ─── 14. Progress: what you can recall ───────────────────────────────────── */
 .recall-weeks, .recall-shaky { list-style: none; padding: 0; margin: var(--s-4) 0; }

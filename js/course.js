@@ -21,7 +21,7 @@ export function planIntroHtml() {
       : dayNumber ? `Day ${dayNumber} of 60` : formatShort(date);
   return `
     <h1 id="day-heading" tabindex="-1">Plan</h1>
-    <p class="meta">Nine weeks. Pick a week to see what to finish and what each day covers. Overall: ${esc(where)} · ${p.requiredTicked} of ${p.requiredTotal} required items done (${p.percent}%).</p>`;
+    <p class="meta page-intro">${esc(where)} · ${p.requiredTicked} of ${p.requiredTotal} required items done</p>`;
 }
 
 /**

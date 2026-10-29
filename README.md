@@ -1,7 +1,7 @@
 # Identity Lab Coach
 
 A private, local-first study coach for the 60-day identity and security plan
-(Day 1 = Mon Oct 12, 2026; Day 60 = Thu Dec 10, 2026). No accounts, no
+(Day 1 = Mon Nov 2, 2026; Day 60 = Thu Dec 31, 2026). No accounts, no
 tracking, no dependencies. Your data stays in your browser.
 
 **Live app:** https://marva-a.github.io/identity-lab-coach/
@@ -12,7 +12,7 @@ don't share it). Use Export and Import in Settings to move data between them.
 ## How to add content
 
 Resources and flashcards come to the app as **content packs** in the `content/` folder,
-so you never paste or type them in. In the app, **Learn → Library → Check for course updates** shows
+so you never paste or type them in. In the app, **Settings → Content → Check for course updates** shows
 what is new (for example "Ready to add 6 lessons and 2 missing links") and adds it only after you
 confirm. It asks only this app's own site for the files and sends none of your data. It adds
 **new ids only**: anything you already have (links, statuses, notes, edits, ratings,
@@ -96,6 +96,26 @@ Icons are Google's **Material Symbols Rounded** (Apache License 2.0), built into
 one; the filled one shows for the place you are on. To add one, take its 24px SVG from
 fonts.google.com/icons (Rounded, weight 400) and copy the `d` of both variants.
 
+## Where things live
+
+**Lessons are self-paced.** Each lesson ends with **Complete lesson**; once complete it offers **Start next
+lesson** (the first lesson, in course order, you have not completed). **Learn → Lessons** lists the course
+with what is complete and what is up next, and Learn's overview tile always offers your next lesson.
+Completion is saved apart from the lesson text (`lessonsDone`), so course updates never undo it, and it is
+included in backups, imports and "Delete test data".
+
+**Today** is one path: the day's heading, one button to start the guided session, and three steps
+(Warm-up, Study, Log time) that each open the session at that step and show where you stand. The warm-up
+card, lesson, reading and timer live inside the session. **Progress** opens with four at-a-glance tiles.
+Every page with sections shows its title first, then the section switcher.
+
+The main places are for doing the work; housekeeping lives in **Settings**, which has three sections:
+**Data and backups** (backups, download and restore), **Content** (course updates, adding resources, and
+the flashcard manager: browse, add, edit, check, archive, and "Your course, week by week" with an
+"In my plan" switch for each item) and **Preferences** (appearance, plan options, testing, self-checks). Learn opens on today's lesson and your due flashcards, then this week's reading as a checklist (tick an item to
+mark it done; status, notes and filters are folded away). Library and Flashcards keep only
+what you use each day, and the study-hours tables are on Progress.
+
 ## Words the app uses
 
 One word per idea, everywhere (screens, messages, the export, the README). Use these when you add content.
@@ -129,7 +149,7 @@ Do not put passwords, keys or confidential employer details in notes, evidence o
 
 British Columbia stopped changing clocks in 2026 and stays on UTC−7. The app
 asks the browser for the Vancouver date, so it follows whatever time zone data
-the browser has. Settings → "Run date checks" says whether your browser's data
+the browser has. Settings → Preferences → "Run the checks" says whether your browser's data
 is up to date.
 
 ## Run it locally
@@ -159,7 +179,7 @@ node js/selftest.js
 | `js/timer.js` | The 50/10/50 session timer |
 | `js/srs.js` | Leitner spaced repetition, unlocking the day after a topic is taught, interleaving, and "What you can recall" on Progress |
 | `js/cards-data.js` | The 65 seed flashcards (all unverified, each with a reference) and the plan day that teaches each one |
-| `js/flashcards.js` | Retrieval check, Flashcards view, card editor |
+| `js/flashcards.js` | Retrieval check, Flashcards view, and the card manager (Settings → Content) |
 | `js/week.js` | Week view: checklist, days, hours against the budget |
 | `js/pace.js` | Scorecard maths: expected-by-today and status (no page code) |
 | `js/scorecard.js` | Scorecard view and the quick "+1 application" log |
@@ -249,7 +269,7 @@ node js/selftest.js
 4b. **Stage 4b (built):** Content library (resources by plan day, notes, flashcards from notes).
 5. Application tracker (quick "+1 application" until then).
 6. People log and follow-ups on Today.
-7. Friday review with the reduced-mode and Nov 21 rules.
+7. Friday review with the reduced-mode and Project 1 checkpoint (Dec 12) rules.
 
 ## Later (phase 2, not planned for the MVP)
 

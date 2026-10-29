@@ -10,7 +10,7 @@ import { SEED_CARDS, SEED_TEACH_DAYS } from './cards-data.js';
 import { migrate, needsMigration, compareCounts } from './migrate.js';
 import { evidenceToMarkdown, escapeMd } from './evidence-md.js';
 import { parseResourceImport } from './resource-import.js';
-import { courseProgress } from './progress.js';
+import { courseProgress, nextLessonOf } from './progress.js';
 import { STATUS_LABELS } from './pace.js';
 import { resolveHash, ROUTES, SECTIONS, LEGACY_HASHES } from './routes.js';
 import {
@@ -73,32 +73,32 @@ export function runDateChecks() {
   // The checks you asked for before Stage 3 (Vancouver wall-clock times).
   const nov1Late = vancouverInstant('2026-11-01', 23, 30);
   const nov1Ctx = nov1Late ? getDayContext(vancouverDate(nov1Late)) : null;
-  check('Nov 1, 2026, 11:30 pm → Nov 1, Day 21, rest day',
-    nov1Ctx ? `${nov1Ctx.date}, Day ${nov1Ctx.dayNumber}, ${nov1Ctx.kind}` : 'no such time', '2026-11-01, Day 21, rest');
+  check('Nov 1, 2026, 11:30 pm → Nov 1, still before Day 1',
+    nov1Ctx ? `${nov1Ctx.date}, ${nov1Ctx.kind}` : 'no such time', '2026-11-01, before');
   const nov2Early = vancouverInstant('2026-11-02', 0, 30);
   const nov2Ctx = nov2Early ? getDayContext(vancouverDate(nov2Early)) : null;
-  check('Nov 2, 2026, 12:30 am → Nov 2, Day 22',
-    nov2Ctx ? `${nov2Ctx.date}, Day ${nov2Ctx.dayNumber}` : 'no such time', '2026-11-02, Day 22');
+  check('Nov 2, 2026, 12:30 am → Nov 2, Day 1',
+    nov2Ctx ? `${nov2Ctx.date}, Day ${nov2Ctx.dayNumber}` : 'no such time', '2026-11-02, Day 1');
   for (const [hh, label] of [[1, '1:30 am'], [3, '3:30 am']]) {
     const instant = vancouverInstant('2027-03-14', hh, 30);
     check(`Mar 14, 2027, ${label} → Mar 14`, instant ? vancouverDate(instant) : 'no such time', '2027-03-14');
   }
 
   // Plan days.
-  const oct7 = getDayContext('2026-10-07');
-  check('Oct 7 is before Day 1', oct7.kind, 'before');
-  check('Oct 7 is 5 days before Day 1', oct7.daysUntilStart, 5);
-  check('Oct 12 is Day 1', getDayContext('2026-10-12').dayNumber, 1);
-  check('Day 1 is a 1-hour day', getDayContext('2026-10-12').hours, 1);
-  check('Oct 15 (Day 4) is a Learn day', getDayContext('2026-10-15').block, 'learn');
-  check('Oct 18 is a rest day', getDayContext('2026-10-18').kind, 'rest');
-  check('Nov 2 is Day 22 (after the clock change)', getDayContext('2026-11-02').dayNumber, 22);
-  check('Nov 21 is Day 41 with the Project 1 gate', Boolean(getDayContext('2026-11-21').gate), true);
-  check('Dec 10 is Day 60', getDayContext('2026-12-10').dayNumber, 60);
-  check('Dec 11 is in the bridge', getDayContext('2026-12-11').kind, 'bridge');
-  check('Dec 24 is bridge rest', getDayContext('2026-12-24').kind, 'bridge-rest');
-  check('Jan 5 adds the application system', Boolean(getDayContext('2027-01-05').application), true);
-  check('Feb 16 is in the application review week', getDayContext('2027-02-16').febReview, true);
+  const preStart = getDayContext('2026-10-28');
+  check('Oct 28 is before Day 1', preStart.kind, 'before');
+  check('Oct 28 is 5 days before Day 1', preStart.daysUntilStart, 5);
+  check('Nov 2 is Day 1', getDayContext('2026-11-02').dayNumber, 1);
+  check('Day 1 is a 1-hour day', getDayContext('2026-11-02').hours, 1);
+  check('Nov 5 (Day 4) is a Learn day', getDayContext('2026-11-05').block, 'learn');
+  check('Nov 8 is a rest day', getDayContext('2026-11-08').kind, 'rest');
+  check('Nov 23 is Day 22', getDayContext('2026-11-23').dayNumber, 22);
+  check('Dec 12 is Day 41 with the Project 1 gate', Boolean(getDayContext('2026-12-12').gate), true);
+  check('Dec 31 is Day 60', getDayContext('2026-12-31').dayNumber, 60);
+  check('Jan 1 is in the bridge', getDayContext('2027-01-01').kind, 'bridge');
+  check('Jan 14 is bridge rest', getDayContext('2027-01-14').kind, 'bridge-rest');
+  check('Jan 26 adds the application system', Boolean(getDayContext('2027-01-26').application), true);
+  check('Mar 9 is in the application review week', getDayContext('2027-03-09').febReview, true);
 
   // Every Sunday from Day 7 to Day 56 is a rest day.
   for (let day = 7; day <= 56; day += 7) {
@@ -125,39 +125,39 @@ export function runDateChecks() {
 
   // Swapping weeks 2 and 5 moves content but keeps dates and holidays.
   const swap = { swapWeeks2and5: true };
-  check('Swap: Oct 19 shows week 5 content', getDayContext('2026-10-19', swap).week.number, 5);
-  check('Swap: Nov 11 keeps Remembrance Day', getDayContext('2026-11-11', swap).holiday, 'Remembrance Day');
-  check('Swap: Nov 11 is still Day 31', getDayContext('2026-11-11', swap).dayNumber, 31);
+  check('Swap: Nov 9 shows week 5 content', getDayContext('2026-11-09', swap).week.number, 5);
+  check('Swap: no holiday label is attached to Dec 2', getDayContext('2026-12-02', swap).holiday, null);
+  check('Swap: Dec 2 is still Day 31', getDayContext('2026-12-02', swap).dayNumber, 31);
 
   // Flashcards: Leitner scheduling.
   const s0 = initialState();
-  check('Cards: "Good" on a new card is due 1 day later', nextState(s0, 'good', '2026-10-12').due, '2026-10-13');
-  check('Cards: "Easy" on a new card jumps to box 2 (3 days)', nextState(s0, 'easy', '2026-10-12').due, '2026-10-15');
-  check('Cards: "Again" is due again the same day', nextState({ ...s0, box: 4 }, 'again', '2026-10-20').due, '2026-10-20');
-  check('Cards: "Hard" keeps the box (box 3 = 7 days)', nextState({ ...s0, box: 3 }, 'hard', '2026-10-20').due, '2026-10-27');
-  check('Cards: "Good" on Oct 31 into box 2 (3 days) is due Nov 3, not Nov 2 or Nov 4',
-    nextState({ ...s0, box: 1 }, 'good', '2026-10-31').due, '2026-11-03');
-  check('Cards: box 5 is the top (30 days)', nextState({ ...s0, box: 5 }, 'easy', '2026-11-02').due, '2026-12-02');
+  check('Cards: "Good" on a new card is due 1 day later', nextState(s0, 'good', '2026-11-02').due, '2026-11-03');
+  check('Cards: "Easy" on a new card jumps to box 2 (3 days)', nextState(s0, 'easy', '2026-11-02').due, '2026-11-05');
+  check('Cards: "Again" is due again the same day', nextState({ ...s0, box: 4 }, 'again', '2026-11-10').due, '2026-11-10');
+  check('Cards: "Hard" keeps the box (box 3 = 7 days)', nextState({ ...s0, box: 3 }, 'hard', '2026-11-10').due, '2026-11-17');
+  check('Cards: "Good" on Nov 21 into box 2 (3 days) is due Nov 24, not Nov 23 or Nov 25',
+    nextState({ ...s0, box: 1 }, 'good', '2026-11-21').due, '2026-11-24');
+  check('Cards: box 5 is the top (30 days)', nextState({ ...s0, box: 5 }, 'easy', '2026-11-23').due, '2026-12-23');
   const history = [
-    { date: '2026-10-13', createdAt: 'b', rating: 'good' },
-    { date: '2026-10-12', createdAt: 'a', rating: 'good' },
+    { date: '2026-11-03', createdAt: 'b', rating: 'good' },
+    { date: '2026-11-02', createdAt: 'a', rating: 'good' },
   ];
-  check('Cards: reviews replay in date order (good, good → box 2, due Oct 16)', replay(history).due, '2026-10-16');
-  check('Cards: week 4 unlocks Mon Nov 2', unlockDate(4, {}), '2026-11-02');
-  check('Cards: with weeks 2 and 5 swapped, week 5 cards unlock Oct 19', unlockDate(5, { swapWeeks2and5: true }), '2026-10-19');
+  check('Cards: reviews replay in date order (good, good → box 2, due Nov 6)', replay(history).due, '2026-11-06');
+  check('Cards: week 4 unlocks Mon Nov 23', unlockDate(4, {}), '2026-11-23');
+  check('Cards: with weeks 2 and 5 swapped, week 5 cards unlock Nov 9', unlockDate(5, { swapWeeks2and5: true }), '2026-11-09');
   const w4 = { id: 'x', week: 4, retired: false };
-  check('Cards: a week 4 card is hidden on Sun Nov 1', scheduleAll([w4], [], '2026-11-01', {}).get('x').unlocked, false);
-  check('Cards: a week 4 card is due on Mon Nov 2', scheduleAll([w4], [], '2026-11-02', {}).get('x').isDue, true);
+  check('Cards: a week 4 card is hidden on Sun Nov 22', scheduleAll([w4], [], '2026-11-22', {}).get('x').unlocked, false);
+  check('Cards: a week 4 card is due on Mon Nov 23', scheduleAll([w4], [], '2026-11-23', {}).get('x').isDue, true);
   // Recall is only asked for after the plan has taught the topic (the day after its teaching day).
   const aaa = { id: 'aaa', week: 1, seedId: 'w1-aaa', retired: false };
   const jml = { id: 'jml', week: 1, seedId: 'w1-jml', retired: false };
-  check('Cards: the AuthN/AuthZ card (taught Day 2) is not asked on Day 1', scheduleAll([aaa], [], '2026-10-12', {}).get('aaa').isDue, false);
-  check('Cards: the AuthN/AuthZ card first comes up on Day 3', cardUnlockDate(aaa, {}), '2026-10-14');
-  check('Cards: the lifecycle card (taught Day 4) first comes up on Day 5', cardUnlockDate(jml, {}), '2026-10-16');
-  check('Cards: the flow-logs cards wait for their Day 46 reading (first up Nov 27)', cardUnlockDate({ week: 6, seedId: 'w6-flow-logs' }, {}), '2026-11-27');
-  check('Cards: with weeks 2 and 5 swapped, a Day 30 card comes up on Day 10 (Oct 21)', cardUnlockDate({ week: 5, seedId: 'w5-zero-trust' }, { swapWeeks2and5: true }), '2026-10-21');
-  check('Cards: a seed card you moved to another week follows your week', cardUnlockDate({ week: 3, seedId: 'w1-aaa' }, {}), '2026-10-26');
-  check('Cards: a card you added unlocks on its week\'s Monday', cardUnlockDate({ week: 4, seedId: null }, {}), '2026-11-02');
+  check('Cards: the AuthN/AuthZ card (taught Day 2) is not asked on Day 1', scheduleAll([aaa], [], '2026-11-02', {}).get('aaa').isDue, false);
+  check('Cards: the AuthN/AuthZ card first comes up on Day 3', cardUnlockDate(aaa, {}), '2026-11-04');
+  check('Cards: the lifecycle card (taught Day 4) first comes up on Day 5', cardUnlockDate(jml, {}), '2026-11-06');
+  check('Cards: the flow-logs cards wait for their Day 46 reading (first up Dec 18)', cardUnlockDate({ week: 6, seedId: 'w6-flow-logs' }, {}), '2026-12-18');
+  check('Cards: with weeks 2 and 5 swapped, a Day 30 card comes up on Day 10 (Nov 11)', cardUnlockDate({ week: 5, seedId: 'w5-zero-trust' }, { swapWeeks2and5: true }), '2026-11-11');
+  check('Cards: a seed card you moved to another week follows your week', cardUnlockDate({ week: 3, seedId: 'w1-aaa' }, {}), '2026-11-16');
+  check('Cards: a card you added unlocks on its week\'s Monday', cardUnlockDate({ week: 4, seedId: null }, {}), '2026-11-23');
   check('Cards: every seed card has a teaching day in or after its week, on a study day',
     SEED_CARDS.every((c) => {
       const d = SEED_TEACH_DAYS[c.seedId];
@@ -166,13 +166,13 @@ export function runDateChecks() {
   // What you can recall: "held" needs a Good or Easy after a gap of 7+ days; a high box alone is not enough.
   const rv = (date, rating, n = 'a') => ({ cardId: 'c', date, rating, createdAt: `${date}${n}` });
   check('Recall: no reviews is "not tried yet"', recallState([]), 'new');
-  check('Recall: last rating Hard is "needs another look"', recallState([rv('2026-10-14', 'good'), rv('2026-10-21', 'hard')]), 'shaky');
-  check('Recall: two Easy ratings four days apart are not "held"', recallState([rv('2026-10-14', 'easy'), rv('2026-10-18', 'easy')]), 'recent');
-  check('Recall: Good after a 7-day gap is "held"', recallState([rv('2026-10-14', 'again'), rv('2026-10-14', 'good', 'b'), rv('2026-10-21', 'good')]), 'held');
-  check('Recall: a later Again turns "held" back into "needs another look"', recallState([rv('2026-10-14', 'good'), rv('2026-10-21', 'good'), rv('2026-11-04', 'again')]), 'shaky');
+  check('Recall: last rating Hard is "needs another look"', recallState([rv('2026-11-04', 'good'), rv('2026-11-11', 'hard')]), 'shaky');
+  check('Recall: two Easy ratings four days apart are not "held"', recallState([rv('2026-11-04', 'easy'), rv('2026-11-08', 'easy')]), 'recent');
+  check('Recall: Good after a 7-day gap is "held"', recallState([rv('2026-11-04', 'again'), rv('2026-11-04', 'good', 'b'), rv('2026-11-11', 'good')]), 'held');
+  check('Recall: a later Again turns "held" back into "needs another look"', recallState([rv('2026-11-04', 'good'), rv('2026-11-11', 'good'), rv('2026-11-25', 'again')]), 'shaky');
   {
     const cards = [{ id: 'c', week: 1, seedId: 'w1-aaa' }, { id: 'j', week: 1, seedId: 'w1-jml' }, { id: 'r', week: 1, retired: true }];
-    const sum = recallSummary(cards, [rv('2026-10-14', 'again')], '2026-10-14', {});
+    const sum = recallSummary(cards, [rv('2026-11-04', 'again')], '2026-11-04', {});
     check('Recall: only taught, unretired cards count (lifecycle is taught on Day 4)', [sum.totals.total, sum.totals.shaky, sum.shaky.length].join(), '1,1,1');
   }
   const mixed = [{ id: 'a', week: 3 }, { id: 'b', week: 3 }, { id: 'c', week: 1 }, { id: 'd', week: 2 }];
@@ -182,63 +182,63 @@ export function runDateChecks() {
   check('Cards: every week 1–8 has seed cards', [1, 2, 3, 4, 5, 6, 7, 8].every((w) => SEED_CARDS.some((c) => c.week === w)), true);
 
   // Scorecard pace (against the plan, not the calendar).
-  check('Pace: 52 study days from Oct 12 to Dec 10', countStudyDays(PERIOD_1.start, PERIOD_1.end), 52);
-  check('Pace: no hours expected on the morning of Day 1', expectedHours('2026-10-12'), 0);
-  check('Pace: 1 h expected once Day 1 has ended', expectedHours('2026-10-13'), 1);
-  check('Pace: 11 h expected on Sun Oct 18 (Week 1 done)', expectedHours('2026-10-18'), 11);
-  check('Pace: a Sunday adds no hours (Sun Oct 18 = Mon Oct 19)', expectedHours('2026-10-19'), expectedHours('2026-10-18'));
-  check('Pace: 103 planned hours once Dec 10 has ended', expectedHours('2026-12-11'), 103);
-  check('Pace: no artifact expected before the first Saturday ends', expectedArtifactsPeriod1('2026-10-17'), 0);
-  check('Pace: 1 artifact expected on Sun Oct 18', expectedArtifactsPeriod1('2026-10-18'), 1);
-  check('Pace: 9 artifacts expected after Dec 10 (8 Saturdays + capstone)', expectedArtifactsPeriod1('2026-12-11'), 9);
+  check('Pace: 52 study days from Nov 2 to Dec 31', countStudyDays(PERIOD_1.start, PERIOD_1.end), 52);
+  check('Pace: no hours expected on the morning of Day 1', expectedHours('2026-11-02'), 0);
+  check('Pace: 1 h expected once Day 1 has ended', expectedHours('2026-11-03'), 1);
+  check('Pace: 11 h expected on Sun Nov 8 (Week 1 done)', expectedHours('2026-11-08'), 11);
+  check('Pace: a Sunday adds no hours (Sun Nov 8 = Mon Nov 9)', expectedHours('2026-11-09'), expectedHours('2026-11-08'));
+  check('Pace: 103 planned hours once Dec 31 has ended', expectedHours('2027-01-01'), 103);
+  check('Pace: no artifact expected before the first Saturday ends', expectedArtifactsPeriod1('2026-11-07'), 0);
+  check('Pace: 1 artifact expected on Sun Nov 8', expectedArtifactsPeriod1('2026-11-08'), 1);
+  check('Pace: 9 artifacts expected after Dec 31 (8 Saturdays + capstone)', expectedArtifactsPeriod1('2027-01-01'), 9);
   for (const m of ['conversation', 'application', 'referral']) {
-    check(`Pace: a Sunday adds no ${m}s (Sun Oct 25 = Mon Oct 26)`,
-      expectedFor(m, PERIOD_1, '2026-10-26'), expectedFor(m, PERIOD_1, '2026-10-25'));
+    check(`Pace: a Sunday adds no ${m}s (Sun Nov 15 = Mon Nov 16)`,
+      expectedFor(m, PERIOD_1, '2026-11-16'), expectedFor(m, PERIOD_1, '2026-11-15'));
   }
-  check('Pace: no conversations expected during Week 1 (by Sun Oct 18)', expectedFor('conversation', PERIOD_1, '2026-10-18'), 0);
-  check('Pace: no conversations expected on the morning of Oct 19', expectedFor('conversation', PERIOD_1, '2026-10-19'), 0);
-  check('Pace: the conversation spread starts counting once Oct 19 has ended',
-    expectedFor('conversation', PERIOD_1, '2026-10-20') > 0, true);
-  check('Pace: applications still count from Oct 12 (spread unchanged)',
-    expectedFor('application', PERIOD_1, '2026-10-13') > 0, true);
-  check('Pace: the full 15 conversations are expected after Dec 10', expectedFor('conversation', PERIOD_1, '2026-12-11'), 15);
-  check('Pace: the Dec 24 – Jan 1 rest adds nothing (Dec 24 = Jan 2)',
-    expectedFor('conversation', PERIOD_2, '2027-01-02'), expectedFor('conversation', PERIOD_2, '2026-12-24'));
-  check('Pace: Jan 31 targets use the low end (20 applications)', expectedFor('application', PERIOD_2, '2027-02-01'), 20);
+  check('Pace: no conversations expected during Week 1 (by Sun Nov 8)', expectedFor('conversation', PERIOD_1, '2026-11-08'), 0);
+  check('Pace: no conversations expected on the morning of Nov 9', expectedFor('conversation', PERIOD_1, '2026-11-09'), 0);
+  check('Pace: the conversation spread starts counting once Nov 9 has ended',
+    expectedFor('conversation', PERIOD_1, '2026-11-10') > 0, true);
+  check('Pace: applications still count from Nov 2 (spread unchanged)',
+    expectedFor('application', PERIOD_1, '2026-11-03') > 0, true);
+  check('Pace: the full 15 conversations are expected after Dec 31', expectedFor('conversation', PERIOD_1, '2027-01-01'), 15);
+  check('Pace: the Jan 14 – Jan 22 rest adds nothing (Jan 14 = Jan 23)',
+    expectedFor('conversation', PERIOD_2, '2027-01-23'), expectedFor('conversation', PERIOD_2, '2027-01-14'));
+  check('Pace: Feb 21 targets use the low end (20 applications)', expectedFor('application', PERIOD_2, '2027-02-22'), 20);
   check('Status: 90% of expected is On track', statusFor(9, 10, { isCount: true }), 'on');
   check('Status: 80% is Behind', statusFor(8, 10, { isCount: true }), 'behind');
   check('Status: 60% is At risk', statusFor(6, 10, { isCount: true }), 'risk');
   check('Status: one short of 1 is Behind, not At risk', statusFor(0, 1, { isCount: true }), 'behind');
   check('Status: 0.8 of a conversation expected is still On track', statusFor(0, 0.8, { isCount: true }), 'on');
-  const sat = [1, 2, 3, 4, 5, 6].map((i) => ({ date: `2026-10-${String(11 + i).padStart(2, '0')}`, minutes: i === 1 ? 60 : 120 }));
+  const sat = [1, 2, 3, 4, 5, 6].map((i) => ({ date: addDays(PLAN_START, i - 1), minutes: i === 1 ? 60 : 120 })); // Week 1, Mon to Sat
   const hoursStatus = (d) => scorecard(d, sat, {}).find((r) => r.id === 'hours').status;
-  check('Status: with Week 1 fully logged, Sun Oct 18 is On track', hoursStatus('2026-10-18'), 'on');
-  check('Status: and Mon Oct 19 morning is still On track', hoursStatus('2026-10-19'), 'on');
+  check('Status: with Week 1 fully logged, Sun Nov 8 is On track', hoursStatus('2026-11-08'), 'on');
+  check('Status: and Mon Nov 9 morning is still On track', hoursStatus('2026-11-09'), 'on');
 
   // Stage 4: Evidence log, People log and the migration.
-  const draft = { id: 'd', status: 'draft', createdDate: '2026-10-12', publishedDate: null };
-  const pub = { id: 'p', status: 'published', createdDate: '2026-10-12', publishedDate: '2026-10-17' };
+  const draft = { id: 'd', status: 'draft', createdDate: '2026-11-02', publishedDate: null };
+  const pub = { id: 'p', status: 'published', createdDate: '2026-11-02', publishedDate: '2026-11-07' };
   check('Evidence: a draft does not count', countsFromDoc({ artifacts: [draft] }).artifact.length, 0);
   check('Evidence: a published artifact counts on its published date, not its created date',
-    countsFromDoc({ artifacts: [draft, pub] }).artifact.join(','), '2026-10-17');
+    countsFromDoc({ artifacts: [draft, pub] }).artifact.join(','), '2026-11-07');
   const rowFor = (artifacts, date) => scorecard(date, [], countsFromDoc({ artifacts })).find((r) => r.id === 'artifact').actual;
-  check('Evidence: created Oct 12 but published Oct 17 is not counted on Oct 14', rowFor([pub], '2026-10-14'), 0);
-  check('Evidence: ...and is counted on Oct 17', rowFor([pub], '2026-10-17'), 1);
+  check('Evidence: created Nov 2 but published Nov 7 is not counted on Nov 4', rowFor([pub], '2026-11-04'), 0);
+  check('Evidence: ...and is counted on Nov 7', rowFor([pub], '2026-11-07'), 1);
   const people = [{ id: 'x' }];
   const talks = [
-    { id: 'i1', personId: 'x', type: 'conversation', date: '2026-10-20' },
-    { id: 'i2', personId: 'x', type: 'referral', date: '2026-10-22' },
+    { id: 'i1', personId: 'x', type: 'conversation', date: '2026-11-10' },
+    { id: 'i2', personId: 'x', type: 'referral', date: '2026-11-12' },
   ];
   check('People: conversations come from interactions by date',
-    countsFromDoc({ people, interactions: talks }).conversation.join(','), '2026-10-20');
+    countsFromDoc({ people, interactions: talks }).conversation.join(','), '2026-11-10');
   check('People: referral asks come from interactions by date',
-    countsFromDoc({ people, interactions: talks }).referral.join(','), '2026-10-22');
+    countsFromDoc({ people, interactions: talks }).referral.join(','), '2026-11-12');
   check('Validation: a published artifact needs a published date',
     validateArtifact({ ...pub, publishedDate: null, title: 't', type: 'other', tags: ['a'] }).length > 0, true);
   check('Validation: published before created is refused',
-    validateArtifact({ ...pub, publishedDate: '2026-10-01', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
+    validateArtifact({ ...pub, publishedDate: '2026-10-22', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
   check('Validation: a draft cannot have a published date',
-    validateArtifact({ ...draft, publishedDate: '2026-10-20', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
+    validateArtifact({ ...draft, publishedDate: '2026-11-10', title: 't', type: 'other', tags: ['a'] }).length > 0, true);
   check('Validation: four skill tags are refused',
     validateArtifact({ ...pub, title: 't', type: 'other', tags: ['a', 'b', 'c', 'd'] }).length > 0, true);
   check('Validation: a valid artifact passes',
@@ -246,25 +246,25 @@ export function runDateChecks() {
   check('Links: https is allowed', isHttpUrl('https://example.com'), true);
   check('Links: javascript: is refused', isHttpUrl('javascript:alert(1)'), false);
   check('Validation: a follow-up before the interaction date is refused',
-    validateInteraction({ personId: 'x', type: 'conversation', date: '2026-10-20', followUpDue: '2026-10-19' }).length > 0, true);
+    validateInteraction({ personId: 'x', type: 'conversation', date: '2026-11-10', followUpDue: '2026-11-09' }).length > 0, true);
   check('Validation: a person needs a name and how you connected',
     validatePerson({ name: '', connection: '' }).length, 2);
 
   const stage3 = {
     schemaVersion: 3, app: 'identity-lab-coach',
-    sessions: [{ id: 's', date: '2026-10-13', minutes: 60, status: 'done', reason: '' }],
+    sessions: [{ id: 's', date: '2026-11-03', minutes: 60, status: 'done', reason: '' }],
     cards: [], cardReviews: [], artifacts: [], people: [], reviews: [], weekChecks: {},
     settings: { theme: 'system' },
     tallies: [
-      { id: 'a1', kind: 'artifact', date: '2026-10-17', note: 'identity-lab README', testMode: true },
-      { id: 'c1', kind: 'conversation', date: '2026-10-21', note: 'Chat', testMode: true },
-      { id: 'c2', kind: 'conversation', date: '2026-10-23', note: '', testMode: false },
-      { id: 'r1', kind: 'referral', date: '2026-10-25', note: 'asked', testMode: false },
-      { id: 'p1', kind: 'application', date: '2026-10-26', note: 'Acme', testMode: false },
+      { id: 'a1', kind: 'artifact', date: '2026-11-07', note: 'identity-lab README', testMode: true },
+      { id: 'c1', kind: 'conversation', date: '2026-11-11', note: 'Chat', testMode: true },
+      { id: 'c2', kind: 'conversation', date: '2026-11-13', note: '', testMode: false },
+      { id: 'r1', kind: 'referral', date: '2026-11-15', note: 'asked', testMode: false },
+      { id: 'p1', kind: 'application', date: '2026-11-16', note: 'Acme', testMode: false },
     ],
   };
   const before = JSON.stringify(stage3);
-  const m1 = migrate(stage3, { now: new Date('2026-10-27T12:00:00Z') });
+  const m1 = migrate(stage3, { now: new Date('2026-11-17T12:00:00Z') });
   check('Migration: a Stage 3 file needs it', needsMigration(stage3), true);
   check('Migration: succeeds', m1.ok, true);
   check('Migration: does not change its input', JSON.stringify(stage3), before);
@@ -276,7 +276,7 @@ export function runDateChecks() {
   }
   check('Migration: the artifact became a published Evidence record',
     m1.doc.artifacts.length === 1 && m1.doc.artifacts[0].status === 'published'
-      && m1.doc.artifacts[0].publishedDate === '2026-10-17' && m1.doc.artifacts[0].title === 'identity-lab README', true);
+      && m1.doc.artifacts[0].publishedDate === '2026-11-07' && m1.doc.artifacts[0].title === 'identity-lab README', true);
   check('Migration: conversations and referral asks sit under one placeholder person',
     m1.doc.people.length === 1 && m1.doc.people[0].id === UNASSIGNED_ID && m1.doc.interactions.length === 3, true);
   check('Migration: applications stay as quick entries', m1.doc.tallies.map((t) => t.kind).join(','), 'application');
@@ -299,8 +299,8 @@ export function runDateChecks() {
   check('Evidence: maturity and project do not change the scorecard counts',
     JSON.stringify(countsFromDoc({ artifacts: [richPub, richDraft] })), JSON.stringify(countsFromDoc({ artifacts: [pub, draft] })));
   check('Evidence: the scorecard rows are identical with or without them',
-    scorecard('2026-12-11', [], countsFromDoc({ artifacts: [richPub, richDraft] })).map((r) => r.actual).join(','),
-    scorecard('2026-12-11', [], countsFromDoc({ artifacts: [pub, draft] })).map((r) => r.actual).join(','));
+    scorecard('2027-01-01', [], countsFromDoc({ artifacts: [richPub, richDraft] })).map((r) => r.actual).join(','),
+    scorecard('2027-01-01', [], countsFromDoc({ artifacts: [pub, draft] })).map((r) => r.actual).join(','));
   const okBase = { ...pub, title: 't', type: 'other', tags: ['a'] };
   check('Maturity: a published artifact needs one when saving', validateArtifact(okBase, { requireMaturity: true }).length > 0, true);
   check('Maturity: a draft does not need one yet', validateArtifact({ ...draft, title: 't', type: 'other', tags: ['a'] }, { requireMaturity: true }).length, 0);
@@ -311,12 +311,12 @@ export function runDateChecks() {
   const md = evidenceToMarkdown([
     { ...richPub, url: 'https://example.com/x', reflection: 'It worked.\nNext: *measure* it.' },
     richDraft,
-    { ...pub, id: 'q', title: 'Older entry', type: 'other', publishedDate: '2026-10-10', tags: [], maturity: '', project: '' },
-  ], { exportedOn: '2026-10-29' });
+    { ...pub, id: 'q', title: 'Older entry', type: 'other', publishedDate: '2026-10-31', tags: [], maturity: '', project: '' },
+  ], { exportedOn: '2026-11-19' });
   check('Markdown: drafts are never included', md.includes('## D'), false);
   check('Markdown: oldest published item comes first', md.indexOf('Older entry') < md.indexOf('## T'), true);
   check('Markdown: it names title, type, project, maturity, date, skills, link and reflection',
-    ['## T', '**Type:** Threat model', '**Project:** Project 1', '**How real:** Built and working', '**Shared:** 2026-10-17', '**Skills:** PKCE', '<https://example.com/x>', '**What I learned.** It worked.'].every((x) => md.includes(x)), true);
+    ['## T', '**Type:** Threat model', '**Project:** Project 1', '**How real:** Built and working', '**Shared:** 2026-11-07', '**Skills:** PKCE', '<https://example.com/x>', '**What I learned.** It worked.'].every((x) => md.includes(x)), true);
   check('Markdown: missing maturity and project say "Not set"', md.includes('**How real:** Not set') && md.includes('**Project:** Not set'), true);
   check('Markdown: text is escaped so it shows as written', escapeMd('a *b* _c_ [d]') === 'a \\*b\\* \\_c\\_ \\[d\\]' && escapeMd('# not a heading') === '\\# not a heading', true);
   check('Markdown: a link that is not http(s) is left out', evidenceToMarkdown([{ ...richPub, url: 'javascript:alert(1)' }]).includes('javascript'), false);
@@ -407,11 +407,11 @@ export function runDateChecks() {
   check('Do this next: total estimated minutes', totalMinutes(list), 80);
   check('Do this next: minutes still to do leave out done and optional ones', remainingMinutes(list), 55);
   check('Do this next: optional minutes are counted on their own', optionalMinutes(list), 15);
-  check('Swap: Oct 19 shows week 5 resources (roadmap Day 29)', getDayContext('2026-10-19', { swapWeeks2and5: true }).contentDay, 29);
-  check('Swap: with no swap, Oct 19 is roadmap Day 8', getDayContext('2026-10-19', {}).contentDay, 8);
+  check('Swap: Nov 9 shows week 5 resources (roadmap Day 29)', getDayContext('2026-11-09', { swapWeeks2and5: true }).contentDay, 29);
+  check('Swap: with no swap, Nov 9 is roadmap Day 8', getDayContext('2026-11-09', {}).contentDay, 8);
   const withResources = { artifacts: [pub], interactions: [], tallies: [], resources: [{ ...good, id: 'r', status: 'done', minutes: 120 }] };
   check('Hours: resource minutes never count as hours or change the scorecard',
-    scorecard('2026-10-18', [], countsFromDoc(withResources)).find((r) => r.id === 'hours').actual, 0);
+    scorecard('2026-11-08', [], countsFromDoc(withResources)).find((r) => r.id === 'hours').actual, 0);
 
   // Plan text version 2 (revised roadmap): nothing you ticked or logged can be lost.
   const itemIds = new Set(WEEKS.flatMap((w) => w.items.map((i) => i.id)));
@@ -444,38 +444,46 @@ export function runDateChecks() {
   check('Cards: seed ids are unique, so re-seeding cannot duplicate', new Set(SEED_CARDS.map((c) => c.seedId)).size, SEED_CARDS.length);
   check('Skill tags: the five new suggestions are offered', ['network-security', 'cloud-security', 'zero-trust', 'segmentation', 'workload-identity'].every((t) => SUGGESTED_SKILL_TAGS.includes(t)), true);
 
+  // Lessons are self-paced: the next one is the first in course order that is not complete.
+  const L = [{ id: 'c', day: 3 }, { id: 'a', day: 1 }, { id: 'b', day: 2 }];
+  check('Lessons: with none complete, the next lesson is Day 1', nextLessonOf(L, () => false)?.id, 'a');
+  check('Lessons: after completing Day 1, the next is Day 2', nextLessonOf(L, (l) => l.id === 'a')?.id, 'b');
+  check('Lessons: completing out of order still offers the first one not done', nextLessonOf(L, (l) => l.id === 'b')?.id, 'a');
+  check('Lessons: when every lesson is complete there is no next one', nextLessonOf(L, () => true), null);
+  check('Routes: #learn/lessons is a section of Learn', resolveHash('#learn/lessons').section, 'lessons');
+
   // Course home and the guided session.
   const emptyData = (over = {}) => ({ settings: {}, sessions: [], weekChecks: {}, resources: [], ...over });
   const cp = (data, today) => courseProgress(emptyData(data), { today });
   const w1Required = WEEKS[0].items.filter((i) => !i.optional && !i.conditional);
-  check('Course: nine weeks are listed', cp({}, '2026-10-14').weeks.length, 9);
-  check('Course: with nothing ticked, progress is 0%', cp({}, '2026-10-14').percent, 0);
-  check('Course: the current week is found by date', cp({}, '2026-10-14').weeks.map((w) => w.state).join(','), 'current,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming');
-  check('Course: Sunday still belongs to the week that just ended', cp({}, '2026-10-18').weeks[0].state, 'current');
-  check('Course: Monday starts the next week', `${cp({}, '2026-10-19').weeks[0].state} ${cp({}, '2026-10-19').weeks[1].state}`, 'past current');
+  check('Course: nine weeks are listed', cp({}, '2026-11-04').weeks.length, 9);
+  check('Course: with nothing ticked, progress is 0%', cp({}, '2026-11-04').percent, 0);
+  check('Course: the current week is found by date', cp({}, '2026-11-04').weeks.map((w) => w.state).join(','), 'current,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming,upcoming');
+  check('Course: Sunday still belongs to the week that just ended', cp({}, '2026-11-08').weeks[0].state, 'current');
+  check('Course: Monday starts the next week', `${cp({}, '2026-11-09').weeks[0].state} ${cp({}, '2026-11-09').weeks[1].state}`, 'past current');
   const ticksOf = (ids) => Object.fromEntries(ids.map((id) => [id, { at: 'x' }]));
-  const allW1 = cp({ weekChecks: ticksOf(w1Required.map((i) => i.id)) }, '2026-10-14');
+  const allW1 = cp({ weekChecks: ticksOf(w1Required.map((i) => i.id)) }, '2026-11-04');
   check('Course: ticking every required item of a week fills its bar', `${allW1.weeks[0].requiredTicked}/${allW1.weeks[0].required}`, `${w1Required.length}/${w1Required.length}`);
-  check('Course: an Optional item never counts toward required progress', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-10-14').weeks[0].requiredTicked, 0);
-  check('Course: the Optional tick is still shown separately', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-10-14').weeks[0].extraTicked, 1);
-  check('Course: overall percent follows the ticks', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-10-14').requiredTicked, 1);
+  check('Course: an Optional item never counts toward required progress', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-11-04').weeks[0].requiredTicked, 0);
+  check('Course: the Optional tick is still shown separately', cp({ weekChecks: ticksOf(['w1-read-3']) }, '2026-11-04').weeks[0].extraTicked, 1);
+  check('Course: overall percent follows the ticks', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-11-04').requiredTicked, 1);
   check('Course: hours are only that calendar week’s sessions',
-    cp({ sessions: [{ date: '2026-10-13', minutes: 100 }, { date: '2026-10-19', minutes: 50 }] }, '2026-10-20').weeks.map((w) => w.loggedMinutes).slice(0, 2).join(','), '100,50');
-  check('Course: planned minutes come from the week budget (Week 1 is 11 h)', cp({}, '2026-10-14').weeks[0].plannedMinutes, 660);
+    cp({ sessions: [{ date: '2026-11-03', minutes: 100 }, { date: '2026-11-09', minutes: 50 }] }, '2026-11-10').weeks.map((w) => w.loggedMinutes).slice(0, 2).join(','), '100,50');
+  check('Course: planned minutes come from the week budget (Week 1 is 11 h)', cp({}, '2026-11-04').weeks[0].plannedMinutes, 660);
   const resDay29 = { id: 'r1', days: [29], status: 'done', minutes: 30, retired: false };
-  check('Course: a resource counts in the week its roadmap day belongs to', cp({ resources: [resDay29] }, '2026-11-09').weeks[4].resourcesTotal, 1);
-  check('Course: a done resource is counted as done', cp({ resources: [resDay29] }, '2026-11-09').weeks[4].resourcesDone, 1);
-  check('Course: a retired resource is left out', cp({ resources: [{ ...resDay29, retired: true }] }, '2026-11-09').weeks[4].resourcesTotal, 0);
+  check('Course: a resource counts in the week its roadmap day belongs to', cp({ resources: [resDay29] }, '2026-11-30').weeks[4].resourcesTotal, 1);
+  check('Course: a done resource is counted as done', cp({ resources: [resDay29] }, '2026-11-30').weeks[4].resourcesDone, 1);
+  check('Course: a retired resource is left out', cp({ resources: [{ ...resDay29, retired: true }] }, '2026-11-30').weeks[4].resourcesTotal, 0);
   check('Course: with weeks 2 and 5 swapped, a Week 5 resource shows in calendar week 2',
-    cp({ settings: { swapWeeks2and5: true }, resources: [resDay29] }, '2026-10-19').weeks[1].resourcesTotal, 1);
-  check('Continue: before the plan starts it points at Week 1’s first item', `${cp({}, '2026-10-07').next.weekNumber} ${cp({}, '2026-10-07').next.text.slice(0, 14)}`, '1 Authentication');
-  check('Continue: it points at the first required item not yet ticked', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-10-14').next.text, WEEKS[0].items.find((i) => i.id === 'w1-read-1').text);
-  check('Continue: this week comes before an earlier unfinished week', cp({}, '2026-10-21').next.weekNumber, 2);
+    cp({ settings: { swapWeeks2and5: true }, resources: [resDay29] }, '2026-11-09').weeks[1].resourcesTotal, 1);
+  check('Continue: before the plan starts it points at Week 1’s first item', `${cp({}, '2026-10-28').next.weekNumber} ${cp({}, '2026-10-28').next.text.slice(0, 14)}`, '1 Authentication');
+  check('Continue: it points at the first required item not yet ticked', cp({ weekChecks: ticksOf(['w1-learn-1']) }, '2026-11-04').next.text, WEEKS[0].items.find((i) => i.id === 'w1-read-1').text);
+  check('Continue: this week comes before an earlier unfinished week', cp({}, '2026-11-11').next.weekNumber, 2);
   check('Continue: when this week is done it returns to an earlier unfinished week',
-    cp({ weekChecks: ticksOf(WEEKS[1].items.filter((i) => !i.optional && !i.conditional).map((i) => i.id)) }, '2026-10-21').next.weekNumber, 1);
+    cp({ weekChecks: ticksOf(WEEKS[1].items.filter((i) => !i.optional && !i.conditional).map((i) => i.id)) }, '2026-11-11').next.weekNumber, 1);
   const everything = ticksOf(WEEKS.flatMap((w) => w.items.filter((i) => !i.optional && !i.conditional).map((i) => i.id)));
-  check('Continue: when every required item is ticked there is nothing to continue', cp({ weekChecks: everything }, '2026-12-11').next, null);
-  check('Course: planned-so-far hours match the scorecard’s expected hours', cp({}, '2026-10-19').plannedSoFarMinutes, 660);
+  check('Continue: when every required item is ticked there is nothing to continue', cp({ weekChecks: everything }, '2027-01-01').next, null);
+  check('Course: planned-so-far hours match the scorecard’s expected hours', cp({}, '2026-11-09').plannedSoFarMinutes, 660);
   check('Session: the steps are warm-up, focus, wrap-up', STEPS.map((x) => x.id).join(','), 'warmup,focus,wrapup');
   check('Session: next moves forward and stops at the end', `${nextStep('warmup')} ${nextStep('focus')} ${nextStep('wrapup')}`, 'focus wrapup wrapup');
   check('Session: back moves backward and stops at the start', `${previousStep('wrapup')} ${previousStep('focus')} ${previousStep('warmup')}`, 'focus warmup warmup');
@@ -491,7 +499,7 @@ export function runDateChecks() {
   check('Backups: files that are not ours are never touched', ['my-notes.txt', 'identity-lab-coach-2026-10-5.json', 'taxes-2026-10-01.json'].some((n) => gone.includes(n)), false);
   check('Backups: only exact dated names count as ours', `${isOurDatedFile('identity-lab-coach-2026-10-05.json')} ${isOurDatedFile('identity-lab-coach-latest.json')}`, 'true false');
   check('Snapshots: the newest 14 days are kept', `${KEEP_SNAPSHOTS} ${snapshotsToRemove(many.map((n) => n.slice(18, 28))).length}`, '14 6');
-  check('Snapshots: nothing is removed under the limit', snapshotsToRemove(['2026-10-01', '2026-10-02']).length, 0);
+  check('Snapshots: nothing is removed under the limit', snapshotsToRemove(['2026-10-22', '2026-10-23']).length, 0);
 
   // Content packs.
   const mpack = (over = {}) => ({ id: 'res-one', title: 'Resources one', version: 1, type: 'resources', path: 'res-one.json', ...over });
@@ -584,9 +592,9 @@ export function runDateChecks() {
     WEEKS.slice(0, 8).map((w) => w.items.filter((i) => !i.optional && !i.conditional).length).join(','), '9,11,12,10,10,12,9,11');
   const tickedAll = Object.fromEntries(v2Ids.map((id) => [id, { at: 'x', testMode: false }]));
   check('Plan v3: ticks saved under version 2 are unchanged by the rename step', JSON.stringify(renameChecks(tickedAll)), JSON.stringify(tickedAll));
-  const hoursRow = (extra) => scorecard('2026-10-18', [...sat, ...extra], {}).find((r) => r.id === 'hours');
-  check('Plan v3: logging 3 extra hours is not penalised (still On track)', hoursRow([{ date: '2026-10-17', minutes: 180 }]).status, 'on');
-  check('Plan v3: the scorecard still expects the same hours with or without extra logged time', hoursRow([{ date: '2026-10-17', minutes: 180 }]).expected, hoursRow([]).expected);
+  const hoursRow = (extra) => scorecard('2026-11-08', [...sat, ...extra], {}).find((r) => r.id === 'hours');
+  check('Plan v3: logging 3 extra hours is not penalised (still On track)', hoursRow([{ date: '2026-11-07', minutes: 180 }]).status, 'on');
+  check('Plan v3: the scorecard still expects the same hours with or without extra logged time', hoursRow([{ date: '2026-11-07', minutes: 180 }]).expected, hoursRow([]).expected);
 
   // Your Optional / Required choices.
   const flagship = design[3];
@@ -595,21 +603,21 @@ export function runDateChecks() {
   check('Optional choice: your choice beats the plan (flagship marked optional)', itemIsOptional(flagship, { [`item:${flagship.id}`]: { optional: true } }), true);
   check('Optional choice: your choice beats the plan (optional item marked required)', itemIsOptional(optItem, { [`item:${optItem.id}`]: { optional: false } }), false);
   check('Optional choice: a choice on another item changes nothing', itemIsOptional(flagship, { 'item:other': { optional: true } }), false);
-  const cpBefore = courseProgress(emptyData(), { today: '2026-11-10' });
-  const cpAfter = courseProgress(emptyData({ optionalOverrides: { [`item:${flagship.id}`]: { optional: true } } }), { today: '2026-11-10' });
+  const cpBefore = courseProgress(emptyData(), { today: '2026-12-01' });
+  const cpAfter = courseProgress(emptyData({ optionalOverrides: { [`item:${flagship.id}`]: { optional: true } } }), { today: '2026-12-01' });
   check('Optional choice: marking a required item optional lowers that week\'s required count by one', cpBefore.weeks[3].required - cpAfter.weeks[3].required, 1);
   check('Optional choice: and counts it as extra', cpAfter.weeks[3].extraTotal - cpBefore.weeks[3].extraTotal, 1);
   check('Optional choice: no other week changes', cpAfter.weeks.filter((w, i) => i !== 3 && w.required !== cpBefore.weeks[i].required).length, 0);
-  const cpMore = courseProgress(emptyData({ optionalOverrides: { [`item:${optItem.id}`]: { optional: false } } }), { today: '2026-10-14' });
-  check('Optional choice: marking an optional item required raises the required count by one', cpMore.weeks[0].required - cp({}, '2026-10-14').weeks[0].required, 1);
+  const cpMore = courseProgress(emptyData({ optionalOverrides: { [`item:${optItem.id}`]: { optional: false } } }), { today: '2026-11-04' });
+  check('Optional choice: marking an optional item required raises the required count by one', cpMore.weeks[0].required - cp({}, '2026-11-04').weeks[0].required, 1);
   check('Optional choice: a ticked item stays ticked when its setting changes', courseProgress(emptyData({
     weekChecks: { [flagship.id]: { at: 'x' } }, optionalOverrides: { [`item:${flagship.id}`]: { optional: true } },
-  }), { today: '2026-11-10' }).weeks[3].extraTicked, 1);
+  }), { today: '2026-12-01' }).weeks[3].extraTicked, 1);
 
   // Evidence categories (schema 5).
-  const legacyArtifact = { id: 'a1', title: 'Old one', type: 'write-up', status: 'published', createdDate: '2026-10-12', publishedDate: '2026-10-17', url: '', tags: ['oauth'], reflection: 'r', maturity: 'implemented', project: 'project-1', migrated: false, testMode: false };
+  const legacyArtifact = { id: 'a1', title: 'Old one', type: 'write-up', status: 'published', createdDate: '2026-11-02', publishedDate: '2026-11-07', url: '', tags: ['oauth'], reflection: 'r', maturity: 'implemented', project: 'project-1', migrated: false, testMode: false };
   const legacyDraft = { ...legacyArtifact, id: 'a2', status: 'draft', publishedDate: null, title: 'Draft' };
-  const v4doc = { schemaVersion: 4, planVersion: 2, sessions: [{ id: 's', date: '2026-10-13', minutes: 60 }], tallies: [], artifacts: [legacyArtifact, legacyDraft], people: [], interactions: [] };
+  const v4doc = { schemaVersion: 4, planVersion: 2, sessions: [{ id: 's', date: '2026-11-03', minutes: 60 }], tallies: [], artifacts: [legacyArtifact, legacyDraft], people: [], interactions: [] };
   const m5 = migrate(v4doc);
   check('Category migration: a version 4 file with entries migrates', m5.ok, true);
   check('Category migration: schema version becomes 5', m5.doc.schemaVersion, 5);
@@ -648,7 +656,9 @@ export function runDateChecks() {
   check('Routes: #today', where('#today'), 'today');
   check('Routes: #plan', where('#plan'), 'plan');
   check('Routes: #progress', where('#progress'), 'progress');
-  check('Routes: #settings', where('#settings'), 'settings');
+  check('Routes: #settings opens Data and backups first', where('#settings'), 'settings/data');
+  check('Routes: #settings/content and #settings/general', `${where('#settings/content')} ${where('#settings/general')}`, 'settings/content settings/general');
+  check('Routes: an unknown settings section falls back to Data and backups', where('#settings/nope'), 'settings/data');
   check('Routes: #learn opens the Library first', where('#learn'), 'learn/library');
   check('Routes: #learn/cards', where('#learn/cards'), 'learn/cards');
   check('Routes: #proof opens Evidence first', where('#proof'), 'proof/evidence');
@@ -693,21 +703,21 @@ export function runDateChecks() {
   check('Guidance: a day change onto a Sunday is refused', parseGuidancePack(gText({ suggestedDayChanges: [{ id: 'r-a', planDays: [7] }] })).ok, false);
   check('Guidance: invalid JSON is refused', parseGuidancePack('{').ok, false);
   const lesson = (over = {}) => ({
-    id: 'w1-d1', week: 1, day: 1, date: '2026-10-12', title: 'T', inOneSentence: 'S', whyItMattersToADesigner: 'W', keyIdeas: ['k'],
+    id: 'w1-d1', week: 1, day: 1, date: '2026-11-02', title: 'T', inOneSentence: 'S', whyItMattersToADesigner: 'W', keyIdeas: ['k'],
     words: [{ term: 'a', meaning: 'b' }], steps: [{ text: 'do', minutes: 20, resourceId: null }, { text: 'read', minutes: 10, resourceId: 'r-a' }],
     skipOrSkim: 'skip', checkYourself: ['q1', 'q2'], plannedMinutes: 60, ...over,
   });
   const lText = (lessons) => JSON.stringify({ schema: 'identity-lab-coach.lessons.v1', lessons });
-  const lOk = parseLessonPack(lText([lesson(), lesson({ id: 'w1-d2', day: 2, date: '2026-10-13' })]));
+  const lOk = parseLessonPack(lText([lesson(), lesson({ id: 'w1-d2', day: 2, date: '2026-11-03' })]));
   check('Lessons: a good pack is accepted', [lOk.ok, lOk.lessons.length].join(), 'true,2');
   check('Lessons: a wrong schema is refused', parseLessonPack(JSON.stringify({ schema: 'x', lessons: [lesson()] })).ok, false);
-  check('Lessons: a date that does not match the day is refused', parseLessonPack(lText([lesson({ date: '2026-10-13' })])).ok, false);
+  check('Lessons: a date that does not match the day is refused', parseLessonPack(lText([lesson({ date: '2026-11-03' })])).ok, false);
   check('Lessons: a week that does not match the day is refused', parseLessonPack(lText([lesson({ week: 2 })])).ok, false);
-  check('Lessons: a Sunday is refused', parseLessonPack(lText([lesson({ day: 7, date: '2026-10-18', week: 1 })])).ok, false);
+  check('Lessons: a Sunday is refused', parseLessonPack(lText([lesson({ day: 7, date: '2026-11-08', week: 1 })])).ok, false);
   check('Lessons: a step with no minutes is refused', parseLessonPack(lText([lesson({ steps: [{ text: 'x', resourceId: null }] })])).ok, false);
   check('Lessons: a step pointing at something odd is refused', parseLessonPack(lText([lesson({ steps: [{ text: 'x', minutes: 5, resourceId: 'bad id!' }] })])).ok, false);
   check('Lessons: two lessons on one day are refused', parseLessonPack(lText([lesson(), lesson({ id: 'other' })])).ok, false);
-  check('Lessons: a repeated id is refused', parseLessonPack(lText([lesson(), lesson({ day: 2, date: '2026-10-13' })])).ok, false);
+  check('Lessons: a repeated id is refused', parseLessonPack(lText([lesson(), lesson({ day: 2, date: '2026-11-03' })])).ok, false);
   check('Lessons: no questions is refused', parseLessonPack(lText([lesson({ checkYourself: [] })])).ok, false);
   {
     const n = lesson().checkYourself.length;
@@ -732,7 +742,7 @@ export function runDateChecks() {
   check('Plan: a lesson at the same pack version is not added again', p2.lessons.length, 0);
   const p3 = planContent(cContent, { resources: [], cards: [], contentPacks: {}, lessons: [{ id: 'w1-d1', packVersion: 1 }] });
   check('Plan: a lesson from an older pack version is replaced by the newer one', p3.lessons.length, 1);
-  check('Plan: a lesson in the pack with a new id is added', planContent({ manifest: cManifest, packTexts: { guid: gText(), less: lText([lesson({ id: 'w1-d9', day: 9, date: '2026-10-20', week: 2 })]) } },
+  check('Plan: a lesson in the pack with a new id is added', planContent({ manifest: cManifest, packTexts: { guid: gText(), less: lText([lesson({ id: 'w1-d9', day: 9, date: '2026-11-10', week: 2 })]) } },
     { resources: [], cards: [], contentPacks: {}, lessons: [{ id: 'w1-d1', packVersion: 2 }] }).lessons.length, 1);
   check('Plan: a broken guidance pack adds nothing and says why', planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).guidance.length
     + (planContent({ manifest: cManifest, packTexts: { guid: '{', less: lText([lesson()]) } }, { resources: [], cards: [], contentPacks: {}, lessons: [] }).problems.length > 0 ? 100 : 0), 100);

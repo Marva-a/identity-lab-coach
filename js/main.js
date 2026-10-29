@@ -4,22 +4,26 @@ import * as store from './store.js';
 import * as T from './timer.js';
 import { vancouverDate, formatLong, formatShort, isValidDateString } from './dates.js';
 import { getDayContext, planDayFor } from './plan.js';
-import { PLAN_START, ITEM_KIND_LABELS, BLOCK_LABELS } from './plan-data.js';
+import {
+  PLAN_START, BRIDGE_START, BRIDGE_END, BRIDGE_REST_START, BRIDGE_REST_END, APPLICATIONS_START, APPLICATIONS_END, FEB_REVIEW_WEEK, ITEM_KIND_LABELS, BLOCK_LABELS,
+} from './plan-data.js';
 import { runDateChecks, timeZoneInfo } from './selftest.js';
 import { esc, today, testMode, announce, plural, downloadFile, nav } from './ui.js';
 import {
-  retrievalHtml, retrievalRemaining, flashcardsView, recallProgressHtml, handleCardsToggle, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
+  retrievalHtml, retrievalRemaining, flashcardsView, recallProgressHtml, cardManagerHtml, handleCardsToggle, cardActions, submitCardForm, handleCardChange, handleCardInput, resetCardMessages,
 } from './flashcards.js';
-import { weekView, weekActions, handleWeekChange, handleWeekToggle, resetWeekView, itemFlagsHtml } from './week.js';
 import {
-  scorecardView, applicationsView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
+  weekView, weekActions, handleWeekChange, handleWeekToggle, resetWeekView, itemFlagsHtml, requiredEditorHtml, studyHoursHtml,
+} from './week.js';
+import {
+  scorecardView, glanceHtml, applicationsView, scorecardActions, submitTallyForm, handleTallyInput, resetScorecardMessages,
 } from './scorecard.js';
 import {
   evidenceView, evidenceActions, submitEvidenceForm, submitPublishForm, handleEvidenceChange, handleEvidenceInput,
   resetEvidenceView,
 } from './evidence.js';
 import {
-  libraryView, resourceActions, todayResourcesHtml, submitResourceForm, submitLinkForm, readResourceFile, handleResourceChange,
+  libraryView, courseToolsHtml, resourceActions, todayResourcesHtml, submitResourceForm, submitLinkForm, readResourceFile, handleResourceChange,
   handleResourceInput, handleResourceToggle, resetResourceView, flushResourceNotes, setContentRefresh,
 } from './resources.js';
 import {
@@ -27,10 +31,10 @@ import {
   selectPersonOnNavigate, resetPeopleView,
 } from './people.js';
 
-import { planIntroHtml, nextUpHtml, courseActions } from './course.js';
+import { planIntroHtml, courseActions } from './course.js';
 import { resolveHash } from './routes.js';
 import {
-  todayLessonHtml, lessonPageView, flushLessonAnswers, handleLessonInput, handleLessonClick, handleLessonToggle, lessonActions,
+  todayLessonHtml, lessonPageView, lessonsListView, flushLessonAnswers, handleLessonInput, handleLessonClick, handleLessonToggle, lessonActions,
 } from './lessons.js';
 import { STEPS, stepIndex, nextStep, previousStep, loadFlow, saveFlow } from './session-flow.js';
 import * as AB from './autobackup.js';
@@ -159,7 +163,7 @@ function headerHtml(ctx, { log = true } = {}) {
     case 'bridge':
       return `
         <section class="day-hero" aria-labelledby="day-heading">
-          <p class="eyebrow">Bridge: between the plan and the job search (Dec 11 – Jan 17) · ${esc(formatLong(ctx.date))}</p>
+          <p class="eyebrow">Bridge: between the plan and the job search (${esc(formatShort(BRIDGE_START))} – ${esc(formatShort(BRIDGE_END))}) · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">${esc(ctx.phase.title)}</h1>
           <ul class="tags"><li class="tag tag--block">Block: ${esc(BLOCK_LABELS.bridge)}</li></ul>
           <p class="focus-line">${esc(ctx.phase.focus)}</p>
@@ -171,16 +175,16 @@ function headerHtml(ctx, { log = true } = {}) {
         <section class="day-hero" aria-labelledby="day-heading">
           <p class="eyebrow">Bridge · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">Rest</h1>
-          <p>${ctx.sunday ? 'Sundays are planned rest.' : 'Dec 24 – Jan 1 is planned rest. Optional reading only.'}</p>
+          <p>${ctx.sunday ? 'Sundays are planned rest.' : `${formatShort(BRIDGE_REST_START)} – ${formatShort(BRIDGE_REST_END)} is planned rest. Optional reading only.`}</p>
         </section>`;
     case 'applications':
       return `
         <section class="day-hero" aria-labelledby="day-heading">
-          <p class="eyebrow">Job search (Jan 5 – Mar 31) · ${esc(formatLong(ctx.date))}</p>
+          <p class="eyebrow">Job search (${esc(formatShort(APPLICATIONS_START))} – ${esc(formatShort(APPLICATIONS_END))}) · ${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">${esc(ctx.application.focus)}</h1>
           <p class="meta">Output: ${esc(ctx.application.output)}</p>
           ${ctx.interviewPrep ? `<p class="note"><strong>Interview prep:</strong> ${esc(ctx.interviewPrep)}</p>` : ''}
-          ${ctx.febReview ? '<p class="note note--gate"><strong>Checkpoint:</strong> this is the week to review your applications (week of Feb 15).</p>' : ''}
+          ${ctx.febReview ? `<p class="note note--gate"><strong>Checkpoint:</strong> this is the week to review your applications (week of ${esc(formatShort(FEB_REVIEW_WEEK))}).</p>` : ''}
           ${log ? logTimeHtml(ctx) : ''}
         </section>`;
     default:
@@ -188,7 +192,7 @@ function headerHtml(ctx, { log = true } = {}) {
         <section class="day-hero" aria-labelledby="day-heading">
           <p class="eyebrow">${esc(formatLong(ctx.date))}</p>
           <h1 id="day-heading" tabindex="-1">Beyond the plan</h1>
-          <p>The dated roadmap ends on Mar 31, 2027.</p>
+          <p>The dated roadmap ends on ${esc(formatLong(APPLICATIONS_END))}.</p>
         </section>`;
   }
 }
@@ -229,9 +233,8 @@ function logTimeHtml(ctx) {
     <div class="log-time">
       <div class="button-row">
         <button type="button" class="button--primary" data-action="flow-start">${started ? 'Start another session' : 'Start today’s session'}</button>
-        <button type="button" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>
+        ${ctx.kind === 'study' ? '' : `<button type="button" data-action="log-time" aria-expanded="${open ? 'true' : 'false'}" aria-controls="log-time-panel">Log time</button>`}
       </div>
-      ${started ? '' : '<p class="meta">Three steps: a short warm-up from memory, then today’s lesson with a timer, then log your time. Or work from the full day below.</p>'}
       <div id="log-time-panel" ${open ? '' : 'hidden'}>${open ? flowWrapUpHtml(ctx, { heading: false }) : ''}</div>
     </div>`;
 }
@@ -269,7 +272,7 @@ function noLessonHtml(ctx) {
         <li>Skip the Reference group unless you are curious.</li>
         <li>Before you stop, write two sentences in your own words about what you learned.</li>
       </ol>
-      ${days.length ? '' : '<p class="meta">Check for course updates in <a href="#learn/library">Learn → Library</a> to add lessons.</p>'}
+      ${days.length ? '' : '<p class="meta">Check for course updates in <a href="#settings/content">Settings → Content</a> to add lessons.</p>'}
     </section>`;
 }
 
@@ -471,6 +474,52 @@ function startFlow() {
   setFlow({ date: today(), step: retrievalRemaining() > 0 ? 'warmup' : 'focus' });
 }
 
+/**
+ * Today's three steps, each opening the guided session at that step. Each row says where you stand
+ * (to do, done, nothing due) in words and with a mark, never colour alone.
+ */
+function todayStepsHtml(ctx) {
+  const date = ctx.date;
+  const warmDone = store.getData().cardReviews.filter((r) => r.date === date && r.context === 'retrieval').length;
+  const warmLeft = retrievalRemaining();
+  const lesson = store.lessonForDay(ctx.contentDay);
+  const reading = store.resourcesForDay(ctx.contentDay).filter((r) => !r.retired);
+  const readDone = reading.filter((r) => r.status === 'done').length;
+  const logged = store.sessionsOn(date).reduce((n, s) => n + s.minutes, 0);
+  const steps = [
+    {
+      step: 'warmup', title: 'Warm-up',
+      state: warmLeft ? 'todo' : warmDone ? 'done' : 'none',
+      meta: warmLeft ? `${plural(warmLeft, 'question', 'questions')} from earlier topics`
+        : warmDone ? `Done: ${plural(warmDone, 'question', 'questions')}` : 'Nothing to recall yet',
+    },
+    {
+      step: 'focus', title: lesson ? lesson.title : 'Study',
+      state: lesson ? (store.lessonDoneAt(lesson.id) ? 'done' : 'todo') : reading.length && readDone === reading.length ? 'done' : 'todo',
+      meta: [lesson ? (store.lessonDoneAt(lesson.id) ? 'Lesson complete' : `Lesson · about ${lesson.plannedMinutes} min`) : 'Today\'s reading', reading.length ? `${readDone} of ${plural(reading.length, 'resource', 'resources')} done` : ''].filter(Boolean).join(' · '),
+    },
+    {
+      step: 'wrapup', title: 'Log time',
+      state: logged ? 'done' : 'todo',
+      meta: logged ? `${logged} min logged today` : `${ctx.hours} h planned`,
+    },
+  ];
+  return `
+    <section class="today-steps" aria-labelledby="steps-heading">
+      <h2 id="steps-heading" class="small-label">Today's steps</h2>
+      <ol class="steps-list">
+        ${steps.map((st, i) => {
+    const mark = st.state === 'done' ? '<span class="step__mark" aria-hidden="true">✓</span>' : `<span class="step__mark" aria-hidden="true">${i + 1}</span>`;
+    const said = st.state === 'done' ? 'done' : st.state === 'none' ? 'nothing due' : 'to do';
+    const inner = `${mark}<span class="step__body"><span class="step__title">${esc(st.title)}</span><span class="step__meta">${esc(st.meta)}</span></span>`;
+    return st.state === 'none'
+      ? `<li class="step step--none"><div class="step__row">${inner}<span class="visually-hidden"> (${said})</span></div></li>`
+      : `<li class="step step--${st.state}"><button type="button" class="step__row" data-action="flow-jump" data-step="${st.step}">${inner}<span class="visually-hidden"> (${said})</span><span class="step__go" aria-hidden="true">›</span></button></li>`;
+  }).join('')}
+      </ol>
+    </section>`;
+}
+
 /** "Today so far", once something is logged today (the button to start a session is at the top). */
 function flowStartCardHtml(ctx) {
   const logged = store.sessionsOn(ctx.date).reduce((n, s) => n + s.minutes, 0);
@@ -571,11 +620,11 @@ function backupNoticeHtml() {
       <p>${esc(s.folderError || 'The backup folder could not be written to.')} Your data is still saved in this browser, and daily snapshots continue.</p>
       <div class="button-row"><button type="button" class="button--primary" data-action="backup-choose-folder">Choose the folder again</button></div>`;
   } else if (s.folder === 'none' && !promptDismissed()) {
-    inner = `<h2 id="backup-heading" tabindex="-1">Protect your progress: choose a backup folder</h2>
-      <p>One minute, once. Pick a folder (for example in Documents or iCloud Drive) and the app keeps a backup file there by itself.</p>
+    inner = `<h2 id="backup-heading" tabindex="-1">Protect your progress</h2>
+      <p>Pick a folder once, and the app keeps a backup there by itself.</p>
       <div class="button-row">
-        <button type="button" class="button--primary" data-action="backup-choose-folder">Choose a backup folder</button>
-        <button type="button" data-action="backup-prompt-dismiss">Remind me next week</button>
+        <button type="button" class="button--small button--primary" data-action="backup-choose-folder">Choose a folder</button>
+        <button type="button" class="button--small" data-action="backup-prompt-dismiss">Later</button>
       </div>`;
   }
   return `<div id="backup-notice">${inner ? `<section class="banner-inline" aria-labelledby="backup-heading">${inner}</section>` : ''}</div>`;
@@ -587,6 +636,20 @@ function todayView() {
   const f = activeFlow(ctx);
   if (f) return flowView(ctx, f);
   if (ctx.kind === 'before') return [headerHtml(ctx), backupNoticeHtml(), todayFollowUpsHtml()].join('');
+  if (ctx.kind === 'study') {
+    // A study day is one clear path: the heading, three steps that open the guided session at that step,
+    // and a few quiet extras. The warm-up card, lesson, reading and timer live inside the session.
+    return [
+      headerHtml(ctx),
+      ui.flash ? flowStartCardHtml(ctx) : '',
+      todayStepsHtml(ctx),
+      activeTimer ? timerHtml(ctx) : '',
+      todayFollowUpsHtml(),
+      networkHtml(ctx),
+      logHtml(ctx),
+      backupNoticeHtml(),
+    ].join('');
+  }
   return [
     headerHtml(ctx),
     todayFollowUpsHtml(),
@@ -613,17 +676,24 @@ function subnavHtml(place, label, items) {
 }
 
 function planView() {
-  return weekView({ top: planIntroHtml(), next: nextUpHtml });
+  // "Next up" is left out: Today already says what to do now, and the checklist shows what is open.
+  return weekView({ top: planIntroHtml() });
+}
+
+/** Every page with sections opens the same way: the title, then the switcher under it. */
+function withSubnav(body, nav) {
+  const at = body.indexOf('</h1>');
+  return at === -1 ? nav + body : body.slice(0, at + 5) + nav + body.slice(at + 5);
 }
 
 function learnView() {
-  return subnavHtml('learn', 'Learn sections', [['library', 'Library'], ['cards', 'Flashcards']])
-    + (section === 'cards' ? flashcardsView() : libraryView());
+  const body = section === 'cards' ? flashcardsView() : section === 'lessons' ? lessonsListView() : libraryView();
+  return withSubnav(body, subnavHtml('learn', 'Learn sections', [['library', 'Overview'], ['lessons', 'Lessons'], ['cards', 'Flashcards']]));
 }
 
 function proofView() {
   const body = section === 'people' ? peopleView() : section === 'applications' ? applicationsView() : evidenceView();
-  return subnavHtml('proof', 'Career sections', [['evidence', 'Portfolio'], ['people', 'People'], ['applications', 'Job applications']]) + body;
+  return withSubnav(body, subnavHtml('proof', 'Career sections', [['evidence', 'Portfolio'], ['people', 'People'], ['applications', 'Applications']]));
 }
 
 // ─── Settings view ───────────────────────────────────────────────────────────
@@ -742,9 +812,8 @@ function settingsView() {
        </div>`
     : '';
 
-  return `
-    <h1 id="day-heading" tabindex="-1">Settings</h1>
-
+  // Data and backups (first, as before), Content (course updates, resources, flashcards), Preferences.
+  const dataPart = `
     ${backupPanelHtml()}
 
     <section class="card" aria-labelledby="data-heading">
@@ -786,6 +855,9 @@ function settingsView() {
         </ul>` : ''}
     </section>
 
+    `;
+
+  const generalPart = `
     <section class="card" aria-labelledby="theme-heading">
       <h2 id="theme-heading">Appearance</h2>
       <fieldset>
@@ -828,6 +900,13 @@ function settingsView() {
       ${checks}
     </details>
     `;
+
+  const contentPart = `${requiredEditorHtml()}${courseToolsHtml()}${cardManagerHtml()}`;
+  const body = section === 'content' ? contentPart : section === 'general' ? generalPart : dataPart;
+  return `
+    <h1 id="day-heading" tabindex="-1">Settings</h1>
+    ${subnavHtml('settings', 'Settings sections', [['data', 'Data'], ['content', 'Content'], ['general', 'Preferences']])}
+    ${body}`;
 }
 
 /** A readable list of the test data present, leaving out categories with none. */
@@ -843,6 +922,7 @@ function describeTestData(n) {
     n.weekChecks && plural(n.weekChecks, 'ticked item', 'ticked items'),
     n.optionalOverrides && plural(n.optionalOverrides, 'Optional/Required choice', 'Optional/Required choices'),
     n.lessonAnswers && plural(n.lessonAnswers, 'lesson answer', 'lesson answers'),
+    n.lessonsDone && plural(n.lessonsDone, 'completed lesson', 'completed lessons'),
   ].filter(Boolean);
   return parts.length ? parts.join(', ') : 'none';
 }
@@ -873,18 +953,18 @@ function render({ focus } = {}) {
   applyTheme();
   renderBanners();
   document.querySelectorAll('[data-route]').forEach((a) => {
-    if (a.dataset.route === route || (route === 'lesson' && a.dataset.route === 'plan')) a.setAttribute('aria-current', 'page');
+    if (a.dataset.route === route || (route === 'lesson' && a.dataset.route === 'learn')) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
   renderedDate = today();
   const views = {
-    today: todayView, plan: planView, learn: learnView, proof: proofView, progress: () => scorecardView({ before: recallProgressHtml() }), settings: settingsView,
+    today: todayView, plan: planView, learn: learnView, proof: proofView, progress: () => scorecardView({ before: glanceHtml() + recallProgressHtml(), after: studyHoursHtml() }), settings: settingsView,
     lesson: () => lessonPageView(section),
   };
   const problem = store.getLoadProblem();
   mainEl.innerHTML = problem ? loadProblemView(problem) : views[route]();
   updateTimerDisplay();
-  if (route === 'settings' && !problem) loadSnapshots();
+  if (route === 'settings' && section === 'data' && !problem) loadSnapshots();
 
   // `focus` may list fallbacks ("#a, #b"): use the first one that exists, in that order.
   const target = focus
@@ -1034,6 +1114,12 @@ const actions = {
     startFlow();
     nav.focus = '#flow-step-heading';
     location.hash = '#today';
+  },
+  /** A row in Today's steps: open the guided session at that step. */
+  'flow-jump': (el) => {
+    setFlow({ date: today(), step: el.dataset.step });
+    render({ focus: '#flow-step-heading' });
+    playEntrance();
   },
   'flow-next': () => {
     setFlow({ ...flow, step: nextStep(flow.step) });
@@ -1384,7 +1470,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { flushResourceNotes(); flushLessonAnswers(); AB.backupNow().catch(() => {}); });
 
 store.load();
-setContentRefresh((focus) => { if (route === 'learn' && section === 'library') render({ focus }); });
+setContentRefresh((focus) => { if ((route === 'learn' && section === 'library') || (route === 'settings' && section === 'content')) render({ focus }); });
 flow = loadFlow(today());
 if (!store.getLoadProblem()) {
   store.onSave(AB.noteChanged);

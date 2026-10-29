@@ -113,6 +113,13 @@ function cardFaceHtml(card, sched, context, positionLabel) {
 
 // ─── Retrieval check on Today ────────────────────────────────────────────────
 
+/** How many cards are due now and when the next one is, for the Learn page. */
+export function dueSummary() {
+  const d = store.getData();
+  const sched = currentSchedule();
+  return { due: dueCards(d.cards, sched).length, next: nextDueAfter(d.cards, sched, today()) };
+}
+
 /** How many retrieval-check cards are still to do today (0 means the warm-up has nothing left). */
 export function retrievalRemaining() {
   const date = today();
@@ -271,9 +278,12 @@ function cardRowHtml(card, sched) {
   else when = `Next due ${formatShort(sched.due)}`;
   const shortFront = card.front.length > 70 ? `${card.front.slice(0, 67)}…` : card.front;
   return `
-    <li class="card-row">
+    <li class="card-row card-row--card">
       <p class="card-row__front">${esc(card.front)}</p>
       <p class="meta">Week ${card.week ?? '–'} · ${TYPE_LABELS[card.type]} · ${boxLabel(sched.state)} · <strong>${esc(when)}</strong>${sched.due && when.startsWith('Due') && sched.due < date ? ` (since ${esc(formatShort(sched.due))})` : ''}</p>
+      ${card.verified ? '<span class="flag flag--ok">Checked</span>' : '<span class="flag">Not checked</span>'}
+      <details class="card-row__more" data-cards-group="row-${esc(card.id)}" ${ui.open.has(`row-${card.id}`) ? 'open' : ''}>
+      <summary>Manage<span class="visually-hidden">: ${esc(shortFront)}</span></summary>
       <ul class="tags" aria-label="Card status"><li>${verificationBadge(card)}</li></ul>
       <p class="meta reference">Source to check: ${esc(card.reference || 'none given')}</p>
       <div class="button-row">
@@ -286,6 +296,7 @@ function cardRowHtml(card, sched) {
           : `<button type="button" class="button--small button--danger" data-action="card-retire" data-id="${esc(card.id)}" aria-label="Archive: ${esc(shortFront)}">Archive</button>`}
       </div>
       ${historyHtml(card, sched)}
+      </details>
     </li>`;
 }
 
@@ -327,16 +338,6 @@ export function flashcardsView() {
     study = `<p class="status-ok" id="study-done" tabindex="-1">Nothing due today.${next ? ` Next card due ${esc(formatShort(next))}.` : ''}</p>`;
   }
 
-  const active = d.cards.filter((c) => !c.retired);
-  const unlocked = active.filter((c) => sched.get(c.id).unlocked).length;
-  const unverified = active.filter((c) => !c.verified).length;
-  const retired = d.cards.length - active.length;
-  const shown = d.cards
-    .filter((c) => matchesFilter(c, sched.get(c.id)))
-    .sort((a, b) => (a.week ?? 0) - (b.week ?? 0) || a.createdAt.localeCompare(b.createdAt));
-
-  const weekOptions = ['all', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'none'];
-
   return `
     <h1 id="day-heading" tabindex="-1">Flashcards</h1>
 
@@ -351,8 +352,30 @@ export function flashcardsView() {
       <p class="meta">Gaps: ${BOX_DAYS.map((days, i) => `level ${i + 1} = ${plural(days, 'day', 'days')}`).join(' · ')}. A new card first comes up the day after the plan day that teaches it, so you are never asked about something you have not met yet. Cards you add come up from the first day of their week.</p>
     </details>
 
-    <details class="card" data-cards-group="manage" ${ui.open.has('manage') || ui.message || ui.editing ? 'open' : ''}>
-      <summary id="cards-heading">Browse and edit your cards (${active.length})</summary>
+    <p class="meta flashcards-manage-link">Add, edit, check or archive cards in <a href="#settings/content">Settings → Content</a>.</p>`;
+}
+
+/**
+ * The card manager (Settings → Content): browse, filter, add, edit, check and archive cards.
+ * It is housekeeping, so it lives in Settings and the Flashcards page stays about reviewing.
+ */
+export function cardManagerHtml() {
+  const date = today();
+  const d = store.getData();
+  const sched = currentSchedule();
+  const active = d.cards.filter((c) => !c.retired);
+  const unlocked = active.filter((c) => sched.get(c.id).unlocked).length;
+  const unverified = active.filter((c) => !c.verified).length;
+  const retired = d.cards.length - active.length;
+  const shown = d.cards
+    .filter((c) => matchesFilter(c, sched.get(c.id)))
+    .sort((a, b) => (a.week ?? 0) - (b.week ?? 0) || a.createdAt.localeCompare(b.createdAt));
+
+  const weekOptions = ['all', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'none'];
+
+  return `
+    <section class="card" aria-labelledby="cards-heading">
+      <h2 id="cards-heading" tabindex="-1">Your flashcards (${active.length})</h2>
       <p class="meta">${plural(active.length, 'card', 'cards')}: ${unlocked} taught so far, ${active.length - unlocked} not taught yet, ${unverified} not checked by you yet${retired ? `, ${retired} archived` : ''}.</p>
       ${ui.message ? `<p class="status-ok" id="cards-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
       <div class="filters">
@@ -377,7 +400,7 @@ export function flashcardsView() {
       <ul class="card-list">
         ${shown.map((c) => cardRowHtml(c, sched.get(c.id))).join('')}
       </ul>
-    </details>`;
+    </section>`;
 }
 
 /**
@@ -431,7 +454,7 @@ export function recallProgressHtml() {
         <ul class="recall-shaky">
           ${shaky.map(({ card, last, due }) => `<li>${esc(card.front)}<br><span class="meta">Last: ${RATING_LABELS[last.rating]} on ${esc(formatShort(last.date))} · ${due <= date ? 'due now' : `back ${esc(formatShort(due))}`}</span></li>`).join('')}
         </ul>
-        <p><a href="#learn/cards" data-action="cards-show-shaky">See ${r.shaky.length > shaky.length ? `all ${r.shaky.length}` : 'them'} in Flashcards</a></p>` : ''}
+        <p><a href="#settings/content" data-action="cards-show-shaky">See ${r.shaky.length > shaky.length ? `all ${r.shaky.length}` : 'them'} in your card list</a></p>` : ''}
       <details>
         <summary>What these words mean</summary>
         <ul>

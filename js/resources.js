@@ -14,15 +14,15 @@ import {
   optionalMinutes, parseDays, validateResource, findSameLink, RESOURCE_LEVELS, splitDeep, levelRank,
 } from './records.js';
 import { parseResourceImport, MAX_ROWS, RESOURCE_SCHEMA } from './resource-import.js';
-import { startCardDraft } from './flashcards.js';
+import { startCardDraft, dueSummary } from './flashcards.js';
 import { checkForContent, planContent, summarizePlan, planSize } from './content.js';
+import { nextLessonOf } from './progress.js';
 
 // Transient UI state (not saved).
 const ui = {
   editing: null, // 'new' or a resource id
   form: null,
   errors: [],
-  doneFor: null, // resource id waiting for the "also log a session?" choice
   openNotes: new Set(), // resources whose notes are open
   openDeep: new Set(), // "Reference" groups that are open
   highlight: null, // a resource a lesson step pointed at
@@ -85,19 +85,6 @@ function queueNotes(id, text) {
 
 // ─── One resource ────────────────────────────────────────────────────────────
 
-function donePromptHtml(r) {
-  const date = today();
-  return `
-    <div class="note note--gate" role="group" aria-labelledby="done-q-${esc(r.id)}">
-      <p id="done-q-${esc(r.id)}" tabindex="-1"><strong>Mark "${esc(r.title)}" done.</strong> Also log a study session of ${r.minutes} minutes for ${esc(formatShort(date))}?
-        The ${r.minutes} minutes is an estimate. If you also log this time with the timer, it will count twice.</p>
-      <div class="button-row">
-        <button type="button" class="button--primary" data-action="resource-done-log" data-id="${esc(r.id)}">Mark done and log ${r.minutes} min</button>
-        <button type="button" data-action="resource-done-only" data-id="${esc(r.id)}">Mark done only</button>
-        <button type="button" data-action="resource-done-cancel" data-id="${esc(r.id)}">Cancel</button>
-      </div>
-    </div>`;
-}
 
 /** The small text about a resource's link, and the field to add one when it is missing. */
 function linkStateHtml(r) {
@@ -158,8 +145,17 @@ function resourceItemHtml(r, { library = false } = {}) {
   const hasNotes = Boolean((r.notes ?? '').trim());
   const title = r.url ? linkHtml(r.url, r.title) : esc(r.title);
   const dayText = library ? ` · ${r.days.length === 1 ? 'Day' : 'Days'} ${esc(r.days.join(', '))}` : '';
+  const statusField = `
+      <div class="resource__status field">
+        <label for="rs-${esc(r.id)}">Status</label>
+        <select id="rs-${esc(r.id)}" data-res-status="${esc(r.id)}">
+          ${Object.entries(RESOURCE_STATUSES).map(([v, l]) => `<option value="${v}" ${r.status === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+        </select>
+      </div>`;
+  const tick = library ? `<button type="button" class="tick" aria-pressed="${done}" data-action="resource-toggle-done" data-id="${esc(r.id)}" aria-label="Done: ${esc(r.title)}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : '';
   return `
     <li id="res-${esc(r.id)}" tabindex="-1" class="resource ${ui.highlight === r.id ? 'resource--highlight' : ''} ${done ? 'resource--done' : ''} ${r.optional ? 'resource--optional' : ''} ${r.retired ? 'resource--retired' : ''}">
+      ${library ? `<div class="resource__row">${tick}<div class="resource__body">` : ''}
       <p class="resource__title">${title}
         ${levelFlagHtml(r)}
         ${r.optional ? '<span class="flag">Optional</span>' : ''}
@@ -171,15 +167,10 @@ function resourceItemHtml(r, { library = false } = {}) {
       ${r.howToUse ? `<p class="how-to-use">${esc(r.howToUse)}</p>` : ''}
       ${newerVersionHtml(r)}
       ${r.url ? '' : linkStateHtml(r)}
-      <div class="resource__status field">
-        <label for="rs-${esc(r.id)}">Status</label>
-        <select id="rs-${esc(r.id)}" data-res-status="${esc(r.id)}">
-          ${Object.entries(RESOURCE_STATUSES).map(([v, l]) => `<option value="${v}" ${r.status === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
-        </select>
-      </div>
-      ${ui.doneFor === r.id ? donePromptHtml(r) : ''}
+      ${library ? '</div></div>' : statusField}
       <details class="res-more" data-res-details="${esc(r.id)}" ${ui.openNotes.has(r.id) ? 'open' : ''}>
-        <summary>${library ? 'Notes and details' : 'Notes'}${hasNotes ? ' (has notes)' : ''}</summary>
+        <summary>${library ? 'Status, notes and details' : 'Notes'}${hasNotes ? ' (has notes)' : ''}</summary>
+        ${library ? statusField : ''}
         ${r.why ? `<p class="meta">Why it is in the plan: ${esc(r.why)}</p>` : ''}
         ${library ? `<p class="meta">Plan ${r.days.length === 1 ? 'day' : 'days'}: ${esc(r.days.map(dayLabel).join(', '))}</p>` : ''}
         ${r.url ? linkStateHtml(r) : ''}
@@ -447,7 +438,7 @@ function importHtml() {
           <li><code>type</code>: <code>video</code>, <code>article</code>, <code>spec</code>, <code>lab</code> or <code>exercise</code></li>
           <li><code>estimatedMinutes</code>: your estimate, a whole number from 1 to ${RESOURCE_LIMITS.minutes}</li>
           <li><code>url</code>: the real link starting with https://, or <code>null</code> when there is no link yet</li>
-          <li><code>planDays</code>: plan day numbers from the roadmap, like <code>[8, 9]</code> (Day 1 is Mon Oct 12; Sundays are rest days)</li>
+          <li><code>planDays</code>: plan day numbers from the roadmap, like <code>[8, 9]</code> (Day 1 is Mon Nov 2; Sundays are rest days)</li>
           <li>Optional: <code>why</code>, <code>optional</code> (true or false), <code>urlStatus</code> (<code>verified</code>, <code>needs-your-search</code> or <code>unchecked</code>) and <code>verifiedNote</code>, shown as small text on the resource</li>
         </ul>
         <p>Importing the same file again adds nothing: entries are matched by id, and one that is already in the library is never changed. At most ${MAX_ROWS} entries per file. If any entry is wrong, nothing is imported and each wrong entry is listed by its id.</p>
@@ -485,6 +476,18 @@ export function libraryView() {
   const doneCount = active.filter((r) => r.status === 'done').length;
   const filtered = f.status !== 'all' || f.type !== 'all' || f.link !== 'all' || f.retired;
   const contentActive = ui.content.busy || ui.content.plan || ui.content.message || ui.content.failure;
+  const shownActive = shown.filter((r) => !r.retired);
+  const shownDone = shownActive.filter((r) => r.status === 'done').length;
+  const minutesLeft = shownActive.filter((r) => r.status !== 'done').reduce((n, r) => n + (r.minutes || 0), 0);
+  const pct = shownActive.length ? Math.round((shownDone / shownActive.length) * 100) : 0;
+  const weekTitle = weekWanted === 'all' ? 'All weeks' : `Week ${weekWanted} reading`;
+  const weekNav = weekWanted === 'all'
+    ? `<button type="button" class="button--small" data-action="library-week" data-week="this">Back to this week</button>`
+    : `<div class="week-arrows">
+         <button type="button" class="button--small" data-action="library-week" data-week="prev" aria-label="Previous week" ${Number(weekWanted) <= 1 ? 'disabled' : ''}>←</button>
+         ${Number(weekWanted) !== thisWeek ? '<button type="button" class="button--small" data-action="library-week" data-week="this">This week</button>' : ''}
+         <button type="button" class="button--small" data-action="library-week" data-week="next" aria-label="Next week" ${Number(weekWanted) >= 9 ? 'disabled' : ''}>→</button>
+       </div>`;
   const list = (items) => {
     if (weekWanted !== 'all') return `<ol class="resources">${items.map((r) => resourceItemHtml(r, { library: true })).join('')}</ol>`;
     // All weeks: a heading for each week, so a long list has landmarks.
@@ -502,26 +505,36 @@ export function libraryView() {
       ${contentActive ? '' : '<div class="button-row"><button type="button" class="button--primary" data-action="content-check">Add the course resources</button></div>'}
     </section>` : '';
 
-  const manage = `
-    <details class="card" data-deep-group="manage" ${ui.openDeep.has('manage') || contentActive || ui.editing === 'new' || ui.report ? 'open' : ''}>
-      <summary>Course updates and adding your own</summary>
-      ${contentHtml({ compact: true })}
-      ${importHtml()}
-      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" class="button--small" data-action="resource-add">Add a resource yourself</button></div>'}
-    </details>`;
+  // Only while a first-time "Add the course resources" is being checked or confirmed. Everything else
+  // about course updates and adding your own lives in Settings → Content.
+  const status = all.length === 0 && contentActive ? `<section class="card">${contentHtml({ compact: true })}</section>` : '';
 
   return `
-    <h1 id="day-heading" tabindex="-1">Library</h1>
-    <p class="meta">What to read, watch or do for each plan day, with a rough time for each. Links open in a new tab.</p>
+    <h1 id="day-heading" tabindex="-1">Learn</h1>
+    <p class="meta page-intro">Your lesson, your cards and this week's reading. Links open in a new tab.</p>
 
     ${firstRun}
-    
+    ${status}
 
     ${all.length ? `
+    ${learnTilesHtml()}
+
     <section class="card" aria-labelledby="resources-heading">
-      <h2 id="resources-heading" tabindex="-1">${weekWanted === 'all' ? 'All weeks' : `Week ${weekWanted}`}</h2>
-      <p class="meta">${plural(shown.length, 'resource', 'resources')}${weekWanted === 'this' || weekWanted === thisWeek ? ' this week' : ''} · ${doneCount} of ${active.length} done in total${needLink ? ` · ${needLink} still need a link` : ''}. Minutes are estimates, not logged time.</p>
+      <div class="section-head">
+        <h2 id="resources-heading" tabindex="-1">${esc(weekTitle)}</h2>
+        ${weekNav}
+      </div>
+      ${shownActive.length ? `
+        <p class="meta"><strong>${shownDone} of ${shownActive.length}</strong> done${minutesLeft ? ` · about ${minutesLeft} min to go` : ' · all finished'}. Minutes are estimates, not logged time.${needLink ? ` ${needLink} still need a link.` : ''}</p>
+        <div class="progress" role="img" aria-label="${shownDone} of ${shownActive.length} resources done"><span style="width:${pct}%"></span></div>` : ''}
       ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
+      ${shown.length === 0 ? `<p>Nothing matches${weekWanted === 'all' && !filtered ? '' : ' here'}. ${f.week !== 'all' ? '<button type="button" class="button--small" data-action="resource-show-all">Show all weeks</button>' : ''}</p>` : ''}
+      ${list(shownMain)}
+      ${deepGroupHtml(shownDeep, 'library', list)}
+    </section>
+
+    <details class="card card--quiet" data-deep-group="browse" ${ui.openDeep.has('browse') || filtered || f.week !== 'this' ? 'open' : ''}>
+      <summary>Browse by week and filter</summary>
       <div class="filters">
         <div class="field">
           <label for="rl-week">Week</label>
@@ -562,12 +575,61 @@ export function libraryView() {
           <span>Show archived resources</span>
         </label>
       </details>
-      ${shown.length === 0 ? `<p>Nothing matches${weekWanted === 'all' && !filtered ? '' : ' here'}. ${f.week !== 'all' ? '<button type="button" class="button--small" data-action="resource-show-all">Show all weeks</button>' : ''}</p>` : ''}
-      ${list(shownMain)}
-      ${deepGroupHtml(shownDeep, 'library', list)}
-    </section>` : ''}
+    </details>` : ''}
 
-    ${manage}`;
+    <p class="meta">Need a newer lesson, or want to add a resource of your own? Both are in <a href="#settings/content">Settings → Content</a>.</p>`;
+}
+
+/**
+ * Two big starting points at the top of Learn: today's lesson and the flashcards that are due.
+ * Before the plan starts, or on a rest day, the lesson tile shows the next one coming up.
+ */
+function learnTilesHtml() {
+  // Lessons are self-paced: the tile always offers the next lesson you have not completed.
+  const lessons = store.lessonsInOrder();
+  const done = lessons.filter((l) => store.lessonDoneAt(l.id)).length;
+  const lesson = nextLessonOf(lessons, (l) => Boolean(store.lessonDoneAt(l.id)));
+  const started = lesson && store.getLessonAnswers(lesson.id).some((a) => (a ?? '').trim());
+  const progressLine = lessons.length ? `<p class="meta">${done} of ${plural(lessons.length, 'lesson', 'lessons')} complete · <a href="#learn/lessons">All lessons</a></p>` : '';
+  const lessonTile = lesson
+    ? `<article class="learn-tile learn-tile--lesson" aria-labelledby="tile-lesson">
+         <p class="eyebrow">${done ? 'Up next' : 'Start here'} · Day ${lesson.day}</p>
+         <h2 id="tile-lesson">${esc(lesson.title)}</h2>
+         <p>${esc(lesson.inOneSentence)}</p>
+         <p class="meta">About ${esc(String(lesson.plannedMinutes))} min</p>
+         <a class="button button--primary" href="#lesson/${lesson.day}">${started ? 'Continue lesson' : 'Start lesson'}<span class="visually-hidden">: ${esc(lesson.title)}</span></a>
+         ${progressLine}
+       </article>`
+    : `<article class="learn-tile learn-tile--lesson" aria-labelledby="tile-lesson">
+         <p class="eyebrow">Lessons</p>
+         <h2 id="tile-lesson">${lessons.length ? 'All caught up' : 'No lessons yet'}</h2>
+         <p>${lessons.length ? 'Every lesson written so far is complete. New ones arrive as course updates.' : 'Lessons arrive with the course content.'}</p>
+         ${progressLine}
+       </article>`;
+  const { due, next } = dueSummary();
+  const cardsTile = `
+    <article class="learn-tile learn-tile--cards" aria-labelledby="tile-cards">
+      <p class="eyebrow">Flashcards</p>
+      <h2 id="tile-cards">${due ? `${plural(due, 'card', 'cards')} due` : 'All caught up'}</h2>
+      <p>${due ? 'A few minutes of recall now helps it stick.' : (next ? `Your next card comes up ${esc(formatShort(next))}.` : 'Cards come up the day after a topic is taught.')}</p>
+      ${due ? '<a class="button button--primary" href="#learn/cards">Review now</a>' : '<a class="button" href="#learn/cards">Open flashcards</a>'}
+    </article>`;
+  return `<div class="learn-tiles">${lessonTile}${cardsTile}</div>`;
+}
+
+/**
+ * Course updates, files and adding your own resources (Settings → Content). It is occasional housekeeping,
+ * so it does not sit on the Library page, where the day's reading is what matters.
+ */
+export function courseToolsHtml() {
+  return `
+    <section class="card" aria-labelledby="course-heading">
+      <h2 id="course-heading" tabindex="-1">Course content and resources</h2>
+      ${ui.message ? `<p class="status-ok" id="resources-message" tabindex="-1">${esc(ui.message)}</p>` : ''}
+      ${contentHtml({ compact: true })}
+      ${importHtml()}
+      ${ui.editing === 'new' ? resourceFormHtml(null) : '<div class="button-row"><button type="button" class="button--small" data-action="resource-add">Add a resource yourself</button></div>'}
+    </section>`;
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -580,32 +642,6 @@ function readForm(form) {
   };
 }
 
-function finishDone(id, withSession) {
-  const r = store.getResource(id);
-  if (!r) return null;
-  const date = today();
-  store.setResourceStatus(id, 'done', date, testMode());
-  let msg = `Marked done: ${r.title}.`;
-  if (withSession) {
-    const result = store.addSession({
-      date,
-      dayNumber: planDayFor(date),
-      minutes: r.minutes,
-      status: 'done',
-      reason: `Resource: ${r.title}`.slice(0, store.REASON_MAX),
-      testMode: testMode(),
-    });
-    msg += result.ok
-      ? ` Logged a ${r.minutes}-minute session on ${formatShort(date)}.`
-      : ` The session could not be logged (${result.problems.join(' ')}), so your hours did not change.`;
-  } else {
-    msg += ' No session was logged, so your hours did not change.';
-  }
-  ui.doneFor = null;
-  ui.message = msg;
-  announce(msg);
-  return `#rs-${id}`;
-}
 
 async function runContentCheck() {
   const result = await checkForContent();
@@ -649,12 +685,23 @@ export const resourceActions = {
     announce('Closed. Nothing was changed.');
     return '[data-action="content-check"]';
   },
-  'resource-done-log': (el) => finishDone(el.dataset.id, true),
-  'resource-done-only': (el) => finishDone(el.dataset.id, false),
-  'resource-done-cancel': (el) => {
-    ui.doneFor = null;
-    announce('Cancelled. The status did not change.');
-    return `#rs-${el.dataset.id}`;
+  /** The tick circle: one tap marks it done, another undoes it. No prompt; hours are logged on Today. */
+  'resource-toggle-done': (el) => {
+    const id = el.dataset.id;
+    const r = store.getResource(id);
+    if (!r) return null;
+    const next = r.status === 'done' ? 'not-started' : 'done';
+    store.setResourceStatus(id, next, today(), testMode());
+    ui.message = null;
+    announce(next === 'done' ? `Done: ${r.title}.` : `Not done: ${r.title}.`);
+    return `[data-action="resource-toggle-done"][data-id="${id}"], #rs-${id}`;
+  },
+  /** Week arrows on Learn. */
+  'library-week': (el) => {
+    const now = ui.filter.week === 'this' || ui.filter.week === 'all' ? currentPlanWeek() : Number(ui.filter.week);
+    const to = el.dataset.week;
+    ui.filter.week = to === 'prev' ? Math.max(1, now - 1) : to === 'next' ? Math.min(9, now + 1) : 'this';
+    return '#resources-heading';
   },
   'resource-make-card': (el) => {
     flushResourceNotes();
@@ -674,7 +721,7 @@ export const resourceActions = {
       reference: withLink.length <= 300 ? withLink : `${r.title} (${r.source})`.slice(0, 300),
     });
     nav.focus = '#card-form-heading';
-    location.hash = '#learn/cards';
+    location.hash = '#settings/content';
     return null;
   },
   'resource-add': () => {
@@ -809,11 +856,6 @@ export function handleResourceChange(target) {
     const id = target.dataset.resStatus;
     const r = store.getResource(id);
     if (!r) return null;
-    if (target.value === 'done' && r.status !== 'done') {
-      ui.doneFor = id;
-      return `#done-q-${id}`;
-    }
-    ui.doneFor = null;
     store.setResourceStatus(id, target.value, today(), testMode());
     ui.message = null;
     announce(`${r.title}: ${RESOURCE_STATUSES[target.value]}.`);
@@ -867,6 +909,6 @@ export function showResourceInLibrary(id) {
 }
 
 export function resetResourceView() {
-  ui.editing = null; ui.form = null; ui.errors = []; ui.doneFor = null; ui.message = null; ui.linkErrors = {};
+  ui.editing = null; ui.form = null; ui.errors = []; ui.message = null; ui.linkErrors = {};
   if (!ui.content.busy) ui.content = blankContent();
 }

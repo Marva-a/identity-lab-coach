@@ -1,13 +1,15 @@
 // Scorecard view: progress against the plan, from logged data only.
 import * as store from './store.js';
 import { esc, announce, today, testMode } from './ui.js';
-import { formatShort, isValidDateString } from './dates.js';
-import { PLAN_START, PLAN_END, WEEKS } from './plan-data.js';
+import { formatShort, addDays, isValidDateString } from './dates.js';
+import { PLAN_START, PLAN_END, WEEKS, APPLICATIONS_END } from './plan-data.js';
+import { planDayFor } from './plan.js';
+import { recallSummary } from './srs.js';
 
 /** The plan's total study hours (103), shown as the hours target. */
 export const PLANNED_HOURS = WEEKS.reduce((n, w) => n + w.days.reduce((m, d) => m + d.hours, 0), 0);
 import {
-  scorecard, activePeriod, PERIOD_1, PERIOD_2, targetsFor, MEASURES, STATUS_RULE, STATUS_LABELS,
+  scorecard, activePeriod, PERIOD_1, PERIOD_2, targetsFor, MEASURES, STATUS_RULE, STATUS_LABELS, CONVERSATIONS_START,
 } from './pace.js';
 
 const KIND_LABELS = { application: 'Job application' };
@@ -48,10 +50,10 @@ function statusHtml(row) {
 }
 
 function expectedNote(row, period) {
-  if (row.status === 'none') return 'Hours logged since Dec 11. There is no hours target after Dec 10.';
+  if (row.status === 'none') return `Hours logged since ${formatShort(addDays(PLAN_END, 1))}. There is no hours target after ${formatShort(PLAN_END)}.`;
   if (row.id === 'hours') return 'Planned hours of the study days so far.';
-  if (row.id === 'artifact' && period.id === 'dec10') return 'One per Saturday so far, plus the final project after Dec 10.';
-  if (row.id === 'conversation' && period.id === 'dec10') return 'Spread over the study days so far, starting in Week 2 (Oct 19).';
+  if (row.id === 'artifact' && period.id === 'dec10') return `One per Saturday so far, plus the final project after ${formatShort(PLAN_END)}.`;
+  if (row.id === 'conversation' && period.id === 'dec10') return `Spread over the study days so far, starting in Week 2 (${formatShort(CONVERSATIONS_START)}).`;
   return 'Spread over the study days so far (Mon–Sat).';
 }
 
@@ -90,7 +92,7 @@ function otherPeriodHtml(period) {
   const items = MEASURES
     .filter((m) => t[m.id])
     .map((m) => `${m.label}: ${formatTarget(t[m.id], m.unit)}`);
-  return `<p class="meta"><strong>${esc(other.label)}${other.id === 'jan31' ? ' (cumulative)' : ''}:</strong> ${esc(items.join('; '))}.${other.id === 'jan31' ? ' These are the last targets in your roadmap; the job search goes on to Mar 31 without targets.' : ''}</p>`;
+  return `<p class="meta"><strong>${esc(other.label)}${other.id === 'jan31' ? ' (cumulative)' : ''}:</strong> ${esc(items.join('; '))}.${other.id === 'jan31' ? ` These are the last targets in your roadmap; the job search goes on to ${formatShort(APPLICATIONS_END)} without targets.` : ''}</p>`;
 }
 
 function logFormHtml() {
@@ -135,8 +137,34 @@ function recentHtml() {
     </ul>`;
 }
 
-/** Progress. `before` is shown first, under the title (what you can recall). */
-export function scorecardView({ before = '' } = {}) {
+/**
+ * Four tiles at the top of Progress: where you are, study hours, recall and portfolio. Each tile says
+ * its number in words too; the detail is further down the page.
+ */
+export function glanceHtml() {
+  const date = today();
+  const d = store.getData();
+  const rows = scorecard(date, d.sessions, store.scorecardCounts());
+  const row = (id) => rows.find((r) => r.id === id);
+  const hours = row('hours');
+  const pieces = row('artifact');
+  const recall = recallSummary(d.cards, d.cardReviews, date, store.getSettings()).totals;
+  const day = planDayFor(date);
+  const where = date < PLAN_START ? { big: formatShort(PLAN_START).replace(/^\w+, /, ''), small: 'Day 1 starts' }
+    : day ? { big: `${day}`, small: 'of 60 days' } : { big: '60', small: 'days done' };
+  const tile = (label, big, small) => `
+    <div class="glance__tile"><p class="glance__label">${esc(label)}</p><p class="glance__big">${esc(big)}</p><p class="glance__small">${esc(small)}</p></div>`;
+  return `
+    <section class="glance" aria-label="At a glance">
+      ${tile(day ? 'Day' : 'Plan', where.big, where.small)}
+      ${hours ? tile('Study hours', formatValue(hours, hours.actual), hours.expected ? `${formatValue(hours, hours.expected)} expected so far` : 'logged so far') : ''}
+      ${tile('Recall', `${recall.held}/${recall.total}`, recall.total ? 'cards recalled after 7+ days' : 'no cards met yet')}
+      ${pieces ? tile('Portfolio', `${pieces.actual ?? 0}`, `of ${pieces.target ? pieces.target.low : '–'} pieces shared`) : ''}
+    </section>`;
+}
+
+/** Progress. `before` is shown first, under the title (what you can recall); `after` closes the page (study hours). */
+export function scorecardView({ before = '', after = '' } = {}) {
   const date = today();
   const d = store.getData();
   const period = activePeriod(date);
@@ -145,7 +173,7 @@ export function scorecardView({ before = '' } = {}) {
 
   let context;
   if (date < PLAN_START) context = `The plan starts ${formatShort(PLAN_START)}; nothing is expected yet.`;
-  else if (date > PERIOD_2.end) context = 'Your roadmap sets targets up to Jan 31, so these are your final numbers. The job search goes on to Mar 31; keep logging, it just has no targets.';
+  else if (date > PERIOD_2.end) context = `Your roadmap sets targets up to ${formatShort(PERIOD_2.end)}, so these are your final numbers. The job search goes on to ${formatShort(APPLICATIONS_END)}; keep logging, it just has no targets.`;
   else context = 'Worked out only from what you log. A day that has not ended never counts against you.';
 
   return `
@@ -153,13 +181,14 @@ export function scorecardView({ before = '' } = {}) {
     ${before}
 
     <section class="card" aria-labelledby="period-heading">
-      <h2 id="period-heading">${esc(period.label.replace(/^By\s+/, 'Targets for '))}${period.id === 'jan31' ? ' (everything since Oct 12)' : ''}</h2>
+      <h2 id="period-heading">${esc(period.label.replace(/^By\s+/, 'Targets for '))}${period.id === 'jan31' ? ` (everything since ${formatShort(PLAN_START)})` : ''}</h2>
       <p class="meta">${esc(context)}</p>
       ${goalsHtml(rows, period)}
       <p class="rule"><strong>Status:</strong> ${esc(STATUS_RULE)}</p>
       ${otherPeriodHtml(period)}
       <p class="meta">Counted from what you log; you never type in totals.${anyTest ? ' Includes test data (delete it in Settings).' : ''}</p>
     </section>
+    ${after}
 `;
 }
 

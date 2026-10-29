@@ -30,6 +30,7 @@
 //   reviews:    Review[],    // Stage 7: Friday reviews
 //   lessons:     Lesson[],      // daily lessons from content packs (see content.js); never edited by you
 //   lessonAnswers: { [lessonId]: { answers: string[], updatedAt } },  // your answers to the check-yourself questions
+//   lessonsDone:   { [lessonId]: { at: ISO string, done: boolean, testMode? } },  // lessons you completed (kept apart from lesson text)
 //   optionalOverrides: { ["item:<id>" | "resource:<id>"]: { optional: boolean, at, testMode, testPrev } },
 //                               // your own Optional/Required choices; plan updates and content packs never touch them
 //   weekChecks: { [weekItemId]: { at: ISO string, testMode: boolean } },  // Stage 3: ticked items
@@ -222,6 +223,7 @@ function emptyData() {
     optionalOverrides: {},
     lessons: [],
     lessonAnswers: {},
+    lessonsDone: {},
     weekChecks: {},
     settings: defaultSettings(),
   };
@@ -272,6 +274,7 @@ function normalize(raw) {
   out.optionalOverrides = raw?.optionalOverrides && typeof raw.optionalOverrides === 'object' && !Array.isArray(raw.optionalOverrides) ? raw.optionalOverrides : {};
   out.lessons = Array.isArray(raw?.lessons) ? raw.lessons : [];
   out.lessonAnswers = raw?.lessonAnswers && typeof raw.lessonAnswers === 'object' && !Array.isArray(raw.lessonAnswers) ? raw.lessonAnswers : {};
+  out.lessonsDone = raw?.lessonsDone && typeof raw.lessonsDone === 'object' && !Array.isArray(raw.lessonsDone) ? raw.lessonsDone : {};
   out.weekChecks = raw?.weekChecks && typeof raw.weekChecks === 'object' ? raw.weekChecks : {};
   out.settings = { ...base.settings, ...(raw?.settings ?? {}) };
   out.settings.testDate = { ...base.settings.testDate, ...(raw?.settings?.testDate ?? {}) };
@@ -470,6 +473,7 @@ export function countTestData() {
     weekChecks: Object.values(data.weekChecks).filter((c) => c.testMode).length,
     optionalOverrides: Object.values(data.optionalOverrides).filter((o) => o.testMode).length,
     lessonAnswers: Object.values(data.lessonAnswers).filter((a) => a.testMode).length,
+    lessonsDone: Object.values(data.lessonsDone).filter((a) => a.testMode).length,
   };
 }
 
@@ -506,6 +510,11 @@ export function deleteTestData() {
     if (!a.testMode) continue;
     if (a.testPrev) data.lessonAnswers[id] = a.testPrev;
     else delete data.lessonAnswers[id];
+  }
+  for (const [id, l] of Object.entries(data.lessonsDone)) {
+    if (!l.testMode) continue;
+    if (l.testPrev) data.lessonsDone[id] = l.testPrev;
+    else delete data.lessonsDone[id];
   }
   persist();
   return counts;
@@ -1231,6 +1240,33 @@ export function getLessonAnswers(lessonId) {
   return data.lessonAnswers[lessonId]?.answers ?? [];
 }
 
+/** Lessons in course order (by plan day). */
+export function lessonsInOrder() {
+  return [...data.lessons].sort((a, b) => a.day - b.day);
+}
+
+/** When you completed a lesson (ISO string), or null. */
+export function lessonDoneAt(lessonId) {
+  const l = data.lessonsDone[lessonId];
+  return l && l.done !== false && l.at ? l.at : null;
+}
+
+/**
+ * Marks a lesson complete, or not. While testing, what was there before is remembered so
+ * "Delete test data" can put it back.
+ */
+export function setLessonDone(lessonId, done, testMode = false) {
+  if (!lessonById(lessonId)) return false;
+  const before = data.lessonsDone[lessonId] ?? null;
+  const testPrev = testMode ? (before?.testMode ? before.testPrev ?? null : before) : undefined;
+  if (!done && !testMode) delete data.lessonsDone[lessonId];
+  else {
+    data.lessonsDone[lessonId] = { at: new Date().toISOString(), done: Boolean(done) };
+    if (testMode) Object.assign(data.lessonsDone[lessonId], { testMode: true, testPrev });
+  }
+  return persist();
+}
+
 /** Saves one answer to a check-yourself question. An emptied answer is removed. */
 export function setLessonAnswer(lessonId, index, text, testMode = false) {
   const lesson = lessonById(lessonId);
@@ -1337,6 +1373,9 @@ export function parseImport(text) {
   if (raw.lessons !== undefined && !Array.isArray(raw.lessons)) problems.push('"lessons" should be a list.');
   if (raw.lessonAnswers !== undefined && (typeof raw.lessonAnswers !== 'object' || Array.isArray(raw.lessonAnswers) || raw.lessonAnswers === null)) {
     problems.push('"lessonAnswers" should be an object.');
+  }
+  if (raw.lessonsDone !== undefined && (typeof raw.lessonsDone !== 'object' || Array.isArray(raw.lessonsDone) || raw.lessonsDone === null)) {
+    problems.push('"lessonsDone" should be an object.');
   }
   if (raw.optionalOverrides !== undefined) {
     const o = raw.optionalOverrides;

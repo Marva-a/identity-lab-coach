@@ -6,11 +6,12 @@ import { getWeek, getDayContext, contentWeekNumber } from './plan.js';
 import { BLOCK_LABELS, PLAN_END, WEEKS, extraTimeLabel } from './plan-data.js';
 import { weekDayResourcesHtml } from './resources.js';
 import { lessonLinkHtml } from './lessons.js';
+import { courseProgress } from './progress.js';
 
 const KIND_ORDER = ['learn', 'read', 'practice', 'build', 'apply', 'network', 'evidence', 'design'];
 const BLOCK_ORDER = ['learn', 'practice', 'build', 'publish', 'capstone'];
 
-const ui = { week: null, pendingWeek: null, editPlan: false, openOptional: new Set(), day: null }; // week shown (null = the current week); pendingWeek is set by another screen; day = the day picked in the week calendar
+const ui = { week: null, pendingWeek: null, openOptional: new Set(), openRequired: new Set(), day: null }; // week shown (null = the current week); pendingWeek is set by another screen; day = the day picked in the week calendar
 
 /** The calendar week (1–9) that contains a date, clamped to the plan. */
 export function weekForDate(date) {
@@ -55,7 +56,6 @@ function itemRowHtml(item) {
         <input type="checkbox" id="chk-${esc(item.id)}" data-week-item="${esc(item.id)}" ${checked ? 'checked' : ''}>
         <span><span class="item-kind">${esc(SHORT_KIND[item.kind] ?? item.kind)}</span><span class="item-text">${esc(item.text)}</span>${itemFlagsHtml(item)}</span>
       </label>
-      ${ui.editPlan ? `<button type="button" class="button--small" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="${optional ? 'Mark as required' : 'Mark as optional'}: ${esc(item.text)}">${optional ? 'Mark as required' : 'Mark as optional'}</button>` : ''}
     </li>`;
 }
 
@@ -79,7 +79,7 @@ function weekCalendarHtml({ n, weekStart, date, sessions, settings }) {
     const dayOfMonth = Number(d.slice(8, 10));
     const isToday = d === date;
     if (ctx.kind !== 'study') {
-      // After Day 60 comes the bridge period (Dec 11 – Jan 17), with its own rest days.
+      // After Day 60 comes the bridge period, with its own rest days.
       const label = ctx.kind === 'rest' || ctx.kind === 'bridge-rest' ? 'Rest' : ctx.kind === 'bridge' ? 'Bridge' : 'After the plan';
       return `
         <li class="day-tile day-tile--off ${isToday ? 'is-today' : ''}" ${isToday ? 'aria-current="date"' : ''}>
@@ -147,25 +147,13 @@ export function weekView({ top = '', next = () => '' } = {}) {
 
   // Hours logged this calendar week (Mon–Sun), split by the block of each day.
   const sessions = store.getData().sessions.filter((s) => s.date >= weekStart && s.date <= weekEnd);
-  const loggedByBlock = {};
   let loggedTotal = 0;
-  let includesTest = false;
   for (const s of sessions) {
-    const ctx = getDayContext(s.date, settings);
-    const block = ctx.kind === 'study' ? ctx.block : 'other';
-    loggedByBlock[block] = (loggedByBlock[block] ?? 0) + s.minutes / 60;
     loggedTotal += s.minutes / 60;
-    if (s.testMode) includesTest = true;
   }
   const budget = Object.values(calWeek.budget).reduce((a, b) => a + b, 0);
   const pct = Math.min(100, Math.round((loggedTotal / budget) * 100));
   const over = loggedTotal - budget;
-
-  const blockRows = BLOCK_ORDER.filter((b) => calWeek.budget[b] || loggedByBlock[b]).map((b) => `
-    <tr><th scope="row">${esc(BLOCK_LABELS[b])}</th><td>${formatHours(loggedByBlock[b] ?? 0)}</td><td>${formatHours(calWeek.budget[b] ?? 0)}</td></tr>`).join('');
-  const otherRow = loggedByBlock.other
-    ? `<tr><th scope="row">Other days (Sunday or outside the plan)</th><td>${formatHours(loggedByBlock.other)}</td><td>–</td></tr>`
-    : '';
 
   // Days as a week calendar: seven tiles (Monday to Sunday) and the picked day's details below them.
   const days = weekCalendarHtml({ n, weekStart, date, sessions, settings });
@@ -188,12 +176,6 @@ export function weekView({ top = '', next = () => '' } = {}) {
       }).join('')}
     </nav>`;
 
-  const nav = `
-    <nav class="week-nav" aria-label="Weeks">
-      <button type="button" class="button--small" data-action="week-prev" ${n <= 1 ? 'disabled' : ''}>← Week ${Math.max(1, n - 1)}</button>
-      ${n !== current ? `<button type="button" class="button--small" data-action="week-current">Back to this week (${current})</button>` : ''}
-      <button type="button" class="button--small" data-action="week-next" ${n >= 9 ? 'disabled' : ''}>Week ${Math.min(9, n + 1)} →</button>
-    </nav>`;
 
   return `
     ${top}
@@ -205,36 +187,21 @@ export function weekView({ top = '', next = () => '' } = {}) {
     <div class="progress" role="img" aria-label="${done} of ${required.length} required items done"><span style="width:${required.length ? Math.round((done / required.length) * 100) : 0}%"></span></div>
     ${days}
 
-    ${nav}
-
     ${next(n)}
 
     <section class="card" aria-labelledby="checklist-heading">
-      <div class="section-head">
-        <h2 id="checklist-heading">What to finish this week</h2>
-        <button type="button" class="button--small" data-action="plan-edit-toggle" aria-pressed="${ui.editPlan ? 'true' : 'false'}">${ui.editPlan ? 'Done editing' : 'Edit what’s required'}</button>
-      </div>
-      ${ui.editPlan ? '<p class="meta">Each item now has a button to make it required or optional. Your choice is kept when the plan is updated.</p>' : ''}
+      <h2 id="checklist-heading">What to finish this week</h2>
       ${content.items.length
         ? `<ul class="items checklist">${inOrder(required).map(itemRowHtml).join('')}</ul>
            ${optionalItems.length ? `
-             <details class="optional-group" data-deep-group="optional-${n}" ${ui.openOptional.has(n) || ui.editPlan ? 'open' : ''}>
+             <details class="optional-group" data-deep-group="optional-${n}" ${ui.openOptional.has(n) ? 'open' : ''}>
                <summary>Optional (${optionalDone} of ${optionalItems.length} done)</summary>
                <ul class="items checklist">${inOrder(optionalItems).map(itemRowHtml).join('')}</ul>
              </details>` : ''}`
         : '<p class="meta">The capstone week has no item checklist in the roadmap. Follow the daily focus above.</p>'}
       ${content.notes.map((note) => `<p class="note">${esc(note)}</p>`).join('')}
     </section>
-
-    <details class="card" id="hours-details">
-      <summary>Hours by type of day (${esc(hoursText)})</summary>
-      <table class="hours-table">
-        <caption class="visually-hidden">Hours logged and planned by type of day</caption>
-        <thead><tr><th scope="col">Type of day</th><th scope="col">Logged</th><th scope="col">Planned</th></tr></thead>
-        <tbody>${blockRows}${otherRow}</tbody>
-      </table>
-      <p class="meta">Counts sessions dated Mon–Sun this week. Networking happens in the evenings and is not counted as study time.${includesTest ? ' Includes test sessions.' : ''}</p>
-    </details>`;
+`;
 }
 
 export const weekActions = {
@@ -258,11 +225,6 @@ export const weekActions = {
     ui.week = null;
     return '#week-heading';
   },
-  'plan-edit-toggle': () => {
-    ui.editPlan = !ui.editPlan;
-    announce(ui.editPlan ? 'Editing what is required. Each item now has a button.' : 'Done editing.');
-    return '[data-action="plan-edit-toggle"]';
-  },
   'item-toggle-optional': (el) => {
     const item = WEEKS.flatMap((w) => w.items).find((i) => i.id === el.dataset.id);
     if (!item) return null;
@@ -276,10 +238,11 @@ export const weekActions = {
 /** Remembers whether the Optional group of a week is open. Returns true when the event was for it. */
 export function handleWeekToggle(event) {
   const key = event.target?.dataset?.deepGroup ?? '';
-  if (!key.startsWith('optional-')) return false;
-  const n = Number(key.slice('optional-'.length));
-  if (event.target.open) ui.openOptional.add(n);
-  else ui.openOptional.delete(n);
+  const set = key.startsWith('optional-') ? ui.openOptional : key.startsWith('required-') ? ui.openRequired : null;
+  if (!set) return false;
+  const n = Number(key.slice(key.indexOf('-') + 1));
+  if (event.target.open) set.add(n);
+  else set.delete(n);
   return true;
 }
 
@@ -307,4 +270,91 @@ export function setWeek(n) {
 /** Asks for a particular week to be shown the next time the Week screen opens. */
 export function showWeekNext(n) {
   ui.pendingWeek = n;
+}
+
+/**
+ * Settings → Content: the whole course by week, with the date you start each week and one switch per item:
+ * "In my plan" (it counts as required) or off (it becomes optional). Rarely needed, so it is not on the Plan
+ * page. Your choices are kept when the plan is updated.
+ */
+export function requiredEditorHtml() {
+  const settings = store.getSettings();
+  const weeks = WEEKS.map((w) => {
+    const items = KIND_ORDER.flatMap((kind) => w.items.filter((i) => i.kind === kind));
+    if (!items.length) return '';
+    const inPlan = items.filter((i) => !store.isOptionalItem(i)).length;
+    const start = getWeek(contentWeekNumber(w.number, settings)).start; // the Monday this week's content is shown
+    return `
+      <details class="optional-group" data-deep-group="required-${w.number}" ${ui.openRequired.has(w.number) ? 'open' : ''}>
+        <summary>Week ${w.number}: ${esc(w.title)} <span class="meta">· starts ${esc(formatShort(start))} · ${inPlan} of ${items.length} in your plan</span></summary>
+        <ul class="items req-items">
+          ${items.map((item) => {
+    const on = !store.isOptionalItem(item);
+    return `
+          <li class="${on ? '' : 'is-optional'}">
+            <span><span class="item-kind">${esc(SHORT_KIND[item.kind] ?? item.kind)}</span><span class="item-text">${esc(item.text)}</span>${itemFlagsHtml(item)}</span>
+            <button type="button" class="switch" role="switch" aria-checked="${on}" data-action="item-toggle-optional" data-id="${esc(item.id)}" aria-label="In my plan: ${esc(item.text)}">
+              <span class="switch__track" aria-hidden="true"><span class="switch__thumb"></span></span>
+              <span class="switch__label">${on ? 'In my plan' : 'Optional'}</span>
+            </button>
+          </li>`;
+  }).join('')}
+        </ul>
+      </details>`;
+  }).join('');
+  return `
+    <section class="card" aria-labelledby="required-heading">
+      <h2 id="required-heading">Your course, week by week</h2>
+      <p class="meta">Each week shows when you start it. Switch an item off to make it optional: it moves out of "What to finish this week" and out of your progress. Your choices are kept when the plan is updated.</p>
+      ${weeks}
+    </section>`;
+}
+
+/**
+ * Progress: study hours logged against each week's plan, and this week's hours by type of day.
+ * These were on the Plan page; they describe how the study is going, so they belong with Progress.
+ */
+export function studyHoursHtml() {
+  const settings = store.getSettings();
+  const date = today();
+  const data = store.getData();
+  const p = courseProgress(data, { today: date });
+  const rows = p.weeks.filter((w) => w.state !== 'upcoming' || w.loggedMinutes > 0);
+  const current = weekForDate(date);
+  const calWeek = getWeek(current);
+  const weekStart = calWeek.start;
+  const weekEnd = addDays(weekStart, 6);
+  const sessions = data.sessions.filter((s) => s.date >= weekStart && s.date <= weekEnd);
+  const loggedByBlock = {};
+  let includesTest = false;
+  for (const s of sessions) {
+    const ctx = getDayContext(s.date, settings);
+    const block = ctx.kind === 'study' ? ctx.block : 'other';
+    loggedByBlock[block] = (loggedByBlock[block] ?? 0) + s.minutes / 60;
+    if (s.testMode) includesTest = true;
+  }
+  const blockRows = BLOCK_ORDER.filter((b) => calWeek.budget[b] || loggedByBlock[b]).map((b) => `
+    <tr><th scope="row">${esc(BLOCK_LABELS[b])}</th><td>${formatHours(loggedByBlock[b] ?? 0)}</td><td>${formatHours(calWeek.budget[b] ?? 0)}</td></tr>`).join('');
+  const otherRow = loggedByBlock.other
+    ? `<tr><th scope="row">Other days (Sunday or outside the plan)</th><td>${formatHours(loggedByBlock.other)}</td><td>–</td></tr>`
+    : '';
+  return `
+    <section class="card" aria-labelledby="hours-heading">
+      <h2 id="hours-heading">Study hours</h2>
+      ${rows.length ? `
+      <table class="hours-table">
+        <caption class="visually-hidden">Hours logged and planned for each week so far</caption>
+        <thead><tr><th scope="col">Week</th><th scope="col">Logged</th><th scope="col">Planned</th></tr></thead>
+        <tbody>${rows.map((w) => `<tr><th scope="row">${w.number}: ${esc(w.title)}</th><td>${formatHours(w.loggedMinutes / 60)}</td><td>${formatHours(w.plannedMinutes / 60)}</td></tr>`).join('')}</tbody>
+      </table>` : '<p class="meta">Nothing logged yet. Hours appear here week by week once you log your first session.</p>'}
+      <details>
+        <summary>This week by type of day</summary>
+        <table class="hours-table">
+          <caption class="visually-hidden">Hours logged and planned this week by type of day</caption>
+          <thead><tr><th scope="col">Type of day</th><th scope="col">Logged</th><th scope="col">Planned</th></tr></thead>
+          <tbody>${blockRows}${otherRow}</tbody>
+        </table>
+        <p class="meta">Counts sessions dated Mon–Sun this week. Networking happens in the evenings and is not counted as study time.${includesTest ? ' Includes test sessions.' : ''}</p>
+      </details>
+    </section>`;
 }

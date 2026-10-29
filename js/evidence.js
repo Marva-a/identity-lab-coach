@@ -271,7 +271,7 @@ export function evidenceView() {
   // One clear action at the top; filters and export only once there is something to filter or export.
   return `
     <h1 id="day-heading" tabindex="-1">Portfolio</h1>
-    <p class="meta page-intro">The pieces you make along the way: write-ups, diagrams, threat models, code. A piece counts toward your goals once you have shared it where others can see it (GitHub, LinkedIn, your site).</p>
+    <p class="meta page-intro">What you make along the way. A piece counts once you share it where others can see it.</p>
 
     <section class="card" aria-labelledby="evidence-heading">
       <h2 id="evidence-heading" tabindex="-1">Your pieces</h2>
@@ -280,7 +280,10 @@ export function evidenceView() {
       ${all.length ? `
         <p class="meta">${plural(published.length, 'shared piece', 'shared pieces')} and ${plural(all.length - published.length, 'draft', 'drafts')}.</p>
         ${coverageHtml(all)}
-        ${filters}
+        <details class="filters-more" ${ui.status !== 'all' || ui.project !== 'all' || ui.tag !== 'all' ? 'open' : ''}>
+          <summary>Filter${ui.status !== 'all' || ui.project !== 'all' || ui.tag !== 'all' ? ' (on)' : ''}</summary>
+${filters}
+        </details>
         <p class="meta" aria-live="polite">${plural(shown.length, 'item', 'items')} shown.</p>
         <ul class="card-list">${shown.map(rowHtml).join('')}</ul>
         ${exportBox}` : `

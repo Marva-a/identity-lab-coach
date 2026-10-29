@@ -5,24 +5,24 @@
 // - "Expected" only counts days that have ENDED, so you never look behind on
 //   the morning of a study day, and a Sunday never moves the goalposts.
 // - Hours: expected = planned hours of plan days that have ended (Sundays 0).
-// - Artifacts (Oct 12 – Dec 10): expected = Saturdays (publish days) that have
-//   ended, plus the capstone artifact once Dec 10 has ended (9 in total).
-// - Applications, referral asks, and the 3 extra artifacts after Dec 10: the
+// - Artifacts (during the plan): expected = Saturdays (share days) that have
+//   ended, plus the final-project artifact once the last plan day has ended (9 in total).
+// - Applications, referral asks, and the 3 extra artifacts after the plan: the
 //   target (low end of any range) is spread evenly over study days (Mon–Sat),
-//   skipping Sundays and the Dec 24 – Jan 1 rest.
-// - Conversations follow the same spread but start in Week 2 (Mon Oct 19),
+//   skipping Sundays and the bridge rest days.
+// - Conversations follow the same spread but start in Week 2 (the second Monday),
 //   because the roadmap schedules the first conversations in Week 2.
 // - Status: On track at 90% or more of expected; Behind at 70–89%, or when a
 //   count is just one short; Well behind means below 70%.
-import { addDays, weekday } from './dates.js';
+import { addDays, weekday, formatShort } from './dates.js';
 import {
   PLAN_START, PLAN_END, BRIDGE_REST_START, BRIDGE_REST_END, WEEKS, SCORECARD_TARGETS,
 } from './plan-data.js';
 
-export const PERIOD_1 = { id: 'dec10', start: PLAN_START, end: PLAN_END, label: 'By Thu, Dec 10' };
+export const PERIOD_1 = { id: 'dec10', start: PLAN_START, end: PLAN_END, label: `By ${formatShort(PLAN_END)}` };
 /** Conversations are expected from Week 2 (the roadmap's first conversations). */
-export const CONVERSATIONS_START = '2026-10-19';
-export const PERIOD_2 = { id: 'jan31', start: addDays(PLAN_END, 1), end: SCORECARD_TARGETS[1].by, label: 'By Sun, Jan 31' };
+export const CONVERSATIONS_START = '2026-11-09';
+export const PERIOD_2 = { id: 'jan31', start: addDays(PLAN_END, 1), end: SCORECARD_TARGETS[1].by, label: `By ${formatShort(SCORECARD_TARGETS[1].by)}` };
 
 export const MEASURES = [
   { id: 'hours', label: 'Study hours', unit: 'h' },
@@ -52,7 +52,7 @@ export function targetsFor(periodId) {
 
 const PLAN_HOURS = new Map(WEEKS.flatMap((w) => w.days.map((d) => [d.date, d.hours])));
 
-/** Study days: plan days (Mon–Sat) up to Dec 10, then Mon–Sat outside the Dec 24 – Jan 1 rest. */
+/** Study days: plan days (Mon–Sat), then Mon–Sat outside the bridge rest days. */
 export function isStudyDay(date) {
   if (date < PLAN_START) return false;
   if (date <= PLAN_END) return PLAN_HOURS.has(date);
@@ -84,7 +84,7 @@ export function expectedHours(today) {
   return total;
 }
 
-/** Publish Saturdays that have ended, plus the capstone once Dec 10 has ended. */
+/** Share Saturdays that have ended, plus the final project once the last plan day has ended. */
 export function expectedArtifactsPeriod1(today) {
   const end = minDate(lastEndedDay(today), PLAN_END);
   let n = 0;
@@ -102,7 +102,7 @@ export function studyShare(period, today) {
 
 /**
  * What the plan expects for a measure by today, within a period.
- * Period 2 targets are cumulative (12 artifacts by Jan 31 includes the 9 by Dec 10).
+ * Period 2 targets are cumulative (12 artifacts by the second target date includes the 9 by the end of the plan).
  */
 export function expectedFor(measure, period, today) {
   if (measure === 'hours') return period.id === 'dec10' ? expectedHours(today) : null;
